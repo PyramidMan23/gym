@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1677ff">
+  <meta name="description" content="A fast, private workout logger tailored to Revo Langwarrin.">
+  <title>Duck Gym</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="app-header" id="appHeader">
+      <button class="brand" type="button" onclick="navigate('today')" aria-label="Duck Gym home"><span>D</span><strong>Duck Gym</strong></button>
+      <button class="icon-button" type="button" onclick="openSettings()" aria-label="Settings">•••</button>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section id="view-today" class="view active" aria-labelledby="todayTitle">
+        <div class="page-lead compact-lead">
+          <p class="kicker" id="todayKicker">TODAY</p>
+          <h1 id="todayTitle">Ready to train?</h1>
+          <p id="todayPrompt">Pick up where you left off or start something new.</p>
+        </div>
+        <div id="resumeSlot"></div>
+        <section class="activity-card" aria-labelledby="activityTitle">
+          <div class="activity-heading"><div><p class="kicker">THIS WEEK</p><h2 id="activityTitle">Start your week.</h2><p id="activityDetail" class="activity-detail">One completed set starts the rings.</p></div><button class="activity-info" onclick="openRingGoals()" aria-label="Activity ring goals">•••</button></div>
+          <div class="activity-layout">
+            <div id="activityRings" class="activity-rings" role="img" aria-label="Weekly activity progress rings"></div>
+            <div id="activityLegend" class="activity-legend"></div>
+          </div>
+          <div id="weekDots" class="week-dots week-dots-wide"></div>
+        </section>
+        <div class="section-heading"><div><p class="kicker">QUICK START</p><h2>Your routines</h2></div><button class="text-button" onclick="navigate('train')">Manage</button></div>
+        <div id="todayRoutines" class="stack"></div>
+        <div class="section-heading"><div><p class="kicker">LAST SESSION</p><h2>Recent work</h2></div><button class="text-button" onclick="navigate('progress')">See all</button></div>
+        <div id="recentSession"></div>
+      </section>
+
+      <section id="view-train" class="view" aria-labelledby="trainTitle">
+        <div class="page-lead"><p class="kicker">TRAIN</p><h1 id="trainTitle">What are we hitting?</h1><p>Start fast, or build a routine you’ll want to repeat.</p></div>
+        <button class="primary-button big-button" onclick="startQuickWorkout()"><span>＋</span><div><strong>Start an empty workout</strong><small>Add exercises as you go</small></div></button>
+        <div class="section-heading"><div><p class="kicker">SAVED</p><h2>My routines</h2></div><button class="text-button" onclick="openRoutineEditor()">＋ New</button></div>
+        <div id="routineList" class="stack"></div>
+        <div class="section-heading"><div><p class="kicker">STARTER IDEAS</p><h2>Templates</h2></div></div>
+        <div id="templateList" class="template-grid"></div>
+      </section>
+
+      <section id="view-library" class="view" aria-labelledby="libraryTitle">
+        <div class="page-lead"><p class="kicker">REVO LANGWARRIN</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
+        <div class="search-wrap"><span>⌕</span><input id="librarySearch" type="search" placeholder="Search exercise or equipment" oninput="renderLibrary()" aria-label="Search exercise library"></div>
+        <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
+        <div id="libraryCount" class="result-count"></div>
+        <div id="exerciseLibrary" class="exercise-list"></div>
+        <button class="secondary-button full-button" onclick="openCustomExercise()">＋ Add custom exercise</button>
+      </section>
+
+      <section id="view-progress" class="view" aria-labelledby="progressTitle">
+        <div class="page-lead"><p class="kicker">PROGRESS</p><h1 id="progressTitle">Proof you showed up.</h1><p>Useful numbers only—no guilt, no noise.</p></div>
+        <div id="progressStats" class="metric-grid"></div>
+        <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
+        <div id="weekChart" class="chart-card"></div>
+        <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
+        <div id="historyList" class="stack"></div>
+      </section>
+
+      <section id="view-workout" class="view workout-view" aria-labelledby="workoutTitle">
+        <header class="workout-header"><div><p id="workoutClock" class="workout-clock">00:00</p><h1 id="workoutTitle">Workout</h1></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
+        <div id="workoutMetrics" class="live-metrics"></div>
+        <div id="workoutExercises" class="workout-exercises"></div>
+        <button class="secondary-button full-button add-exercise-button" onclick="openExercisePicker('workout')">＋ Add exercise</button>
+        <button class="danger-link" onclick="cancelWorkout()">Discard workout</button>
+      </section>
+    </main>
+
+    <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation">
+      <button data-view="today" class="active" onclick="navigate('today')"><span>⌂</span><small>Today</small></button>
+      <button data-view="train" onclick="navigate('train')"><span>＋</span><small>Train</small></button>
+      <button data-view="library" onclick="navigate('library')"><span>▦</span><small>Library</small></button>
+      <button data-view="progress" onclick="navigate('progress')"><span>↗</span><small>Progress</small></button>
+    </nav>
+  </div>
+
+  <button id="restPill" class="rest-pill" type="button" onclick="adjustRest(30)" aria-live="polite"><span>Rest</span><strong id="restTime">01:30</strong><small>+30s</small></button>
+
+  <dialog id="sheet" class="sheet"><div class="sheet-handle"></div><div id="sheetContent"></div></dialog>
+  <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input id="importInput" type="file" accept="application/json" hidden onchange="importBackup(this.files[0])">
+
+  <script src="core.js"></script>
+  <script src="exercises.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Duck Gym",
+  "short_name": "Duck Gym",
+  "description": "A fast, private workout logger tailored to Revo Langwarrin.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f0e6",
+  "theme_color": "#1677ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}

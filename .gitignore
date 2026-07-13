@@ -1,0 +1,14 @@
+# Browser test profiles and caches
+.chrome-*/
+
+# One-off root screenshots (final QA captures live in artifacts/design-qa/)
+duck-gym-*.png
+
+# Local runtime noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor and dependency folders
+.vscode/
+node_modules/
