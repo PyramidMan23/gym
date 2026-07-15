@@ -1,6 +1,6 @@
-# Duck Gym
+# Gym
 
-A fast, private, mobile-first workout builder and gym log tailored to the confirmed equipment categories at Revo Fitness Langwarrin.
+A fast, private, mobile-first workout builder and gym log. Forked from [duck-gym](https://github.com/duckthetiler-max/duck-gym) by @duckthetiler-max and rebranded — customise the exercise catalogue in `exercises.js` for your own gym's equipment.
 
 ## Open it
 
@@ -14,7 +14,7 @@ Run a local server from this folder:
 python -m http.server 4173
 ```
 
-Then open `http://localhost:4173`. Use **Settings → Install Duck Gym** (or the browser install option). Service-worker offline caching requires HTTP/HTTPS and does not activate on `file://`.
+Then open `http://localhost:4173`. Use **Settings → Install Gym** (or the browser install option). Service-worker offline caching requires HTTP/HTTPS and does not activate on `file://`.
 
 ## Product features
 

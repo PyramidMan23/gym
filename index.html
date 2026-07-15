@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#1677ff">
-  <meta name="description" content="A fast, private workout logger tailored to Revo Langwarrin.">
-  <title>Duck Gym</title>
+  <meta name="description" content="A fast, private workout logger.">
+  <title>Gym</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -13,7 +13,7 @@
 <body>
   <div id="app" class="app-shell">
     <header class="app-header" id="appHeader">
-      <button class="brand" type="button" onclick="navigate('today')" aria-label="Duck Gym home"><span>D</span><strong>Duck Gym</strong></button>
+      <button class="brand" type="button" onclick="navigate('today')" aria-label="Gym home"><span>G</span><strong>Gym</strong></button>
       <button class="icon-button" type="button" onclick="openSettings()" aria-label="Settings">•••</button>
     </header>
 
@@ -49,7 +49,7 @@
       </section>
 
       <section id="view-library" class="view" aria-labelledby="libraryTitle">
-        <div class="page-lead"><p class="kicker">REVO LANGWARRIN</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
+        <div class="page-lead"><p class="kicker">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
         <div class="search-wrap"><span>⌕</span><input id="librarySearch" type="search" placeholder="Search exercise or equipment" oninput="renderLibrary()" aria-label="Search exercise library"></div>
         <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
         <div id="libraryCount" class="result-count"></div>

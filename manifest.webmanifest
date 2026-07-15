@@ -1,7 +1,7 @@
 {
-  "name": "Duck Gym",
-  "short_name": "Duck Gym",
-  "description": "A fast, private workout logger tailored to Revo Langwarrin.",
+  "name": "Gym",
+  "short_name": "Gym",
+  "description": "A fast, private workout logger.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
