@@ -68,9 +68,9 @@ const DUCK_EXERCISES = [
   {id:'lg9',name:'Goblet Squat',muscle:'Legs',equipment:'Kettlebell / dumbbell'},
   {id:'lg10',name:'Walking Lunge',muscle:'Legs',equipment:'Dumbbells'},
   {id:'lg11',name:'Slant Board Squat',muscle:'Legs',equipment:'Slant board + dumbbell'},
-  {id:'lg12',name:'Poliquin Step-Up',muscle:'Legs',equipment:'Slant board / box (KOT knee)'},
+  {id:'lg12',name:'Poliquin Step-Up',muscle:'Legs',equipment:'Adjustable bench / box (KOT knee)'},
   {id:'lg13',name:'Nordic Hamstring Curl',muscle:'Legs',equipment:'Nordic bench / Hyper Pro'},
-  {id:'lg14',name:'Hyper Pro Ham Curl',muscle:'Legs',equipment:'Hyper Pro 11-in-1 Nordic machine'},
+  {id:'lg14',name:'Lying/Seated Leg Curl',muscle:'Legs',equipment:'Hyper Pro hamstring-curl attachment'},
   {id:'lg15',name:'Barbell Hip Thrust',muscle:'Legs',equipment:'Barbell + bench'},
   {id:'lg16',name:'Kettlebell Swing',muscle:'Legs',equipment:'Kettlebell'},
   {id:'lg17',name:'Standing Calf Raise',muscle:'Legs',equipment:'Slant board / plate'},
@@ -78,6 +78,10 @@ const DUCK_EXERCISES = [
   {id:'lg19',name:'Tibialis Raise (Single-Leg)',muscle:'Legs',equipment:'Single-leg tib bar'},
   {id:'lg20',name:'Reverse Hyper',muscle:'Legs',equipment:'Hyper Pro 11-in-1'},
   {id:'lg21',name:'Single-Leg RDL',muscle:'Legs',equipment:'Dumbbell / kettlebell'},
+  {id:'lg22',name:'Belt Squat',muscle:'Legs',equipment:'Hyper Pro belt-squat attachment (spine-sparing)'},
+  {id:'lg23',name:'Leg Extension',muscle:'Legs',equipment:'Hyper Pro quad-extension attachment'},
+  {id:'lg24',name:'Cable Hip Flexor Raise',muscle:'Legs',equipment:'Cables + ankle strap (right hip flexor)'},
+  {id:'lg25',name:'Cable Glute Kickback',muscle:'Legs',equipment:'Cables + ankle strap (right glute)'},
   // ---- Core ----
   {id:'co1',name:'Hanging Leg Raise',muscle:'Core',equipment:'Pull-up bar'},
   {id:'co2',name:'Plank',muscle:'Core',equipment:'Bodyweight'},
@@ -127,7 +131,7 @@ const GYM_PLANS = [
     blurb:'Full body ×3 · joint-friendly restart',
     note:'Coming back after a break without flaring up. Unilateral-biased, moderate volume, and it leans on your pain-free kickstand RDL and ATG knee/tibialis work. Build the habit for 2–3 weeks before adding load.',
     days:[
-      { name:'Day A · Squat pattern', exerciseIds:['lg9','lg8','lg4','lg18','gr3','mo4'] },
+      { name:'Day A · Squat pattern', exerciseIds:['lg22','lg8','lg4','lg18','gr3','mo4'] },
       { name:'Day B · Push / Pull',   exerciseIds:['ch3','ba6','sh2','ba3','sh8','co5'] },
       { name:'Day C · Posterior + carry', exerciseIds:['lg5','lg13','lg7','gr7','lg19','mo2'] }
     ]
@@ -138,7 +142,7 @@ const GYM_PLANS = [
     note:'Your upper/lower split. Alternate the four days across the week (Upper A / Lower A / Upper B / Lower B). Progress load when all sets feel strong.',
     days:[
       { name:'Upper A', exerciseIds:['ch1','ba3','sh2','ba6','ar2','ar6'] },
-      { name:'Lower A', exerciseIds:['lg1','lg5','lg7','lg18','lg17'] },
+      { name:'Lower A', exerciseIds:['lg1','lg5','lg7','lg23','lg18','lg17'] },
       { name:'Upper B', exerciseIds:['sh1','ba4','ch4','ba5','sh7','ar3'] },
       { name:'Lower B', exerciseIds:['lg6','lg9','lg13','lg12','co1'] }
     ]
@@ -158,8 +162,8 @@ const GYM_PLANS = [
     blurb:'2 short sessions · KOT-style',
     note:'Knees-Over-Toes style bulletproofing to pair with any split — two short sessions a week using your tib bars, slant board and hang board. Low load, full range, no ego.',
     days:[
-      { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg18','lg17','gr3'] },
-      { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg19','ba11','mo5','mo3'] }
+      { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg24','lg18','lg17','gr3'] },
+      { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg25','lg19','ba11','mo5','mo3'] }
     ]
   }
 ];
