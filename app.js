@@ -74,20 +74,22 @@ function renderToday(){
 function renderActivityRings(weekly){
   const goals=state.preferences;
   const rings=[
-    {...Core.ringProgress(weekly.workouts,goals.weeklyWorkoutGoal),key:'workouts',label:'Workouts',color:'var(--ring-workouts)',radius:72},
-    {...Core.ringProgress(weekly.completedSets,goals.weeklySetGoal),key:'sets',label:'Sets',color:'var(--ring-sets)',radius:55},
-    {...Core.ringProgress(weekly.volume,goals.weeklyVolumeGoal),key:'volume',label:'Volume',color:'var(--ring-volume)',radius:38}
+    {...Core.ringProgress(weekly.workouts,goals.weeklyWorkoutGoal),key:'workouts',label:'Workouts'},
+    {...Core.ringProgress(weekly.completedSets,goals.weeklySetGoal),key:'sets',label:'Sets'},
+    {...Core.ringProgress(weekly.volume,goals.weeklyVolumeGoal),key:'volume',label:'Volume'}
   ];
-  const circumference=radius=>2*Math.PI*radius;
+  const R=42,C=2*Math.PI*R,ARC=0.75*C;// 270deg gauge, gap at bottom
   const score=Math.round(rings.reduce((sum,ring)=>sum+ring.ratio,0)/rings.length*100);
   const message=Core.activityMessage(score/100);
   const card=document.querySelector('.activity-card');
   card.classList.toggle('complete',score>=100);
   document.getElementById('activityTitle').textContent=message.title;
   document.getElementById('activityDetail').textContent=message.detail;
-  document.getElementById('activityRings').innerHTML=`<svg viewBox="0 0 180 180" aria-hidden="true"><g transform="rotate(-90 90 90)">${rings.map(ring=>{const c=circumference(ring.radius);return `<circle class="ring-track" cx="90" cy="90" r="${ring.radius}"></circle><circle class="ring-fill ring-${ring.key}" cx="90" cy="90" r="${ring.radius}" style="stroke-dasharray:${c};stroke-dashoffset:${c*(1-ring.ratio)}"></circle>`}).join('')}</g></svg><div class="ring-centre"><strong>${score}%</strong><span>${score>=100?'closed':'week'}</span></div>`;
-  document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} workouts, ${weekly.completedSets} sets, ${Math.round(weekly.volume)} kilograms volume`);
-  document.getElementById('activityLegend').innerHTML=rings.map(ring=>`<div class="legend-row"><i class="legend-${ring.key}"></i><span><small>${ring.label}</small><strong>${ring.key==='volume'?compact(ring.value):ring.value}<b> / ${ring.key==='volume'?compact(ring.goal):ring.goal}</b></strong></span></div>`).join('');
+  const fmt=ring=>ring.key==='volume'?compact(ring.value):ring.value;
+  const fmtGoal=ring=>ring.key==='volume'?compact(ring.goal):ring.goal;
+  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${ARC*(1-ring.ratio)}"></circle></g></svg><div class="arc-value"><strong>${fmt(ring)}</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
+  document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} of ${goals.weeklyWorkoutGoal} workouts, ${weekly.completedSets} of ${goals.weeklySetGoal} sets, ${Math.round(weekly.volume)} of ${goals.weeklyVolumeGoal} kilograms volume`);
+  document.getElementById('activityLegend').innerHTML='';
 }
 function renderWeekDots(){
   const now=new Date(),monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-((now.getDay()+6)%7));
