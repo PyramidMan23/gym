@@ -12,14 +12,8 @@ let routineDraft = null;
 let pickerTarget = null;
 let deferredInstall = null;
 
-const templates = [
-  { id:'tpl-full', name:'Full body', label:'BALANCED', exerciseIds:['b9','b34','b5','b36','b20'] },
-  { id:'tpl-upper', name:'Upper body', label:'CHEST + BACK', exerciseIds:['b0','b35','b5','b36','b19'] },
-  { id:'tpl-legs', name:'Leg day', label:'LOWER BODY', exerciseIds:['b9','b10','b11','b12','b14'] },
-  { id:'tpl-push', name:'Push day', label:'CHEST + SHOULDERS', exerciseIds:['b0','b1','b15','b16','b20'] },
-  { id:'tpl-pull', name:'Pull day', label:'BACK + BICEPS', exerciseIds:['b4','b5','b7','b18','b19'] },
-  { id:'tpl-cardio', name:'Conditioning', label:'CARDIO', exerciseIds:['b25','b28','b27','b32'] }
-];
+const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
+const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 
 function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000}}; }
 function readState(){
@@ -68,7 +62,7 @@ function renderView(view){
 function renderToday(){
   const hour=new Date().getHours();
   document.getElementById('todayKicker').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()).toUpperCase();
-  document.getElementById('todayTitle').textContent=hour<12?'Morning, Duck.':hour<18?'Ready to train?':'Let’s finish strong.';
+  document.getElementById('todayTitle').textContent=hour<12?'Morning.':hour<18?'Ready to train?':'Let’s finish strong.';
   const weekly=Core.weeklyStats(state.history);
   renderActivityRings(weekly);
   renderWeekDots();
@@ -110,7 +104,8 @@ function historyCard(session){
 }
 
 function renderTrain(){
-  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(routineCard).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, then start it in a tap.</div>`;
+  document.getElementById('planList').innerHTML=plans.map(p=>`<button class="template-card plan-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
+  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(routineCard).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, or add a plan above.</div>`;
   document.getElementById('templateList').innerHTML=templates.map(t=>`<button class="template-card" onclick="startTemplate('${t.id}')"><span>${t.label}</span><strong>${t.name}</strong><small>${t.exerciseIds.length} exercises · start now</small></button>`).join('');
 }
 function startTemplate(id){ const template=templates.find(t=>t.id===id);if(template)beginSession(template); }
@@ -122,6 +117,19 @@ function beginSession(routine){
   saveState();navigate('workout');
 }
 function resumeWorkout(){ navigate('workout'); }
+function openPlan(id){
+  const plan=plans.find(p=>p.id===id);if(!plan)return;
+  const dayList=plan.days.map((d,i)=>`<div class="selected-row"><span><strong>${i+1}. ${esc(d.name)}</strong><small style="display:block;color:var(--muted)">${d.exerciseIds.map(x=>esc(exerciseById(x)?.name||x)).join(' · ')}</small></span></div>`).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routines</button></div>`;
+  document.getElementById('sheet').showModal();
+}
+function applyPlan(id){
+  const plan=plans.find(p=>p.id===id);if(!plan)return;
+  const stamp=Date.now();
+  plan.days.forEach((d,i)=>state.routines.unshift({id:`r${stamp}_${i}`,name:`${plan.name} · ${d.name}`,exerciseIds:[...d.exerciseIds]}));
+  state.preferences.weeklyWorkoutGoal=Math.min(14,Math.max(Number(state.preferences.weeklyWorkoutGoal)||0,plan.goal||plan.days.length));
+  saveState();closeSheet();renderTrain();renderToday();showToast(`${plan.name} added — ${plan.days.length} routines ready`);
+}
 
 function renderLibrary(){
   const search=(document.getElementById('librarySearch')?.value||'').trim().toLowerCase();
@@ -249,7 +257,7 @@ function saveExerciseNote(index){state.activeSession.exercises[index].notes=docu
 function removeWorkoutExercise(index){state.activeSession.exercises.splice(index,1);saveState();closeSheet();renderWorkout();}
 
 function openCustomExercise(){
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Custom exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>EXERCISE NAME</label><input id="customName" placeholder="Example: Landmine press"></div><div class="field"><label>MUSCLE GROUP</label><select id="customMuscle">${['Chest','Back','Legs','Shoulders','Arms','Core','Cardio','Full Body','Recovery'].map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>EQUIPMENT</label><input id="customEquipment" placeholder="Example: Cable machine"></div><button class="primary-button full-button" onclick="saveCustomExercise()">Add exercise</button>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Custom exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>EXERCISE NAME</label><input id="customName" placeholder="Example: Landmine press"></div><div class="field"><label>MUSCLE GROUP</label><select id="customMuscle">${['Chest','Back','Shoulders','Arms','Grip','Legs','Core','Full Body','Cardio','Mobility'].map(x=>`<option>${x}</option>`).join('')}</select></div><div class="field"><label>EQUIPMENT</label><input id="customEquipment" placeholder="Example: Cable machine"></div><button class="primary-button full-button" onclick="saveCustomExercise()">Add exercise</button>`;document.getElementById('sheet').showModal();
 }
 function saveCustomExercise(){const name=document.getElementById('customName').value.trim();if(!name)return showToast('Name the exercise');state.customExercises.push({id:`c${Date.now()}`,name,muscle:document.getElementById('customMuscle').value,equipment:document.getElementById('customEquipment').value.trim()||'Custom equipment',custom:true});saveState();closeSheet();renderLibrary();showToast('Custom exercise added');}
 
@@ -271,10 +279,10 @@ function saveRingGoals(){
   saveState();closeSheet();renderToday();showToast('Activity goals updated');
 }
 function openSettings(){
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Duck Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div><p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div><p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
 }
 function setRestPreference(value){state.preferences.restSeconds=Number(value);saveState();showToast('Rest timer updated');}
-function exportBackup(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`duck-gym-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
+function exportBackup(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`gym-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
 async function importBackup(file){
   if(!file)return;
   try{
