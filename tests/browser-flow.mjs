@@ -122,6 +122,9 @@ try {
   await waitFor(`document.querySelector('#confirmDialog[open]')`);
   await evaluate(`document.querySelector('#confirmDialog .primary-button').click(); true`);
   await waitFor(`!JSON.parse(localStorage.duckGymV2).activeSession && JSON.parse(localStorage.duckGymV2).history.length === 1`);
+  await waitFor(`!document.getElementById('receiptOverlay').hidden && document.querySelectorAll('.receipt-line').length === 4`);
+  await evaluate(`document.querySelector('#receiptCard .primary-button').click(); true`);
+  await waitFor(`document.getElementById('receiptOverlay').hidden`);
   const activeViewOutline = await evaluate(`getComputedStyle(document.querySelector('.view.active')).outlineStyle`);
   assert.equal(activeViewOutline, 'none', 'Programmatically focused screen must not draw a page-sized outline');
 
@@ -153,7 +156,8 @@ try {
 
   const pwa = await evaluate(`(async()=>{await navigator.serviceWorker.ready;return {controlled:!!navigator.serviceWorker.controller,keys:await caches.keys()}})()`);
   assert.equal(pwa.controlled, true, 'Service worker must control the app');
-  assert.ok(pwa.keys.includes('duck-gym-v2-6'), 'Current offline cache must exist');
+  const expectedCache = /CACHE='([^']+)'/.exec(readFileSync(new URL('../sw.js', import.meta.url), 'utf8'))[1];
+  assert.ok(pwa.keys.includes(expectedCache), `Current offline cache ${expectedCache} must exist`);
   await command('Network.enable');
   await command('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0, connectionType: 'none' });
   await command('Page.reload', { ignoreCache: true });

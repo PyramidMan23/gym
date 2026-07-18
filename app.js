@@ -41,6 +41,46 @@ function compact(number){ const n=Number(number)||0; return n>=1e6?(n/1e6).toFix
 function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short'}).format(new Date(timestamp)); }
 function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?2600:1900); }
 const REDUCED_MOTION=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Number roll: old span slides up, new span slides in — transform/opacity only, gated on reduced-motion.
+function rollNumber(el,newText){
+  newText=String(newText);
+  const current=el.dataset.val;
+  if(current===newText)return;
+  el.dataset.val=newText;
+  if(REDUCED_MOTION||current==null){el.textContent=newText;return;}
+  el.innerHTML=`<span class="roll-mask"><span class="roll-old">${esc(current)}</span><span class="roll-new">${esc(newText)}</span></span>`;
+  const mask=el.firstChild;
+  requestAnimationFrame(()=>mask.classList.add('go'));
+  clearTimeout(el._roll);el._roll=setTimeout(()=>{el.textContent=newText;},260);
+}
+// One earned line from real state only — no canned encouragement, no exclamation marks.
+function contextLine(){
+  const s=state.activeSession;
+  if(s&&currentView!=='workout'){
+    const done=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done).length,0);
+    return `Workout running. ${done} sets logged.`;
+  }
+  if(s&&currentView==='workout'){
+    for(const ex of s.exercises){
+      const conf=Core.lastConfirmedExposure(state.history,ex.exerciseId);
+      if(conf&&conf.topWeight){
+        const top=Math.max(0,...ex.sets.filter(x=>x.done).map(x=>Number(x.weight)||0));
+        if(top>conf.topWeight)return `Above your last confirmed load on ${exerciseById(ex.exerciseId)?.name||'this lift'}.`;
+      }
+    }
+    // A pending set only counts as planned once it has data — the auto-added trailing set doesn't block "all complete".
+    const planned=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done||x.weight!==''||x.reps!=='').length,0);
+    const done=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done).length,0);
+    const remaining=planned-done;
+    if(planned&&remaining<=0)return 'All sets complete. Finish when ready.';
+    return `${remaining} set${remaining===1?'':'s'} left.`;
+  }
+  if(!state.history.length)return 'First session starts the record.';
+  const last=state.history[0],prs=last.prs?.length??last.prs??0;
+  if(prs)return `Last session set ${prs} PR${prs===1?'':'s'}.`;
+  const weekly=Core.weeklyStats(state.history);
+  return `Last session ${formatDate(last.started)}. ${weekly.workouts} this week.`;
+}
 function animateNumbers(scope){
   if(!scope)return;
   scope.querySelectorAll('[data-count]').forEach(el=>{
@@ -58,6 +98,9 @@ function navigate(view){
   currentView=view;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
   document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
+  const navIdx={today:0,train:1,library:2,progress:3}[view];
+  const navCursor=document.getElementById('navCursor');
+  if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
   document.body.classList.toggle('workout-active',view==='workout');
   renderView(view);
   window.scrollTo(0,0);
@@ -75,6 +118,7 @@ function renderToday(){
   const hour=new Date().getHours();
   document.getElementById('todayKicker').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()).toUpperCase();
   document.getElementById('todayTitle').textContent=hour<12?'Morning.':hour<18?'Ready to train?':'Let’s finish strong.';
+  document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
   renderActivityRings(weekly);
   renderWeekDots();
@@ -116,7 +160,7 @@ function routineCard(routine){
 }
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
-  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} sets</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
+  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} sets</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
 }
 
 function renderTrain(){
@@ -213,7 +257,7 @@ function renderPrFeed(){
   document.getElementById('prFeed').innerHTML=feed.length?feed.map(pr=>{
     const item=exerciseById(pr.exerciseId);
     const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
-    return `<div class="pr-row"><span class="pr-mark">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
+    return `<div class="pr-row"><span class="pr-mark notched">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
   }).join(''):`<div class="empty-card card"><strong>No records yet</strong>Beat a previous best and it lands here automatically.</div>`;
 }
 function renderWeekChart(){
@@ -255,7 +299,19 @@ function dismissCheckin(){
 function renderWorkoutMetrics(){
   const session=state.activeSession;if(!session)return;
   const summary=Core.summarizeSession({...session,finished:Date.now()});
-  document.getElementById('workoutMetrics').innerHTML=`<div class="live-metric"><strong>${summary.completedSets}</strong><small>Sets done</small></div><div class="live-metric"><strong>${compact(summary.volume)}</strong><small>Volume kg</small></div><div class="live-metric"><strong>${session.exercises.length}</strong><small>Exercises</small></div>`;
+  const values=[String(summary.completedSets),compact(summary.volume),String(session.exercises.length)];
+  const labels=['Sets done','Volume kg','Exercises'];
+  const wrap=document.getElementById('workoutMetrics');
+  let strongs=wrap.querySelectorAll('.live-metric strong');
+  if(strongs.length!==3){
+    wrap.innerHTML=values.map((v,i)=>`<div class="live-metric"><strong>${esc(v)}</strong><small>${labels[i]}</small></div>`).join('');
+    strongs=wrap.querySelectorAll('.live-metric strong');
+    strongs.forEach((el,i)=>el.dataset.val=values[i]);
+  }else{
+    strongs.forEach((el,i)=>rollNumber(el,values[i]));
+  }
+  const ctx=document.getElementById('workoutContext');
+  if(ctx)ctx.textContent=contextLine();
 }
 function workoutExerciseMarkup(exercise,index){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
@@ -264,9 +320,9 @@ function workoutExerciseMarkup(exercise,index){
   const confirmed=Core.lastConfirmedExposure(state.history,exercise.exerciseId);
   const confirmedText=confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${confirmed.topReps} reps · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':'');
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  return `<article class="workout-exercise"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0])).join('')}<button class="add-set" onclick="addSet(${index})">+ Add set</button></article>`;
+  return `<article class="workout-exercise"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx)).join('');})()}<button class="add-set" onclick="addSet(${index})">+ Add set</button></article>`;
 }
-function setMarkup(set,exerciseIndex,setIndex,previous){const completion=Core.setCompletionState(set.done,setIndex+1);return `<div class="set-grid set-row ${completion.className}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="Set ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="Repetitions for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>`;}
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive){const completion=Core.setCompletionState(set.done,setIndex+1);return `<div class="set-grid set-row ${completion.className}${isActive?' notched':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="Set ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="Repetitions for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>`;}
 // ponytail: side-tagging = tap the set number, cycling both→L→R. Zero extra columns; feeds the future L/R balance view.
 function cycleSide(exerciseIndex,setIndex){
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];
@@ -278,6 +334,10 @@ function toggleSet(exerciseIndex,setIndex){
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
   if(set.done){startRest(state.preferences.restSeconds);if(setIndex===state.activeSession.exercises[exerciseIndex].sets.length-1)addSet(exerciseIndex,true);}
   saveState();renderWorkout();
+  if(set.done&&!REDUCED_MOTION){
+    const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
+    if(row){row.classList.add('just-done');setTimeout(()=>row.classList.remove('just-done'),320);}
+  }
 }
 function addSet(exerciseIndex,silent=false){
   const sets=state.activeSession.exercises[exerciseIndex].sets,last=sets.at(-1)||{};
@@ -290,7 +350,7 @@ function formatElapsed(started){return Core.formatDuration((Date.now()-started)/
 
 function startRest(seconds){restRemaining=Number(seconds)||90;clearInterval(restTimer);document.getElementById('restPill').classList.add('show');updateRest();restTimer=setInterval(()=>{restRemaining--;updateRest();if(restRemaining<=0){clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');showToast('Rest done — next set');}},1000);}
 function adjustRest(seconds){restRemaining+=seconds;updateRest();}
-function updateRest(){document.getElementById('restTime').textContent=Core.formatDuration(restRemaining);}
+function updateRest(){rollNumber(document.getElementById('restTime'),Core.formatDuration(restRemaining));}
 
 function requestFinishWorkout(){
   const session=state.activeSession,summary=Core.summarizeSession({...session,finished:Date.now()});
@@ -307,8 +367,27 @@ function finishWorkout(){
   session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
-  showToast(session.prs.length?`${session.prs.length} new PR${session.prs.length===1?'':'s'} · new best saved`:'Workout saved. Good work.',session.prs.length>0);navigate('progress');
+  openReceipt(session);
 }
+function openReceipt(session){
+  const summary=Core.summarizeSession(session),prs=session.prs||[];
+  const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',`${compact(summary.volume)} kg`],['PRs',prs.length]];
+  const prBlocks=prs.map(pr=>{
+    const item=exerciseById(pr.exerciseId);
+    const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
+    return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
+  }).join('');
+  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p><div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
+  const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;
+  requestAnimationFrame(()=>overlay.classList.add('show'));
+  document.getElementById('receiptCard').querySelector('.primary-button').focus();
+  overlay.onclick=e=>{if(e.target===overlay)closeReceipt();};
+  overlay.onkeydown=e=>{
+    if(e.key==='Escape'){e.preventDefault();closeReceipt();return;}
+    if(e.key==='Tab'){e.preventDefault();document.getElementById('receiptCard').querySelector('.primary-button').focus();} // ponytail: one focusable control — trap is a refocus
+  };
+}
+function closeReceipt(){const overlay=document.getElementById('receiptOverlay');overlay.classList.remove('show');overlay.hidden=true;overlay.onkeydown=null;navigate('progress');}
 function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
 }

@@ -78,7 +78,8 @@
       </section>
 
       <section id="view-workout" class="view workout-view" aria-labelledby="workoutTitle">
-        <header class="workout-header"><div><p id="workoutClock" class="workout-clock">00:00</p><h1 id="workoutTitle">Workout</h1></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
+        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p id="workoutClock" class="workout-clock">00:00</p></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
+        <p id="workoutContext" class="workout-context"></p>
         <div id="workoutMetrics" class="live-metrics"></div>
         <div id="workoutExercises" class="workout-exercises"></div>
         <button class="secondary-button full-button add-exercise-button" onclick="openExercisePicker('workout')">+ Add exercise</button>
@@ -87,6 +88,7 @@
     </main>
 
     <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation">
+      <div class="nav-cursor" id="navCursor" aria-hidden="true"></div>
       <button data-view="today" class="active" onclick="navigate('today')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/></svg></span><small>Today</small></button>
       <button data-view="train" onclick="navigate('train')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span><small>Train</small></button>
       <button data-view="library" onclick="navigate('library')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></span><small>Library</small></button>
@@ -95,6 +97,8 @@
   </div>
 
   <button id="restPill" class="rest-pill" type="button" onclick="adjustRest(30)" aria-live="polite"><span>Rest</span><strong id="restTime">01:30</strong><small>+30s</small></button>
+
+  <div id="receiptOverlay" class="receipt-overlay" role="dialog" aria-modal="true" aria-label="Session receipt" hidden><div class="receipt-card notched" id="receiptCard"></div></div>
 
   <dialog id="sheet" class="sheet"><div class="sheet-handle"></div><div id="sheetContent"></div></dialog>
   <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent"></div></dialog>
