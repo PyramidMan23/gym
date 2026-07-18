@@ -69,6 +69,44 @@
     return records;
   }
 
+  // Strength trend: one point per session containing completed sets of the exercise,
+  // oldest first — value is the best estimated 1RM that day.
+  function exerciseTrend(history, exerciseId) {
+    const points = [];
+    for (const session of history || []) {
+      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
+      const sets = exercise ? doneSets(exercise) : [];
+      if (!sets.length) continue;
+      points.push({
+        started: num(session.started),
+        e1rm: Math.round(Math.max(...sets.map(set => estimatedOneRepMax(set.weight, set.reps))) * 10) / 10,
+        topWeight: Math.max(...sets.map(set => num(set.weight)))
+      });
+    }
+    return points.sort((a, b) => a.started - b.started);
+  }
+
+  // Sessions-per-exercise exposure count, for evidence-gating chart unlocks.
+  function exerciseExposures(history) {
+    const counts = {};
+    for (const session of history || []) {
+      for (const exercise of session.exercises || []) {
+        if (doneSets(exercise).length) counts[exercise.exerciseId] = (counts[exercise.exerciseId] || 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  function prFeed(history, limit = 8) {
+    const feed = [];
+    for (const session of history || []) {
+      for (const pr of Array.isArray(session.prs) ? session.prs : []) {
+        feed.push({ ...pr, started: num(session.started), sessionId: session.id });
+      }
+    }
+    return feed.sort((a, b) => b.started - a.started).slice(0, limit);
+  }
+
   function summarizeSession(session) {
     const duration = Math.max(0, num(session?.finished) - num(session?.started));
     return {
@@ -174,5 +212,5 @@
     };
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup };
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed };
 });

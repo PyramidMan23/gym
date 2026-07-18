@@ -39,7 +39,19 @@ function exerciseById(id){ return allExercises().find(exercise=>exercise.id===id
 function esc(value){ return String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function compact(number){ const n=Number(number)||0; return n>=1e6?(n/1e6).toFixed(1)+'m':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n)); }
 function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short'}).format(new Date(timestamp)); }
-function showToast(message){ const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),1900); }
+function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?2600:1900); }
+const REDUCED_MOTION=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateNumbers(scope){
+  if(!scope)return;
+  scope.querySelectorAll('[data-count]').forEach(el=>{
+    const target=Number(el.dataset.count)||0;
+    const fmt=el.dataset.fmt==='compact'?compact:(v=>String(Math.round(v)));
+    if(REDUCED_MOTION||!target){el.textContent=fmt(target);return;}
+    const start=performance.now(),duration=650;
+    const step=now=>{const k=Math.min(1,(now-start)/duration),eased=1-Math.pow(1-k,3);el.textContent=fmt(target*eased);if(k<1)requestAnimationFrame(step);};
+    requestAnimationFrame(step);
+  });
+}
 
 function navigate(view){
   if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
@@ -87,7 +99,9 @@ function renderActivityRings(weekly){
   document.getElementById('activityDetail').textContent=message.detail;
   const fmt=ring=>ring.key==='volume'?compact(ring.value):ring.value;
   const fmtGoal=ring=>ring.key==='volume'?compact(ring.goal):ring.goal;
-  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${ARC*(1-ring.ratio)}"></circle></g></svg><div class="arc-value"><strong>${fmt(ring)}</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
+  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" data-offset="${ARC*(1-ring.ratio)}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${REDUCED_MOTION?ARC*(1-ring.ratio):ARC}"></circle></g></svg><div class="arc-value"><strong data-count="${ring.value}" ${ring.key==='volume'?'data-fmt="compact"':''}>0</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
+  if(!REDUCED_MOTION)requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#activityRings .arc-fill').forEach(el=>{el.style.strokeDashoffset=el.dataset.offset;})));
+  animateNumbers(document.getElementById('activityRings'));
   document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} of ${goals.weeklyWorkoutGoal} workouts, ${weekly.completedSets} of ${goals.weeklySetGoal} sets, ${Math.round(weekly.volume)} of ${goals.weeklyVolumeGoal} kilograms volume`);
   document.getElementById('activityLegend').innerHTML='';
 }
@@ -116,6 +130,7 @@ function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exercis
 function beginSession(routine){
   if(state.activeSession){showToast('You already have a workout running');navigate('workout');return;}
   state.activeSession=Core.createSession(routine);
+  state.activeSession.checkin={pre:null,post:null}; // three-touch safety loop (council 2026-07-18)
   saveState();navigate('workout');
 }
 function resumeWorkout(){ navigate('workout'); }
@@ -141,7 +156,7 @@ function renderLibrary(){
   document.getElementById('libraryCount').textContent=`${list.length} exercise${list.length===1?'':'s'}${search?' found':''}`;
   document.getElementById('exerciseLibrary').innerHTML=list.length?list.map(exerciseRow).join(''):`<div class="empty-card card"><strong>Nothing found</strong>Try another exercise, muscle or equipment name.</div>`;
 }
-function exerciseRow(exercise,addAction='quickExercise'){ return `<article class="exercise-row"><div><strong>${esc(exercise.name)}</strong><small>${esc(exercise.muscle)} · ${esc(exercise.equipment||'Custom equipment')}</small></div><button class="exercise-add" onclick="${addAction}('${exercise.id}')" aria-label="Add ${esc(exercise.name)}">＋</button></article>`; }
+function exerciseRow(exercise,addAction='quickExercise'){ return `<article class="exercise-row"><div><strong>${esc(exercise.name)}</strong><small>${esc(exercise.muscle)} · ${esc(exercise.equipment||'Custom equipment')}</small></div><button class="exercise-add" onclick="${addAction}('${exercise.id}')" aria-label="Add ${esc(exercise.name)}">+</button></article>`; }
 function setMuscleFilter(group){muscleFilter=group;renderLibrary();}
 function quickExercise(id){
   if(state.activeSession){addExerciseToWorkout(id);showToast('Added to current workout');return;}
@@ -149,10 +164,57 @@ function quickExercise(id){
 }
 
 function renderProgress(){
-  const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0),allPRs=state.history.reduce((sum,s)=>sum+(s.prs?.length??s.prs??0),0);
-  document.getElementById('progressStats').innerHTML=`<div class="metric"><strong>${weekly.workouts}</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong>${state.history.length}</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong>${compact(lifetimeVolume)}</strong><span>LIFETIME KG</span></div>`;
+  const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0);
+  document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${Math.round(lifetimeVolume)}" data-fmt="compact">0</strong><span>LIFETIME KG</span></div>`;
+  animateNumbers(document.getElementById('progressStats'));
+  renderStrength();
   renderWeekChart();
+  renderPrFeed();
   document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="empty-card card"><strong>Your progress starts at one</strong>Finish a workout and it will appear here.</div>`;
+}
+// Strength trend — evidence-gated (council 2026-07-18): a lift unlocks its chart after 3 logged sessions.
+const TREND_UNLOCK=3;
+let strengthPick=null;
+function renderStrength(){
+  const exposures=Core.exerciseExposures(state.history);
+  const entries=Object.entries(exposures).map(([id,count])=>({id,count,item:exerciseById(id)})).filter(e=>e.item).sort((a,b)=>b.count-a.count);
+  const unlocked=entries.filter(e=>e.count>=TREND_UNLOCK);
+  const pickerEl=document.getElementById('strengthPicker'),trendEl=document.getElementById('strengthTrend');
+  if(!unlocked.length){
+    pickerEl.innerHTML='';
+    const top=entries[0],done=top?Math.min(top.count,TREND_UNLOCK):0,need=TREND_UNLOCK-done;
+    trendEl.innerHTML=`<div class="locked-card card"><strong>${top?`${need} more session${need===1?'':'s'} of ${esc(top.item.name)}`:'Your strength trend unlocks here'}</strong>${top?'unlocks its strength trend.':`Log the same lift ${TREND_UNLOCK} times and the chart appears.`}<div class="lock-progress">${[0,1,2].map(i=>`<i class="${i<done?'full':''}"></i>`).join('')}</div></div>`;
+    return;
+  }
+  if(!unlocked.some(e=>e.id===strengthPick))strengthPick=unlocked[0].id;
+  pickerEl.innerHTML=unlocked.slice(0,12).map(e=>`<button class="filter-chip ${e.id===strengthPick?'active':''}" onclick="pickStrength('${e.id}')">${esc(e.item.name)}</button>`).join('');
+  trendEl.innerHTML=trendChart(Core.exerciseTrend(state.history,strengthPick),exerciseById(strengthPick)?.name||'');
+}
+function pickStrength(id){strengthPick=id;renderStrength();}
+function trendChart(points,name){
+  if(points.length<2)return `<div class="locked-card card"><strong>Almost there</strong>One more session of ${esc(name)} draws the line.</div>`;
+  const W=340,H=160,PL=36,PR=12,PT=16,PB=26,IW=W-PL-PR,IH=H-PT-PB;
+  const xs=points.map(p=>p.started),ys=points.map(p=>p.e1rm);
+  const minX=xs[0],maxX=xs.at(-1)||minX+1;
+  let lo=Math.min(...ys),hi=Math.max(...ys);
+  if(hi-lo<2){lo-=2;hi+=2;} const pad=(hi-lo)*0.12;lo=Math.max(0,lo-pad);hi+=pad;
+  const X=t=>PL+(maxX===minX?IW/2:(t-minX)/(maxX-minX)*IW);
+  const Y=v=>PT+IH-(v-lo)/(hi-lo)*IH;
+  const line=points.map((p,i)=>`${i?'L':'M'}${X(p.started).toFixed(1)} ${Y(p.e1rm).toFixed(1)}`).join(' ');
+  const area=`${line} L${X(maxX).toFixed(1)} ${(PT+IH).toFixed(1)} L${X(minX).toFixed(1)} ${(PT+IH).toFixed(1)} Z`;
+  const ticks=[0,.5,1].map(k=>{const v=lo+(hi-lo)*(1-k),y=PT+IH*k;return `<line class="trend-grid-line" x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}"/><text class="trend-tick" x="${PL-6}" y="${y+3}" text-anchor="end">${Math.round(v)}</text>`;}).join('');
+  const dots=points.map(p=>`<circle class="trend-dot" cx="${X(p.started).toFixed(1)}" cy="${Y(p.e1rm).toFixed(1)}" r="3.4"/>`).join('');
+  const shortDate=t=>new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short'}).format(new Date(t));
+  const latest=ys.at(-1),delta=Math.round((latest-ys[0])*10)/10;
+  return `<div class="trend-card"><div class="trend-head"><strong>${esc(name)}</strong><span>${latest} kg est. 1RM${delta?` · ${delta>0?'+':''}${delta} kg`:''}</span></div><svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Estimated one rep max trend for ${esc(name)}"><defs><linearGradient id="trendFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(224,110,31,.26)"/><stop offset="1" stop-color="rgba(224,110,31,0)"/></linearGradient></defs>${ticks}<path class="trend-area" d="${area}"/><path class="trend-line" d="${line}"/>${dots}<text class="trend-tick" x="${PL}" y="${H-8}">${shortDate(minX)}</text><text class="trend-tick" x="${W-PR}" y="${H-8}" text-anchor="end">${shortDate(maxX)}</text></svg></div>`;
+}
+function renderPrFeed(){
+  const feed=Core.prFeed(state.history,8);
+  document.getElementById('prFeed').innerHTML=feed.length?feed.map(pr=>{
+    const item=exerciseById(pr.exerciseId);
+    const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
+    return `<div class="pr-row"><span class="pr-mark">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
+  }).join(''):`<div class="empty-card card"><strong>No records yet</strong>Beat a previous best and it lands here automatically.</div>`;
 }
 function renderWeekChart(){
   const now=Date.now(),weeks=[];
@@ -165,8 +227,30 @@ function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
-  document.getElementById('workoutExercises').innerHTML=session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`;
+  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   startActiveClock();
+}
+// Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable — friction kills habits.
+function checkinMarkup(session){
+  if(!session.checkin||session.checkin.dismissed)return '';
+  const last=state.history[0],askFlare=Boolean(last?.checkin&&last.checkin.flare==null);
+  const askPre=session.checkin.pre==null;
+  if(!askPre&&!askFlare)return '';
+  const scale=askPre?`<p>How is the problem area today?<small>0 = nothing, 10 = worst. Optional.</small></p><div class="checkin-scale">${Array.from({length:11},(_,n)=>`<button onclick="setPreCheckin(${n})" aria-label="Rate ${n} out of 10">${n}</button>`).join('')}</div>`:'';
+  const flare=askFlare?`<div class="checkin-row" style="margin-top:${askPre?'12px':'0'}"><button onclick="setFlare(false)">No flare since last session</button><button onclick="setFlare(true)">Had a flare</button></div>`:'';
+  return `<div class="checkin-card" id="checkinCard">${scale}${flare}<button class="checkin-skip" onclick="dismissCheckin()">Skip</button></div>`;
+}
+function setPreCheckin(n){state.activeSession.checkin.pre=n;saveState();renderWorkout();if(n>=7)showToast('Noted. Keep loads easy today.');}
+function setFlare(had){
+  const last=state.history[0];if(last?.checkin)last.checkin.flare=had;
+  saveState();renderWorkout();
+  if(had)showToast('Logged. Add a note on any exercise that felt off.');
+}
+function dismissCheckin(){
+  const session=state.activeSession;if(!session?.checkin)return;
+  session.checkin.dismissed=true;
+  const last=state.history[0];if(last?.checkin&&last.checkin.flare==null)last.checkin.flare='skipped';
+  saveState();renderWorkout();
 }
 function renderWorkoutMetrics(){
   const session=state.activeSession;if(!session)return;
@@ -176,9 +260,15 @@ function renderWorkoutMetrics(){
 function workoutExerciseMarkup(exercise,index){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>`${s.weight||'—'} kg × ${s.reps}`).join(' · ')}`:'First time — set your benchmark';
-  return `<article class="workout-exercise"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header><div class="previous-strip">${esc(prevText)}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0])).join('')}<button class="add-set" onclick="addSet(${index})">＋ Add set</button></article>`;
+  return `<article class="workout-exercise"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header><div class="previous-strip">${esc(prevText)}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0])).join('')}<button class="add-set" onclick="addSet(${index})">+ Add set</button></article>`;
 }
-function setMarkup(set,exerciseIndex,setIndex,previous){const completion=Core.setCompletionState(set.done,setIndex+1);return `<div class="set-grid set-row ${completion.className}" data-status="${completion.status}"><span class="set-number">${setIndex+1}</span><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="Repetitions for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>`;}
+function setMarkup(set,exerciseIndex,setIndex,previous){const completion=Core.setCompletionState(set.done,setIndex+1);return `<div class="set-grid set-row ${completion.className}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="Set ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'—'}" onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="Repetitions for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>`;}
+// ponytail: side-tagging = tap the set number, cycling both→L→R. Zero extra columns; feeds the future L/R balance view.
+function cycleSide(exerciseIndex,setIndex){
+  const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];
+  set.side=set.side==='L'?'R':set.side==='R'?undefined:'L';
+  saveState();renderWorkout();
+}
 function updateSet(exerciseIndex,setIndex,key,value){state.activeSession.exercises[exerciseIndex].sets[setIndex][key]=value;saveState();renderWorkoutMetrics();}
 function toggleSet(exerciseIndex,setIndex){
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
@@ -200,14 +290,20 @@ function updateRest(){document.getElementById('restTime').textContent=Core.forma
 
 function requestFinishWorkout(){
   const session=state.activeSession,summary=Core.summarizeSession({...session,finished:Date.now()});
-  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.completedSets} completed sets · ${compact(summary.volume)} kg moved.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
+  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.completedSets} completed sets · ${compact(summary.volume)} kg moved.</p><div class="confirm-feel"><p>HOW DID THE BODY FEEL?</p><div class="checkin-row" id="feelRow"><button onclick="setPostCheckin(this,'better')">Better</button><button onclick="setPostCheckin(this,'same')">Same</button><button onclick="setPostCheckin(this,'worse')">Worse</button></div></div><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
   document.getElementById('confirmDialog').showModal();
+}
+function setPostCheckin(button,value){
+  if(state.activeSession?.checkin)state.activeSession.checkin.post=value;
+  document.querySelectorAll('#feelRow button').forEach(b=>b.classList.toggle('picked',b===button));
+  saveState();
 }
 function finishWorkout(){
   const session=state.activeSession;if(!session)return;
   session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
+  if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
-  showToast(session.prs.length?`${session.prs.length} new PR${session.prs.length===1?'':'s'} — strong work`:'Workout saved — good work');navigate('progress');
+  showToast(session.prs.length?`${session.prs.length} new PR${session.prs.length===1?'':'s'} · new best saved`:'Workout saved. Good work.',session.prs.length>0);navigate('progress');
 }
 function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
@@ -238,7 +334,7 @@ function openRoutineEditor(id){
 }
 function renderRoutineEditor(){
   pickerTarget='routine';
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${state.routines.some(r=>r.id===routineDraft.id)?'Edit':'New'} routine</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>ROUTINE NAME</label><input id="routineName" value="${esc(routineDraft.name)}" placeholder="Example: Monday upper" oninput="routineDraft.name=this.value"></div><div class="section-heading"><div><p class="kicker">EXERCISES</p><h2>${routineDraft.exerciseIds.length} selected</h2></div><button class="text-button" onclick="openExercisePicker('routine')">＋ Add</button></div><div class="selected-list">${routineDraft.exerciseIds.length?routineDraft.exerciseIds.map((id,index)=>`<div class="selected-row"><span><strong>${index+1}. ${esc(exerciseById(id)?.name||'Missing exercise')}</strong></span><button onclick="removeRoutineExercise(${index})">Remove</button></div>`).join(''):'<div class="empty-card card">Add exercises in the order you want to train.</div>'}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="saveRoutine()">Save routine</button></div>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${state.routines.some(r=>r.id===routineDraft.id)?'Edit':'New'} routine</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>ROUTINE NAME</label><input id="routineName" value="${esc(routineDraft.name)}" placeholder="Example: Monday upper" oninput="routineDraft.name=this.value"></div><div class="section-heading"><div><p class="kicker">EXERCISES</p><h2>${routineDraft.exerciseIds.length} selected</h2></div><button class="text-button" onclick="openExercisePicker('routine')">+ Add</button></div><div class="selected-list">${routineDraft.exerciseIds.length?routineDraft.exerciseIds.map((id,index)=>`<div class="selected-row"><span><strong>${index+1}. ${esc(exerciseById(id)?.name||'Missing exercise')}</strong></span><button onclick="removeRoutineExercise(${index})">Remove</button></div>`).join(''):'<div class="empty-card card">Add exercises in the order you want to train.</div>'}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="saveRoutine()">Save routine</button></div>`;
 }
 function removeRoutineExercise(index){routineDraft.exerciseIds.splice(index,1);renderRoutineEditor();}
 function saveRoutine(){

@@ -130,3 +130,27 @@ test('validateBackup rejects malformed collections and active sessions', () => {
   assert.throws(() => Core.validateBackup({ version: 2, routines: [], history: {} }), /Invalid Duck Gym backup/);
   assert.throws(() => Core.validateBackup({ version: 2, routines: [], history: [], activeSession: 'bad' }), /Invalid Duck Gym backup/);
 });
+
+test('exerciseTrend returns per-session best e1RM oldest-first', () => {
+  const history = [
+    { started: 300, exercises: [{ exerciseId: 'bench', sets: [{ weight: 90, reps: 5, done: true }] }] },
+    { started: 100, exercises: [{ exerciseId: 'bench', sets: [{ weight: 80, reps: 5, done: true }, { weight: 85, reps: 3, done: true }] }] },
+    { started: 200, exercises: [{ exerciseId: 'squat', sets: [{ weight: 100, reps: 5, done: true }] }] },
+    { started: 400, exercises: [{ exerciseId: 'bench', sets: [{ weight: 95, reps: 2, done: false }] }] }
+  ];
+  const trend = Core.exerciseTrend(history, 'bench');
+  assert.deepEqual(trend.map(p => p.started), [100, 300]);
+  assert.equal(trend[1].topWeight, 90);
+  assert.equal(trend[1].e1rm, 105);
+});
+
+test('exerciseExposures counts sessions with completed sets; prFeed flattens newest-first', () => {
+  const history = [
+    { id: 'b', started: 200, prs: [{ exerciseId: 'bench', weight: 90, estimated1RM: 105 }],
+      exercises: [{ exerciseId: 'bench', sets: [{ weight: 90, reps: 5, done: true }] }] },
+    { id: 'a', started: 100, prs: [{ exerciseId: 'bench', weight: 80, estimated1RM: 93 }],
+      exercises: [{ exerciseId: 'bench', sets: [{ weight: 80, reps: 5, done: true }] }] }
+  ];
+  assert.deepEqual(Core.exerciseExposures(history), { bench: 2 });
+  assert.deepEqual(Core.prFeed(history, 5).map(p => p.started), [200, 100]);
+});

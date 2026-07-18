@@ -17,7 +17,7 @@
 <body>
   <div id="app" class="app-shell">
     <header class="app-header" id="appHeader">
-      <button class="brand" type="button" onclick="navigate('today')" aria-label="Gym home"><span>G</span><strong>Gym</strong></button>
+      <button class="brand" type="button" onclick="navigate('today')" aria-label="Gym home"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 12h2M19.5 12h2M7.5 12h9"/><path d="M5.5 8.5v7M18.5 8.5v7M8.5 6.5v11M15.5 6.5v11"/></svg></span><strong>Gym</strong></button>
       <button class="icon-button" type="button" onclick="openSettings()" aria-label="Settings">•••</button>
     </header>
 
@@ -47,8 +47,8 @@
         <div class="page-lead"><p class="kicker">TRAIN</p><h1 id="trainTitle">What are we hitting?</h1><p>Pick a plan built for your gym, start a quick session, or build your own.</p></div>
         <div class="section-heading"><div><p class="kicker">TRAINING PLANS</p><h2>Pick a plan</h2></div></div>
         <div id="planList" class="template-grid"></div>
-        <button class="primary-button big-button" onclick="startQuickWorkout()"><span>＋</span><div><strong>Start an empty workout</strong><small>Add exercises as you go</small></div></button>
-        <div class="section-heading"><div><p class="kicker">SAVED</p><h2>My routines</h2></div><button class="text-button" onclick="openRoutineEditor()">＋ New</button></div>
+        <button class="primary-button big-button" onclick="startQuickWorkout()"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><div><strong>Start an empty workout</strong><small>Add exercises as you go</small></div></button>
+        <div class="section-heading"><div><p class="kicker">SAVED</p><h2>My routines</h2></div><button class="text-button" onclick="openRoutineEditor()">+ New</button></div>
         <div id="routineList" class="stack"></div>
         <div class="section-heading"><div><p class="kicker">STARTER IDEAS</p><h2>Templates</h2></div></div>
         <div id="templateList" class="template-grid"></div>
@@ -56,18 +56,23 @@
 
       <section id="view-library" class="view" aria-labelledby="libraryTitle">
         <div class="page-lead"><p class="kicker">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
-        <div class="search-wrap"><span>⌕</span><input id="librarySearch" type="search" placeholder="Search exercise or equipment" oninput="renderLibrary()" aria-label="Search exercise library"></div>
+        <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search exercise or equipment" oninput="renderLibrary()" aria-label="Search exercise library"></div>
         <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
         <div id="libraryCount" class="result-count"></div>
         <div id="exerciseLibrary" class="exercise-list"></div>
-        <button class="secondary-button full-button" onclick="openCustomExercise()">＋ Add custom exercise</button>
+        <button class="secondary-button full-button" onclick="openCustomExercise()">+ Add custom exercise</button>
       </section>
 
       <section id="view-progress" class="view" aria-labelledby="progressTitle">
-        <div class="page-lead"><p class="kicker">PROGRESS</p><h1 id="progressTitle">Proof you showed up.</h1><p>Useful numbers only—no guilt, no noise.</p></div>
+        <div class="page-lead"><p class="kicker">PROGRESS</p><h1 id="progressTitle">Getting stronger.</h1><p>Strength, volume and consistency, built from every set you log.</p></div>
         <div id="progressStats" class="metric-grid"></div>
+        <div class="section-heading"><div><p class="kicker">STRENGTH</p><h2>Estimated 1RM</h2></div></div>
+        <div id="strengthPicker" class="trend-picker"></div>
+        <div id="strengthTrend"></div>
         <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
         <div id="weekChart" class="chart-card"></div>
+        <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
+        <div id="prFeed" class="pr-feed"></div>
         <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
         <div id="historyList" class="stack"></div>
       </section>
@@ -76,16 +81,16 @@
         <header class="workout-header"><div><p id="workoutClock" class="workout-clock">00:00</p><h1 id="workoutTitle">Workout</h1></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
         <div id="workoutMetrics" class="live-metrics"></div>
         <div id="workoutExercises" class="workout-exercises"></div>
-        <button class="secondary-button full-button add-exercise-button" onclick="openExercisePicker('workout')">＋ Add exercise</button>
+        <button class="secondary-button full-button add-exercise-button" onclick="openExercisePicker('workout')">+ Add exercise</button>
         <button class="danger-link" onclick="cancelWorkout()">Discard workout</button>
       </section>
     </main>
 
     <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation">
-      <button data-view="today" class="active" onclick="navigate('today')"><span>⌂</span><small>Today</small></button>
-      <button data-view="train" onclick="navigate('train')"><span>＋</span><small>Train</small></button>
-      <button data-view="library" onclick="navigate('library')"><span>▦</span><small>Library</small></button>
-      <button data-view="progress" onclick="navigate('progress')"><span>↗</span><small>Progress</small></button>
+      <button data-view="today" class="active" onclick="navigate('today')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/></svg></span><small>Today</small></button>
+      <button data-view="train" onclick="navigate('train')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span><small>Train</small></button>
+      <button data-view="library" onclick="navigate('library')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></span><small>Library</small></button>
+      <button data-view="progress" onclick="navigate('progress')"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="m5 14 4.2-4.2 3.4 3.4L19 6.8"/><path d="M14.5 6.8H19v4.5"/></svg></span><small>Progress</small></button>
     </nav>
   </div>
 
