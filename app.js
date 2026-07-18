@@ -378,7 +378,7 @@ function openReceipt(session){
     return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
   }).join('');
   document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p><div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
-  const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;
+  const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;overlay.style.display='grid';
   requestAnimationFrame(()=>overlay.classList.add('show'));
   document.getElementById('receiptCard').querySelector('.primary-button').focus();
   overlay.onclick=e=>{if(e.target===overlay)closeReceipt();};
@@ -387,7 +387,7 @@ function openReceipt(session){
     if(e.key==='Tab'){e.preventDefault();document.getElementById('receiptCard').querySelector('.primary-button').focus();} // ponytail: one focusable control — trap is a refocus
   };
 }
-function closeReceipt(){const overlay=document.getElementById('receiptOverlay');overlay.classList.remove('show');overlay.hidden=true;overlay.onkeydown=null;navigate('progress');}
+function closeReceipt(){const overlay=document.getElementById('receiptOverlay');overlay.classList.remove('show');overlay.hidden=true;overlay.style.display='none';overlay.onkeydown=null;navigate('progress');}
 function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
 }
@@ -492,6 +492,14 @@ async function importBackup(file){
 function clearAllData(){if(!confirm('Delete all routines, custom exercises and workout history?'))return;state=emptyState();saveState();closeSheet();renderView(currentView);showToast('All data cleared');}
 async function installApp(){if(deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;}else showToast('Use your browser menu → Install app');}
 
+// Self-heal: if an invisible layer covers the nav at boot (stale-cache CSS, future overlay bugs), neutralise it.
+window.addEventListener('load',()=>{setTimeout(()=>{
+  const btn=document.querySelector('.bottom-nav button');if(!btn||document.body.classList.contains('workout-active'))return;
+  const r=btn.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+  if(hit&&hit!==btn&&!btn.contains(hit)&&!hit.contains(btn)&&!hit.closest('.bottom-nav')&&!hit.closest('dialog')){
+    hit.style.pointerEvents='none';console.warn('Neutralised tap blocker:',hit.id||hit.className);
+  }
+},600);});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstall=event;});
 window.addEventListener('beforeunload',event=>{if(state.activeSession){event.preventDefault();event.returnValue='';}});
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
