@@ -37,6 +37,15 @@ async function evaluate(expression) {
   if (result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.text);
   return result.result?.result?.value;
 }
+// Trusted hit-tested click via CDP — an invisible blocking layer makes this fail where element.click() would pass.
+async function realClick(selector) {
+  const rect = await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()`);
+  if (!rect) throw new Error(`realClick: no element for ${selector}`);
+  const onTarget = await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const hit=document.elementFromPoint(${rect.x},${rect.y});return !!hit&&(hit===el||el.contains(hit)||hit.contains(el));})()`);
+  if (!onTarget) throw new Error(`realClick: ${selector} is covered by another element at its center`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+}
 async function waitFor(expression, timeout = 8000) {
   return retry(async () => {
     const value = await evaluate(expression);
@@ -115,16 +124,34 @@ try {
 
   await evaluate(`location.reload()`);
   await waitFor(`document.readyState === 'complete' && document.querySelector('#resumeSlot .resume-card button')`);
-  await evaluate(`document.querySelector('#resumeSlot .resume-card button').click(); true`);
+  await realClick('#resumeSlot .resume-card button');
   await waitFor(`document.body.classList.contains('workout-active') && document.querySelector('.set-row.completed')`);
 
-  await evaluate(`document.querySelector('.finish-button').click(); true`);
+  await realClick('.finish-button');
   await waitFor(`document.querySelector('#confirmDialog[open]')`);
-  await evaluate(`document.querySelector('#confirmDialog .primary-button').click(); true`);
+  await realClick('#confirmDialog .primary-button');
   await waitFor(`!JSON.parse(localStorage.duckGymV2).activeSession && JSON.parse(localStorage.duckGymV2).history.length === 1`);
   await waitFor(`!document.getElementById('receiptOverlay').hidden && document.querySelectorAll('.receipt-line').length === 4`);
-  await evaluate(`document.querySelector('#receiptCard .primary-button').click(); true`);
+  await realClick('#receiptCard .primary-button');
   await waitFor(`document.getElementById('receiptOverlay').hidden`);
+  // Hit-test guard: hidden overlays must not eat taps (regression: receipt-overlay display:grid beat [hidden]).
+  const hitTest = await evaluate(`(() => {
+    const blockers=[];
+    for(const b of document.querySelectorAll('.bottom-nav button')){
+      const r=b.getBoundingClientRect();
+      const el=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      if(!el||!(el===b||b.contains(el)))blockers.push((el&&(el.id||el.className))||'nothing');
+    }
+    return blockers;
+  })()`);
+  assert.deepEqual(hitTest, [], `Bottom-nav buttons must be hit-testable, blocked by: ${hitTest}`);
+  const hiddenBlockers = await evaluate(`(() => {
+    return [...document.querySelectorAll('[hidden]')].filter(el=>{
+      const cs=getComputedStyle(el);
+      return cs.display!=='none'&&cs.pointerEvents!=='none';
+    }).map(el=>el.id||el.className);
+  })()`);
+  assert.deepEqual(hiddenBlockers, [], `[hidden] elements must actually be display:none: ${hiddenBlockers}`);
   const activeViewOutline = await evaluate(`getComputedStyle(document.querySelector('.view.active')).outlineStyle`);
   assert.equal(activeViewOutline, 'none', 'Programmatically focused screen must not draw a page-sized outline');
 

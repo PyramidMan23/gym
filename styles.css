@@ -130,6 +130,7 @@ dialog{color:var(--cream)}dialog::backdrop{background:rgba(7,18,36,.48);backdrop
 .roll-mask.go .roll-old{transform:translateY(-100%)}
 .roll-mask.go .roll-new{transform:translateY(0)}
 /* Session receipt overlay */
+.receipt-overlay[hidden]{display:none}
 .receipt-overlay{position:fixed;inset:0;z-index:100;display:grid;align-items:end;justify-items:center;background:rgba(7,10,14,.55);opacity:0;transition:opacity .3s var(--ease);padding:0 12px}
 .receipt-overlay.show{opacity:1}
 .receipt-card{position:relative;overflow:auto;max-height:min(85vh,85dvh);width:min(100%,520px);margin-bottom:max(18px,env(safe-area-inset-bottom));background:var(--card-solid);border:1px solid var(--card-hair);border-radius:var(--r2);box-shadow:var(--shadow);padding:24px 22px 20px;transform:translateY(24px);opacity:.6;transition:transform .35s var(--ease),opacity .35s var(--ease)}
