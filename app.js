@@ -311,15 +311,20 @@ function cancelWorkout(){
 function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
 function closeConfirm(){document.getElementById('confirmDialog').close();}
 
+let pickerFilter='All';
 function openExercisePicker(target){
-  pickerTarget=target;const content=document.getElementById('sheetContent');
-  content.innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="search-wrap picker-search"><span>⌕</span><input id="pickerSearch" type="search" placeholder="Search exercise or equipment" oninput="renderPickerList()"></div><div id="pickerList" class="exercise-list"></div>`;
+  pickerTarget=target;pickerFilter='All';const content=document.getElementById('sheetContent');
+  content.innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pickerSearch" type="search" placeholder="Search exercise or equipment" oninput="renderPickerList()"></div><div id="pickerFilters" class="filter-row picker-filters" aria-label="Filter by muscle group"></div><div id="pickerCount" class="result-count"></div><div id="pickerList" class="exercise-list"></div>`;
   renderPickerList();document.getElementById('sheet').showModal();
 }
+function setPickerFilter(group){pickerFilter=group;renderPickerList();}
 function renderPickerList(){
-  const input=document.getElementById('pickerSearch'),query=(input?.value||'').toLowerCase();
-  const list=allExercises().filter(e=>`${e.name} ${e.muscle} ${e.equipment}`.toLowerCase().includes(query)).slice(0,60);
-  document.getElementById('pickerList').innerHTML=list.map(e=>exerciseRow(e,'pickExercise')).join('');
+  const query=(document.getElementById('pickerSearch')?.value||'').trim().toLowerCase();
+  const groups=['All',...new Set(allExercises().map(e=>e.muscle))];
+  document.getElementById('pickerFilters').innerHTML=groups.map(group=>`<button class="filter-chip ${pickerFilter===group?'active':''}" onclick="setPickerFilter('${esc(group)}')">${esc(group)}</button>`).join('');
+  const list=allExercises().filter(e=>(pickerFilter==='All'||e.muscle===pickerFilter)&&`${e.name} ${e.muscle} ${e.equipment}`.toLowerCase().includes(query));
+  document.getElementById('pickerCount').textContent=`${list.length} exercise${list.length===1?'':'s'}`;
+  document.getElementById('pickerList').innerHTML=list.length?list.map(e=>exerciseRow(e,'pickExercise')).join(''):`<div class="empty-card card"><strong>Nothing found</strong>Try another name, muscle or equipment.</div>`;
 }
 function pickExercise(id){
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
