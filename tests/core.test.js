@@ -154,3 +154,22 @@ test('exerciseExposures counts sessions with completed sets; prFeed flattens new
   assert.deepEqual(Core.exerciseExposures(history), { bench: 2 });
   assert.deepEqual(Core.prFeed(history, 5).map(p => p.started), [200, 100]);
 });
+
+test('lastConfirmedExposure requires post!=worse AND flare===false', () => {
+  const mkSession = (started, checkin) => ({ started, checkin,
+    exercises: [{ exerciseId: 'bench', sets: [{ weight: 80, reps: 5, done: true }] }] });
+  const confirmed = mkSession(100, { post: 'same', flare: false });
+  const flared = mkSession(200, { post: 'better', flare: true });
+  const unresolved = mkSession(300, { post: 'same', flare: null });
+  const worse = mkSession(400, { post: 'worse', flare: false });
+  assert.equal(Core.lastConfirmedExposure([worse, unresolved, flared, confirmed], 'bench').started, 100);
+  assert.equal(Core.lastConfirmedExposure([unresolved], 'bench'), null);
+  assert.equal(Core.lastConfirmedExposure([mkSession(500, undefined)], 'bench'), null);
+});
+
+test('validateBackup carries exerciseCues through import', () => {
+  const data = { version: 2, routines: [], history: [], customExercises: [], activeSession: null,
+    exerciseCues: { ch1: { text: 'stance square', updated: 5 } }, preferences: {} };
+  assert.deepEqual(Core.validateBackup(data).exerciseCues, { ch1: { text: 'stance square', updated: 5 } });
+  assert.deepEqual(Core.validateBackup({ ...data, exerciseCues: undefined }).exerciseCues, {});
+});

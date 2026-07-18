@@ -97,6 +97,27 @@
     return counts;
   }
 
+  // Last confirmed-tolerated exposure (council 2026-07-18): a session only counts once
+  // post-session response wasn't 'worse' AND the next-session flare check came back 'no'.
+  // Sessions without that double confirmation stay 'unresolved' and never become the baseline.
+  function lastConfirmedExposure(history, exerciseId) {
+    const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
+    for (const session of ordered) {
+      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
+      const sets = exercise ? doneSets(exercise) : [];
+      if (!sets.length) continue;
+      const checkin = session.checkin;
+      if (!checkin || checkin.post === 'worse' || checkin.flare !== false) continue;
+      return {
+        started: num(session.started),
+        setCount: sets.length,
+        topWeight: Math.max(...sets.map(set => num(set.weight))),
+        topReps: Math.max(...sets.map(set => num(set.reps)))
+      };
+    }
+    return null;
+  }
+
   function prFeed(history, limit = 8) {
     const feed = [];
     for (const session of history || []) {
@@ -208,9 +229,10 @@
       history: JSON.parse(JSON.stringify(data.history)),
       customExercises: JSON.parse(JSON.stringify(data.customExercises || [])),
       activeSession: data.activeSession == null ? null : JSON.parse(JSON.stringify(data.activeSession)),
+      exerciseCues: (data.exerciseCues && typeof data.exerciseCues === 'object' && !Array.isArray(data.exerciseCues)) ? JSON.parse(JSON.stringify(data.exerciseCues)) : {},
       preferences
     };
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed };
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure };
 });

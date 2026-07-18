@@ -111,7 +111,49 @@ const DUCK_EXERCISES = [
   {id:'mo4',name:'BOSU Balance Hold',muscle:'Mobility',equipment:'BOSU ball'},
   {id:'mo5',name:'Slant Board Ankle Stretch',muscle:'Mobility',equipment:'Slant board'},
   {id:'mo6',name:'Couch Stretch',muscle:'Mobility',equipment:'Bodyweight (hip flexor)'},
-  {id:'mo7',name:'90/90 Hip Rotations',muscle:'Mobility',equipment:'Bodyweight (rotation)'}
+  {id:'mo7',name:'90/90 Hip Rotations',muscle:'Mobility',equipment:'Bodyweight (rotation)'},
+  // ---- Calisthenics (bodyweight families incl. regressions; advanced moves labelled) ----
+  {id:'cs1',name:'Scapular Pull-Up',muscle:'Calisthenics',equipment:'Pull-up bar'},
+  {id:'cs2',name:'Band-Assisted Pull-Up',muscle:'Calisthenics',equipment:'Pull-up bar + resistance band'},
+  {id:'cs3',name:'Negative Pull-Up',muscle:'Calisthenics',equipment:'Pull-up bar'},
+  {id:'cs4',name:'Chin-Over-Bar Hold',muscle:'Calisthenics',equipment:'Pull-up bar'},
+  {id:'cs5',name:'Inverted Row (Rack Bar)',muscle:'Calisthenics',equipment:'Barbell in G3 rack'},
+  {id:'cs6',name:'Incline Push-Up',muscle:'Calisthenics',equipment:'Bench (hands elevated)'},
+  {id:'cs7',name:'Knee Push-Up',muscle:'Calisthenics',equipment:'Bodyweight'},
+  {id:'cs8',name:'Scapular Push-Up',muscle:'Calisthenics',equipment:'Bodyweight'},
+  {id:'cs9',name:'Pike Push-Up',muscle:'Calisthenics',equipment:'Bodyweight (advanced)'},
+  {id:'cs10',name:'Archer Push-Up',muscle:'Calisthenics',equipment:'Bodyweight (advanced)'},
+  {id:'cs11',name:'Wall Handstand Hold',muscle:'Calisthenics',equipment:'Wall (advanced)'},
+  {id:'cs12',name:'Bodyweight ATG Split Squat',muscle:'Calisthenics',equipment:'Bodyweight (KOT style)'},
+  {id:'cs13',name:'Supported Split Squat',muscle:'Calisthenics',equipment:'Rack upright / band for support'},
+  {id:'cs14',name:'Step-Up',muscle:'Calisthenics',equipment:'Bench / box'},
+  {id:'cs15',name:'Glute Bridge',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs16',name:'Single-Leg Glute Bridge',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs17',name:'Hamstring Walkout',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs18',name:'Wall Sit',muscle:'Calisthenics',equipment:'Wall'},
+  {id:'cs19',name:'Hollow Hold',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs20',name:'Dead Bug',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs21',name:'Side Plank',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs22',name:'Bear Crawl',muscle:'Calisthenics',equipment:'Floor'},
+  {id:'cs23',name:'Tuck L-Sit',muscle:'Calisthenics',equipment:'Pull-up bar (advanced)'},
+  {id:'cs24',name:'Broad Jump',muscle:'Calisthenics',equipment:'Bodyweight (advanced — knee load)'},
+  {id:'cs25',name:'Single-Leg Calf Raise',muscle:'Calisthenics',equipment:'Step / slant board'},
+  // ---- Stretches (neutral — no corrective claims; see council 2026-07-18) ----
+  {id:'st1',name:'Standing Hamstring Stretch',muscle:'Stretches',equipment:'Bodyweight'},
+  {id:'st2',name:'Pigeon Stretch',muscle:'Stretches',equipment:'Floor'},
+  {id:'st3',name:'Deep Squat Hold',muscle:'Stretches',equipment:'Bodyweight (hold rack for support)'},
+  {id:'st4',name:'Doorway Pec Stretch',muscle:'Stretches',equipment:'Rack upright'},
+  {id:'st5',name:'Lat Stretch on Bar',muscle:'Stretches',equipment:'Pull-up bar / rack'},
+  {id:'st6',name:'Cat-Cow',muscle:'Stretches',equipment:'Floor'},
+  {id:'st7',name:'Thread the Needle',muscle:'Stretches',equipment:'Floor (thoracic rotation)'},
+  {id:'st8',name:'Standing Quad Stretch',muscle:'Stretches',equipment:'Bodyweight'},
+  {id:'st9',name:'Calf Stretch on Slant Board',muscle:'Stretches',equipment:'Slant board'},
+  {id:'st10',name:'Child’s Pose',muscle:'Stretches',equipment:'Floor'},
+  // ---- Trial drills (from Mark's body map — log the response, keep only what earns it) ----
+  {id:'tr1',name:'QL / Side Bend Stretch',muscle:'Stretches',equipment:'Trial — log response'},
+  {id:'tr2',name:'Kneeling Psoas March',muscle:'Stretches',equipment:'Trial — log response'},
+  {id:'tr3',name:'Jaw / Neck Release Sequence',muscle:'Stretches',equipment:'Trial — log response'},
+  {id:'tr4',name:'Big-Toe Isolation Drill',muscle:'Stretches',equipment:'Trial — log response (right foot)'}
 ];
 
 // Single-day quick-starts (Train tab → "Templates"). Every id above.
@@ -121,7 +163,8 @@ const GYM_TEMPLATES = [
   { id:'tpl-lower', name:'Leg day',      label:'LOWER BODY',       exerciseIds:['lg7','lg4','lg13','lg18','lg17'] },
   { id:'tpl-push',  name:'Push day',     label:'CHEST + SHOULDERS',exerciseIds:['ch1','sh1','ch6','sh4','ar6'] },
   { id:'tpl-pull',  name:'Pull day',     label:'BACK + BICEPS',    exerciseIds:['ba1','ba4','ba5','sh7','ar2'] },
-  { id:'tpl-cond',  name:'Conditioning', label:'CARDIO',           exerciseIds:['ca1','fb1','lg16','gr7'] }
+  { id:'tpl-cond',  name:'Conditioning', label:'CARDIO',           exerciseIds:['ca1','fb1','lg16','gr7'] },
+  { id:'tpl-cali',  name:'Calisthenics full body', label:'BODYWEIGHT · PRE-WORKOUT', exerciseIds:['cs1','cs6','cs5','cs2','cs12','cs15','cs19'] }
 ];
 
 // Multi-day plans (Train tab → "Pick a plan"). Applying one installs each day as a ready-to-start routine.
