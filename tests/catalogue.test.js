@@ -23,7 +23,7 @@ test('every exercise has id, name, muscle, equipment', () => {
 
 // ---- Multi-tag data model (council 2026-07-19) ----
 const MUSCLE_VOCAB = new Set(['Chest', 'Back', 'Shoulders', 'Arms', 'Grip', 'Legs', 'Core', 'Full Body', 'Cardio', 'Mobility', 'Calisthenics', 'Stretches']);
-const PATTERN_VOCAB = new Set(['Horizontal Push', 'Vertical Push', 'Horizontal Pull', 'Vertical Pull', 'Squat', 'Hinge', 'Lunge', 'Carry', 'Anti-Rotation', 'Isolation', 'Olympic', 'Conditioning', 'Mobility']);
+const PATTERN_VOCAB = new Set(['Horizontal Push', 'Vertical Push', 'Horizontal Pull', 'Vertical Pull', 'Squat', 'Hinge', 'Lunge', 'Carry', 'Anti-Rotation', 'Rotation', 'Isolation', 'Olympic', 'Conditioning', 'Mobility']);
 const EQUIP_VOCAB = new Set(['Barbell', 'EZ Bar', 'Trap Bar', 'Dumbbell', 'Kettlebell', 'Cable', 'Smith', 'Machine', 'Pull-Up Bar', 'Bench', 'Bodyweight', 'Band', 'BOSU', 'Slant Board', 'Tib Bar', 'Hang Board', 'Wrist Axe', 'Rope', 'Plate']);
 
 test('muscle === muscles[0] for every exercise (backward-compat)', () => {

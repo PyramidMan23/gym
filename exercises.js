@@ -11,7 +11,7 @@
 //   equipment   — the human-readable kit string (kept verbatim on existing entries).
 // Fixed vocabularies (tests enforce them):
 //   muscles  : Chest, Back, Shoulders, Arms, Grip, Legs, Core, Full Body, Cardio, Mobility, Calisthenics, Stretches
-//   patterns : Horizontal Push, Vertical Push, Horizontal Pull, Vertical Pull, Squat, Hinge, Lunge, Carry, Anti-Rotation, Isolation, Olympic, Conditioning, Mobility
+//   patterns : Horizontal Push, Vertical Push, Horizontal Pull, Vertical Pull, Squat, Hinge, Lunge, Carry, Anti-Rotation, Rotation, Isolation, Olympic, Conditioning, Mobility
 //   equip    : Barbell, EZ Bar, Trap Bar, Dumbbell, Kettlebell, Cable, Smith, Machine, Pull-Up Bar, Bench, Bodyweight, Band, BOSU, Slant Board, Tib Bar, Hang Board, Wrist Axe, Rope, Plate
 const DUCK_EXERCISES = [
   // ---- Chest ----
@@ -19,7 +19,7 @@ const DUCK_EXERCISES = [
   {id:'ch2',name:'Incline Barbell Press',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Barbell','Bench'],equipment:'Olympic barbell + adjustable bench (incline)'},
   {id:'ch3',name:'Dumbbell Bench Press',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Dumbbell','Bench'],equipment:'Dumbbells + adjustable bench'},
   {id:'ch4',name:'Incline Dumbbell Press',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Dumbbell','Bench'],equipment:'Dumbbells + adjustable bench'},
-  {id:'ch5',name:'Smith Machine Bench Press',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Smith'],equipment:'Force USA G3 Smith'},
+  {id:'ch5',name:'Smith Machine Bench Press',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Smith','Bench'],equipment:'Force USA G3 Smith'},
   {id:'ch6',name:'Cable Fly',muscle:'Chest',muscles:['Chest','Shoulders'],patterns:['Isolation'],family:'Fly',equip:['Cable'],equipment:'Upper/lower cables'},
   {id:'ch7',name:'Dumbbell Fly',muscle:'Chest',muscles:['Chest','Shoulders'],patterns:['Isolation'],family:'Fly',equip:['Dumbbell','Bench'],equipment:'Dumbbells + bench'},
   {id:'ch8',name:'Push-Up',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Bodyweight'],equipment:'Bodyweight'},
@@ -33,6 +33,7 @@ const DUCK_EXERCISES = [
   {id:'ch16',name:'Dumbbell Floor Press',muscle:'Chest',muscles:['Chest','Arms','Shoulders'],patterns:['Horizontal Push'],family:'Floor Press',equip:['Dumbbell'],equipment:'Dumbbells pressed from the floor'},
   {id:'ch17',name:'Deficit Push-Up',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Dumbbell','Bodyweight'],equipment:'Hands on dumbbell handles (deeper stretch)'},
   {id:'ch18',name:'Dumbbell Squeeze Press',muscle:'Chest',muscles:['Chest','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Dumbbell','Bench'],equipment:'Dumbbells pressed together on the bench (inner chest)'},
+  {id:'ch19',name:'Bar Dip',muscle:'Chest',muscles:['Chest','Arms','Shoulders'],patterns:['Vertical Push'],family:'Dip',equip:['Bodyweight'],equipment:'G3 rack dip handles (or sturdy parallel supports)'},
   // ---- Back ----
   {id:'ba1',name:'Deadlift',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell + plates'},
   {id:'ba2',name:'Barbell Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Barbell'],equipment:'Olympic barbell'},
@@ -47,14 +48,11 @@ const DUCK_EXERCISES = [
   {id:'ba11',name:'Back Extension',muscle:'Back',muscles:['Back','Legs'],patterns:['Hinge'],family:'Back Extension',equip:['Bench','Machine'],equipment:'Back extension bench / Hyper Pro'},
   {id:'ba12',name:'Chin-Up',muscle:'Back',muscles:['Back','Arms','Grip'],patterns:['Vertical Pull'],family:'Pull-Up',equip:['Pull-Up Bar'],equipment:'Pull-up bar'},
   {id:'ba13',name:'Pendlay Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Barbell','Plate'],equipment:'Olympic barbell, dead-stop from the floor each rep'},
-  {id:'ba14',name:'Seal Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Dumbbell','Bench'],equipment:'Dumbbells, chest-down on a high bench (strict, no leg drive)'},
   {id:'ba15',name:'Single-Arm Cable Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Cable'],equipment:'G3 low pulley, one arm (rotational lockout)'},
-  {id:'ba16',name:'Wide-Grip Seated Cable Row',muscle:'Back',muscles:['Back','Shoulders'],patterns:['Horizontal Pull'],family:'Row',equip:['Cable'],equipment:'G3 low pulley, wide bar (upper back)'},
-  {id:'ba17',name:'Corner (Landmine) Barbell Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Barbell','Plate'],equipment:'Barbell wedged in the rack corner, both hands (landmine-style)'},
-  {id:'ba18',name:'Meadows Row',muscle:'Back',muscles:['Back','Arms','Grip'],patterns:['Horizontal Pull'],family:'Row',equip:['Barbell','Plate'],equipment:'Single-arm at the end of a corner-wedged barbell'},
+  {id:'ba16',name:'Wide-Grip Seated Cable Row',muscle:'Back',muscles:['Back','Shoulders','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Cable'],equipment:'G3 low pulley, wide bar (upper back)'},
   {id:'ba19',name:'Wide-Grip Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, wide bar'},
   {id:'ba20',name:'Neutral-Grip Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, V-bar (neutral grip)'},
-  {id:'ba21',name:'Close-Grip Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, close V-handle'},
+  {id:'ba21',name:'Underhand Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'Cables (supinated close grip — lower lat / biceps bias)'},
   {id:'ba22',name:'Single-Arm Lat Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, one arm'},
   {id:'ba23',name:'Rack Pull',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell from the rack pins (above the knee)'},
   {id:'ba24',name:'Deficit Deadlift',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell, standing on a plate (extra range)'},
@@ -62,9 +60,9 @@ const DUCK_EXERCISES = [
   {id:'ba26',name:'Barbell Shrug',muscle:'Back',muscles:['Back','Grip'],patterns:['Isolation'],family:'Shrug',equip:['Barbell','Plate'],equipment:'Olympic barbell (traps)'},
   {id:'ba27',name:'Dumbbell Shrug',muscle:'Back',muscles:['Back','Grip'],patterns:['Isolation'],family:'Shrug',equip:['Dumbbell'],equipment:'Dumbbells (traps)'},
   {id:'ba28',name:'Trap Bar Shrug',muscle:'Back',muscles:['Back','Grip'],patterns:['Isolation'],family:'Shrug',equip:['Trap Bar','Plate'],equipment:'Trap/hex bar (heavy traps)'},
-  {id:'ba29',name:'Barbell High Pull',muscle:'Back',muscles:['Back','Shoulders','Grip'],patterns:['Vertical Pull'],family:'High Pull',equip:['Barbell','Plate'],equipment:'Olympic barbell, explosive pull to the chest (upper back / traps)'},
+  {id:'ba29',name:'Barbell High Pull',muscle:'Back',muscles:['Back','Shoulders','Grip','Legs'],patterns:['Vertical Pull','Olympic'],family:'High Pull',equip:['Barbell','Plate'],equipment:'Olympic barbell, explosive pull to the chest (upper back / traps)'},
   {id:'ba30',name:'Gorilla Row (Double KB)',muscle:'Back',muscles:['Back','Arms','Grip'],patterns:['Horizontal Pull'],family:'Row',equip:['Kettlebell'],equipment:'Two kettlebells, alternating from the floor'},
-  {id:'ba31',name:'Renegade Row',muscle:'Back',muscles:['Back','Core','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Dumbbell','Bodyweight'],equipment:'Dumbbells in a plank, alternating rows (anti-rotation)'},
+  {id:'ba31',name:'Renegade Row',muscle:'Back',muscles:['Back','Core','Arms'],patterns:['Horizontal Pull','Anti-Rotation'],family:'Row',equip:['Dumbbell','Bodyweight'],equipment:'Dumbbells in a plank, alternating rows (anti-rotation)'},
   // ---- Shoulders ----
   {id:'sh1',name:'Overhead Press',muscle:'Shoulders',muscles:['Shoulders','Arms'],patterns:['Vertical Push'],family:'Overhead Press',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'sh2',name:'Seated DB Shoulder Press',muscle:'Shoulders',muscles:['Shoulders','Arms'],patterns:['Vertical Push'],family:'Overhead Press',equip:['Dumbbell','Bench'],equipment:'Dumbbells + bench'},
@@ -125,7 +123,7 @@ const DUCK_EXERCISES = [
   {id:'lg1',name:'Back Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'lg2',name:'Front Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'lg3',name:'Smith Machine Squat',muscle:'Legs',muscles:['Legs'],patterns:['Squat'],family:'Squat',equip:['Smith'],equipment:'Force USA G3 Smith'},
-  {id:'lg4',name:'Kickstand RDL',muscle:'Legs',muscles:['Legs'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell (left foot fwd — your pain-free hinge)'},
+  {id:'lg4',name:'Kickstand RDL',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell (left foot fwd — your pain-free hinge)'},
   {id:'lg5',name:'Romanian Deadlift',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell'},
   {id:'lg6',name:'Trap Bar Deadlift',muscle:'Legs',muscles:['Legs','Back','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Trap Bar','Plate'],equipment:'Trap bar'},
   {id:'lg7',name:'Bulgarian Split Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Lunge'],family:'Split Squat',equip:['Dumbbell','Bench'],equipment:'Dumbbells + bench'},
@@ -142,7 +140,7 @@ const DUCK_EXERCISES = [
   {id:'lg18',name:'Tibialis Raise (Double-Leg)',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Tibialis',equip:['Tib Bar'],equipment:'Double-leg tib bar'},
   {id:'lg19',name:'Tibialis Raise (Single-Leg)',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Tibialis',equip:['Tib Bar'],equipment:'Single-leg tib bar'},
   {id:'lg20',name:'Reverse Hyper',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'Reverse Hyper',equip:['Machine'],equipment:'Hyper Pro 11-in-1'},
-  {id:'lg21',name:'Single-Leg RDL',muscle:'Legs',muscles:['Legs','Core'],patterns:['Hinge'],family:'RDL',equip:['Dumbbell','Kettlebell'],equipment:'Dumbbell / kettlebell'},
+  {id:'lg21',name:'Single-Leg RDL',muscle:'Legs',muscles:['Legs','Core','Back'],patterns:['Hinge'],family:'RDL',equip:['Dumbbell','Kettlebell'],equipment:'Dumbbell / kettlebell'},
   {id:'lg22',name:'Belt Squat',muscle:'Legs',muscles:['Legs'],patterns:['Squat'],family:'Squat',equip:['Machine'],equipment:'Hyper Pro belt-squat attachment (spine-sparing)'},
   {id:'lg23',name:'Leg Extension',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Extension',equip:['Machine'],equipment:'Hyper Pro quad-extension attachment'},
   {id:'lg24',name:'Cable Hip Flexor Raise',muscle:'Legs',muscles:['Legs','Core'],patterns:['Isolation'],family:'Hip Flexor',equip:['Cable'],equipment:'Cables + ankle strap (right hip flexor)'},
@@ -154,7 +152,6 @@ const DUCK_EXERCISES = [
   {id:'lg30',name:'Curtsy Lunge',muscle:'Legs',muscles:['Legs'],patterns:['Lunge'],family:'Lunge',equip:['Dumbbell'],equipment:'Dumbbells, crossing behind (glute med)'},
   {id:'lg31',name:'Cossack Squat',muscle:'Legs',muscles:['Legs','Mobility'],patterns:['Squat'],family:'Squat',equip:['Bodyweight','Kettlebell'],equipment:'Side-to-side deep squat (adductor / mobility)'},
   {id:'lg32',name:'Belt-Squat Single-Leg',muscle:'Legs',muscles:['Legs'],patterns:['Squat'],family:'Squat',equip:['Machine'],equipment:'Hyper Pro belt squat, one leg (spine-sparing single-leg)'},
-  {id:'lg33',name:'Glute-Ham Raise',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Curl',equip:['Bench','Machine'],equipment:'Nordic / back-extension bench (glute-ham raise)'},
   {id:'lg34',name:'Cable Pull-Through',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'Pull-Through',equip:['Cable'],equipment:'G3 low pulley between the legs (glute / hinge)'},
   {id:'lg35',name:'Single-Leg Hip Thrust',muscle:'Legs',muscles:['Legs','Core'],patterns:['Hinge'],family:'Hip Thrust',equip:['Bench','Bodyweight'],equipment:'One leg, shoulders on the bench'},
   {id:'lg36',name:'Dumbbell Step-Up',muscle:'Legs',muscles:['Legs','Core'],patterns:['Lunge'],family:'Step-Up',equip:['Dumbbell','Bench'],equipment:'Dumbbells onto the bench (unilateral)'},
@@ -162,20 +159,21 @@ const DUCK_EXERCISES = [
   {id:'lg38',name:'Cable Hip Adduction',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Adduction',equip:['Cable','Band'],equipment:'G3 low pulley, ankle strap (inner thigh)'},
   {id:'lg39',name:'Cable Hip Abduction',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Abduction',equip:['Cable','Band'],equipment:'G3 low pulley / band, ankle strap (glute med)'},
   {id:'lg40',name:'Seated Calf Raise',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Calf',equip:['Dumbbell','Slant Board','Bench'],equipment:'Seated, dumbbell on the knees (soleus)'},
+  {id:'lg41',name:'Reverse Nordic Curl',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Extension',equip:['Machine','Bodyweight'],equipment:'Hyper Pro Nordic bench (quad eccentric — KOT knee)'},
   // ---- Core ----
-  {id:'co1',name:'Hanging Leg Raise',muscle:'Core',muscles:['Core','Grip'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar'},
+  {id:'co1',name:'Hanging Leg Raise',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar'},
   {id:'co2',name:'Plank',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Plank',equip:['Bodyweight'],equipment:'Bodyweight'},
   {id:'co3',name:'BOSU Plank',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Plank',equip:['BOSU','Bodyweight'],equipment:'BOSU ball'},
   {id:'co4',name:'Cable Crunch',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Crunch',equip:['Cable'],equipment:'Cables'},
   {id:'co5',name:'Pallof Press',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Anti-Rotation',equip:['Cable','Band'],equipment:'Cables / resistance band (anti-rotation)'},
-  {id:'co6',name:'Cable Woodchop',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Woodchop',equip:['Cable'],equipment:'Cables'},
+  {id:'co6',name:'Cable Woodchop',muscle:'Core',muscles:['Core'],patterns:['Rotation'],family:'Woodchop',equip:['Cable'],equipment:'Cables'},
   {id:'co7',name:'BOSU Sit-Up',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Crunch',equip:['BOSU','Bodyweight'],equipment:'BOSU ball'},
   {id:'co8',name:'Suitcase Carry',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Carry'],family:'Carry',equip:['Kettlebell','Dumbbell'],equipment:'Kettlebell / dumbbell (anti-lateral)'},
   {id:'co9',name:'Bird Dog',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Bird Dog',equip:['Bodyweight'],equipment:'Bodyweight'},
-  {id:'co10',name:'Hanging Knee Raise',muscle:'Core',muscles:['Core','Grip'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar, knees to chest (leg-raise regression)'},
+  {id:'co10',name:'Hanging Knee Raise',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar, knees to chest (leg-raise regression)'},
   {id:'co11',name:'Dragon Flag (Tuck)',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Dragon Flag',equip:['Bench','Bodyweight'],equipment:'Lying on the bench, gripping behind the head (tuck progression)'},
   {id:'co12',name:'Full Dragon Flag',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Dragon Flag',equip:['Bench','Bodyweight'],equipment:'Straight-body lower on the bench (advanced)'},
-  {id:'co13',name:'Russian Twist',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Russian Twist',equip:['Plate','Kettlebell','Bodyweight'],equipment:'Seated, plate or kettlebell (rotation)'},
+  {id:'co13',name:'Russian Twist',muscle:'Core',muscles:['Core'],patterns:['Rotation'],family:'Russian Twist',equip:['Plate','Kettlebell','Bodyweight'],equipment:'Seated, plate or kettlebell (rotation)'},
   {id:'co14',name:'Weighted Decline Sit-Up',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Crunch',equip:['Bench','Plate'],equipment:'Adjustable bench declined, plate on the chest'},
   {id:'co15',name:'Copenhagen Plank',muscle:'Core',muscles:['Core','Legs'],patterns:['Isolation'],family:'Plank',equip:['Bench','Bodyweight'],equipment:'Side plank, top leg on the bench (adductor + oblique)'},
   {id:'co16',name:'Barbell Rollout',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Rollout',equip:['Barbell','Plate'],equipment:'Loaded barbell rolled out from the knees (anti-extension)'},
@@ -235,7 +233,7 @@ const DUCK_EXERCISES = [
   {id:'cs20',name:'Dead Bug',muscle:'Calisthenics',muscles:['Calisthenics','Core'],patterns:['Anti-Rotation'],family:'Dead Bug',equip:['Bodyweight'],equipment:'Floor'},
   {id:'cs21',name:'Side Plank',muscle:'Calisthenics',muscles:['Calisthenics','Core'],patterns:['Isolation'],family:'Plank',equip:['Bodyweight'],equipment:'Floor'},
   {id:'cs22',name:'Bear Crawl',muscle:'Calisthenics',muscles:['Calisthenics','Core','Cardio'],patterns:['Conditioning'],family:'Crawl',equip:['Bodyweight'],equipment:'Floor'},
-  {id:'cs23',name:'Tuck L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Grip'],patterns:['Isolation'],family:'L-Sit',equip:['Pull-Up Bar'],equipment:'Pull-up bar (advanced)'},
+  {id:'cs23',name:'Hanging Tuck L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Grip'],patterns:['Isolation'],family:'L-Sit',equip:['Pull-Up Bar'],equipment:'Pull-up bar (advanced)'},
   {id:'cs24',name:'Broad Jump',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight (advanced — knee load)'},
   {id:'cs25',name:'Single-Leg Calf Raise',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Isolation'],family:'Calf',equip:['Bodyweight','Slant Board'],equipment:'Step / slant board'},
   {id:'cs26',name:'Decline Push-Up',muscle:'Calisthenics',muscles:['Calisthenics','Chest','Shoulders'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Bench','Bodyweight'],equipment:'Feet on the bench (upper-chest / shoulder emphasis)'},
@@ -244,8 +242,7 @@ const DUCK_EXERCISES = [
   {id:'cs29',name:'Superman Hold',muscle:'Calisthenics',muscles:['Calisthenics','Back'],patterns:['Hinge'],family:'Back Extension',equip:['Bodyweight'],equipment:'Prone, lifting chest and legs (spinal erectors)'},
   {id:'cs30',name:'Prone Y-T-W Raise',muscle:'Calisthenics',muscles:['Calisthenics','Shoulders','Back'],patterns:['Isolation'],family:'Rear Delt',equip:['Bodyweight'],equipment:'Prone Y-T-W raises (lower-trap / rear delt)'},
   {id:'cs31',name:'Jump Squat',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight squat with a jump (power)'},
-  {id:'cs32',name:'Box Jump',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bench','Bodyweight'],equipment:'Jump onto the bench / box'},
-  {id:'cs33',name:'Crow Pose',muscle:'Calisthenics',muscles:['Calisthenics','Core','Shoulders'],patterns:['Anti-Rotation'],family:'Balance',equip:['Bodyweight'],equipment:'Balancing on the hands, knees on the elbows'},
+  {id:'cs33',name:'Crow Pose',muscle:'Calisthenics',muscles:['Calisthenics','Core','Shoulders'],patterns:['Mobility'],family:'Balance',equip:['Bodyweight'],equipment:'Balancing on the hands, knees on the elbows'},
   {id:'cs34',name:'Wall Walk',muscle:'Calisthenics',muscles:['Calisthenics','Shoulders','Core'],patterns:['Vertical Push'],family:'Handstand',equip:['Bodyweight'],equipment:'Feet up the wall, walking to a handstand'},
   // ---- Stretches (neutral — no corrective claims; see council 2026-07-18) ----
   {id:'st1',name:'Standing Hamstring Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
@@ -266,7 +263,7 @@ const DUCK_EXERCISES = [
   {id:'st16',name:'Figure-4 Glute Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Supine, ankle over the knee (glute / piriformis)'},
   // ---- Trial drills (from Mark's body map — log the response, keep only what earns it) ----
   {id:'tr1',name:'QL / Side Bend Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
-  {id:'tr2',name:'Kneeling Psoas March',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
+  {id:'tr2',name:'Kneeling Psoas March',muscle:'Legs',muscles:['Legs','Core'],patterns:['Mobility'],family:'Activation',equip:['Bodyweight'],equipment:'Trial — log response'},
   {id:'tr3',name:'Jaw / Neck Release Sequence',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
   {id:'tr4',name:'Big-Toe Isolation Drill',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response (right foot)'}
 ];
