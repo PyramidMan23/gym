@@ -20,11 +20,27 @@
   // Plan JSON contract:
   // { planId, createdAt, basedThroughSessionId, expiresAfterSessions, capabilities:["reentry",...],
   //   notes, sessions:[{title, exercises:[{exerciseId, sets, reps, load, cue}]}] }
+  const isObj = value => !!value && typeof value === 'object' && !Array.isArray(value);
   function isPlanShape(plan) {
-    return plan && typeof plan === 'object' && !Array.isArray(plan)
+    return isObj(plan)
       && typeof plan.planId === 'string'
       && Array.isArray(plan.capabilities)
-      && Array.isArray(plan.sessions);
+      && Array.isArray(plan.sessions)
+      // Deep shape: every session an object with an exercises array of objects —
+      // a malformed remote plan must reject cleanly, never throw later in render.
+      && plan.sessions.every(session => isObj(session) && Array.isArray(session.exercises)
+        && session.exercises.every(isObj));
+  }
+
+  // Untrusted-plan number: finite number in → number out, anything else → null.
+  const safeNum = value => (typeof value === 'number' && Number.isFinite(value)) ? value : null;
+  // Pure dose formatter for the coach card — plain text only, numbers coerced, so the
+  // caller can esc() the result and a hostile plan (load:"<img onerror>") renders inert.
+  function doseLine(exercise) {
+    const load = safeNum(exercise && exercise.load);
+    const sets = safeNum(exercise && exercise.sets);
+    const reps = safeNum(exercise && exercise.reps);
+    return [load !== null ? `${load} kg` : '', sets !== null && reps !== null ? `${sets}×${reps}` : ''].filter(Boolean).join(' · ');
   }
 
   // Capability gate: exactly ["reentry"] unless the Beighton filming has unlocked "beighton".
@@ -62,7 +78,7 @@
     const ctx = context || {};
     const isKnown = ctx.isKnown || (() => true);
     if (!isPlanShape(plan))
-      return { status: 'rejected', reason: 'This plan could not be read.', postCount: 0, unknownExerciseIds: [] };
+      return { status: 'rejected', code: 'unreadable', reason: 'This plan could not be read.', postCount: 0, unknownExerciseIds: [] };
     const unknown = planUnknownIds(plan, isKnown);
     if (!capabilityAllowed(plan.capabilities, !!ctx.beightonUnlocked))
       return { status: 'rejected', reason: 'This plan needs a capability that hasn’t been unlocked.', postCount: 0, unknownExerciseIds: unknown };
@@ -122,15 +138,16 @@
     const index = nextPlanIndex(plan, history);
     const day = (plan.sessions || [])[index];
     if (!day) return null;
+    // Sanitize untrusted plan fields at the boundary: numbers or null, cue as plain string.
     const exercises = (day.exercises || []).map(exercise => ({
-      exerciseId: exercise.exerciseId, sets: exercise.sets, reps: exercise.reps,
-      load: exercise.load, cue: exercise.cue, unknown: !known(exercise.exerciseId)
+      exerciseId: String(exercise.exerciseId || ''), sets: safeNum(exercise.sets), reps: safeNum(exercise.reps),
+      load: safeNum(exercise.load), cue: typeof exercise.cue === 'string' ? exercise.cue : '', unknown: !known(exercise.exerciseId)
     }));
     return { title: day.title || `Session ${index + 1}`, exercises, index };
   }
 
   return {
-    validatePlan, postSessions, capabilityAllowed,
+    validatePlan, postSessions, capabilityAllowed, doseLine, safeNum,
     rampIndex, stepDownNeeded, applyStepDown, localSession, nextPlanIndex, coachSession,
     DEFAULT_EXPIRES, REENTRY_DOSE
   };

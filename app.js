@@ -175,10 +175,20 @@ function coachContext(){
   const rawPlan=Sync?Sync.getPlan():null;
   const beighton=Sync?Sync.getBeighton():false;
   let verdict=null;
-  if(rawPlan)verdict=Coach.validatePlan(rawPlan,{history:state.history,beightonUnlocked:beighton,isKnown});
-  if(verdict&&verdict.status==='usable'){
-    const suggestion=Coach.coachSession(rawPlan,state.history,isKnown);
-    return {source:'coach',label:"Coach’s block",plan:rawPlan,suggestion,provenance:planProvenance(rawPlan,verdict),verdict};
+  // Any throw from an untrusted stored plan must never break Today: fall back to the
+  // local ramp AND clear the poisoned plan so the app isn't broken on every launch.
+  try{
+    if(rawPlan)verdict=Coach.validatePlan(rawPlan,{history:state.history,beightonUnlocked:beighton,isKnown});
+    // Unreadable = can never become usable → clear it (capability-rejected plans stay: Beighton unlock can revive them).
+    if(verdict&&verdict.code==='unreadable'&&Sync)try{Sync.clearPlan();}catch{}
+    if(verdict&&verdict.status==='usable'){
+      const suggestion=Coach.coachSession(rawPlan,state.history,isKnown);
+      return {source:'coach',label:"Coach’s block",plan:rawPlan,suggestion,provenance:planProvenance(rawPlan,verdict),verdict};
+    }
+  }catch(error){
+    console.warn('Coach plan unusable — cleared',error);
+    if(Sync)try{Sync.clearPlan();}catch{}
+    verdict={status:'rejected',reason:'The stored plan could not be read — using safe local programming.'};
   }
   // Local ramp fallback (also the default when there's no plan at all).
   const confirmedFor=id=>Core.lastConfirmedExposure(state.history,id);
@@ -189,15 +199,18 @@ function coachContext(){
 function planProvenance(plan,verdict){
   const total=Number.isFinite(plan.expiresAfterSessions)?plan.expiresAfterSessions:Coach.DEFAULT_EXPIRES;
   const remaining=Math.max(0,total-verdict.postCount);
-  return `Based through session ${esc(String(plan.basedThroughSessionId||'—'))} · ${remaining} session${remaining===1?'':'s'} remaining`;
+  // Plain text — renderCoach esc()'s the whole provenance line once.
+  return `Based through session ${String(plan.basedThroughSessionId||'—')} · ${remaining} session${remaining===1?'':'s'} remaining`;
 }
 function renderCoach(){
   const slot=document.getElementById('coachSlot');if(!slot)return;
   const ctx=coachContext();
   if(!ctx||!ctx.suggestion){slot.innerHTML='';return;}
   const s=ctx.suggestion;
+  // Plan JSON is untrusted (comes from Drive): every plan-derived string goes through esc(),
+  // numbers through Coach.doseLine (finite-or-nothing) — a hostile field renders inert.
   const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped — not in library)`;});
-  const line=e=>{const d=[e.load?`${e.load} kg`:'',e.sets?`${e.sets}×${e.reps}`:''].filter(Boolean).join(' · ');return d?` · ${d}`:'';};
+  const line=e=>{const d=esc(Coach.doseLine(e));return d?` · ${d}`:'';};
   const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}</li>`).join('');
   const sync=Sync?Sync.status():{configured:false,queued:0,lastSyncAt:null};
   const syncLine=sync.configured
@@ -214,10 +227,23 @@ function renderCoach(){
   </section>`;
 }
 function startCoachSession(){
+  // Re-derives the context, so a superseded/rejected plan can never be started from a stale card.
   const ctx=coachContext();if(!ctx||!ctx.suggestion)return;
-  const ids=ctx.suggestion.exercises.map(e=>e.exerciseId).filter(id=>exerciseById(id));
-  if(!ids.length)return showToast('No usable exercises in this session');
-  beginSession({id:null,name:ctx.suggestion.title,exerciseIds:ids});
+  const usable=ctx.suggestion.exercises.filter(e=>exerciseById(e.exerciseId));
+  if(!usable.length)return showToast('No usable exercises in this session');
+  if(state.activeSession){showToast('You already have a workout running');navigate('workout');return;}
+  const session=Core.createSession({id:null,name:ctx.suggestion.title,exerciseIds:usable.map(e=>e.exerciseId)});
+  // Pre-fill the prescription: N set rows with prescribed reps + load (load only when finite), cue → notes.
+  session.exercises.forEach((exercise,i)=>{
+    const rx=usable[i];
+    const count=Math.min(10,Math.max(1,Coach.safeNum(rx.sets)||1));
+    const reps=Coach.safeNum(rx.reps),load=Coach.safeNum(rx.load);
+    exercise.sets=Array.from({length:count},()=>({weight:load!==null?String(load):'',reps:reps!==null?String(reps):'',done:false}));
+    if(typeof rx.cue==='string'&&rx.cue)exercise.notes=rx.cue;
+  });
+  session.checkin={pre:null,post:null}; // same three-touch safety loop as beginSession
+  state.activeSession=session;
+  saveState();navigate('workout');
 }
 function exportLastSession(){
   if(!Sync)return;
