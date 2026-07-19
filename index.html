@@ -104,11 +104,12 @@
     </nav>
   </div>
 
-  <button id="restPill" class="rest-pill" type="button" onclick="adjustRest(30)" aria-live="polite"><span>Rest</span><strong id="restTime">01:30</strong><small>+30s</small></button>
+  <div id="restPill" class="rest-pill" aria-live="polite"><div class="rest-info"><span>Rest</span><strong id="restTime">01:30</strong></div><button class="rest-act" type="button" onclick="adjustRest(30)" aria-label="Add 30 seconds to rest">+30s</button><button class="rest-act rest-skip" type="button" onclick="skipRest()" aria-label="Skip rest and go to next set">Skip</button></div>
 
   <div id="receiptOverlay" class="receipt-overlay" role="dialog" aria-modal="true" aria-label="Session receipt" hidden style="display:none"><div class="receipt-card notched" id="receiptCard"></div></div>
 
   <dialog id="sheet" class="sheet"><div class="sheet-scroll"><div class="sheet-handle"></div><div id="sheetContent"></div></div></dialog>
+  <dialog id="padSheet" class="sheet" aria-label="Number pad"><div class="sheet-scroll"><div class="sheet-handle"></div><div id="padContent"></div></div></dialog>
   <dialog id="filterSheet" class="sheet" aria-labelledby="filterSheetTitle"><div class="sheet-scroll"><div class="sheet-handle"></div><div id="filterSheetContent"></div></div></dialog>
   <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent" class="dialog-scroll"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

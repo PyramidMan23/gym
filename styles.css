@@ -235,4 +235,25 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
 .pin-key.ghost{border:0;background:transparent;pointer-events:none}
 .pin-key.pin-back{font-size:20px;color:var(--amber-deep)}
 .pin-switch{display:block;margin:18px auto 4px}
+/* Carry-forward: a prefilled (not-yet-confirmed) set reads muted AND italic/lighter — a non-colour cue too (Mark is colour-blind). */
+.set-row.prefilled .set-input{color:var(--taupe);font-style:italic;font-weight:500}
+/* Explicit set-1 adoption action. Theme-aware amber tint via the bloom RGB token, not a hardcoded literal. */
+.adopt-last{display:block;width:calc(100% - 28px);margin:0 14px 8px;min-height:44px;border:1px solid var(--amber);border-radius:var(--r1);background:rgba(var(--bloom-amber),.12);color:var(--amber-deep);font-weight:800;font-size:13px;font-variant-numeric:tabular-nums lining-nums}
+/* Rest-end progression: one-time amber pulse on the already-notched next set. */
+@keyframes restNext{0%{box-shadow:inset 3px 0 0 var(--amber),0 0 0 0 rgba(var(--bloom-amber),.55)}100%{box-shadow:inset 3px 0 0 var(--amber),0 0 0 12px rgba(var(--bloom-amber),0)}}
+.set-row.rest-next{animation:restNext .9s var(--ease)}
+/* Rest pill → two thumb zones (+30s / Skip), both 44px. */
+.rest-info{display:flex;flex-direction:column;line-height:1.1}
+.rest-act{min-height:44px;min-width:44px;padding:0 12px;border:1px solid var(--hair);border-radius:var(--r1);background:var(--glass-2);color:var(--amber-deep);font-weight:800;font-size:12px;font-variant-numeric:tabular-nums lining-nums}
+.rest-skip{color:var(--cream)}
+/* Numeric pad sheet. */
+.pad-value{display:flex;align-items:baseline;justify-content:center;gap:8px;margin:6px 0 16px}
+.pad-value strong{font-weight:800;font-size:56px;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}
+.pad-value small{color:var(--taupe);font-size:14px;font-weight:700}
+.pad-steps{display:flex;gap:7px;margin-bottom:14px}
+.pad-step{flex:1;min-height:44px;border:1px solid var(--hair);border-radius:var(--r1);background:var(--glass-2);color:var(--cream);font-weight:800;font-size:13px;font-variant-numeric:tabular-nums lining-nums}
+.pad-step.on{background:var(--amber);border-color:var(--amber);color:var(--on-amber)}
+.pad-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.pad-adjust{height:72px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass-2);color:var(--amber-deep);font-size:32px;font-weight:800;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.pad-adjust:active{background:rgba(var(--bloom-amber),.14)}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
