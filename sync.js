@@ -6,10 +6,10 @@
 //  - drive.file can only read files the APP created → always read coach-plan.json by its stored
 //    fileId; never search-and-recreate (recreating breaks the PC-side down-sync loop).
 (function (root, factory) {
-  const api = factory();
+  const api = factory(root);
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.DuckGymSync = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
   const SYNC_KEY = 'gymSyncV1';
