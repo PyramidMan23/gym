@@ -364,7 +364,7 @@ function toggleFavourite(id,ctx,starEl){
     starEl.setAttribute('aria-pressed',String(willFav));
     starEl.setAttribute('aria-label',`${willFav?'Remove':'Add'} ${name} ${willFav?'from':'to'} favourites`);
   }
-  const scroller=ctx==='library'?null:document.getElementById('sheet');
+  const scroller=ctx==='library'?null:document.querySelector('#sheet .sheet-scroll');
   const before=starEl?starEl.getBoundingClientRect().top:null;
   renderCatalogueQuick(ctx);
   if(before!=null){const d=starEl.getBoundingClientRect().top-before;if(d){scroller?scroller.scrollTop+=d:window.scrollBy(0,d);}}

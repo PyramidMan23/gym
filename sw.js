@@ -1,4 +1,4 @@
-const CACHE='gym-v14';
+const CACHE='gym-v15';
 const ASSETS=['./','./index.html','./styles.css','./core.js','./exercises.js','./sync.js','./coach.js','./app.js','./manifest.webmanifest','./icon.svg','./icon-180.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new Request(url,{cache:'reload'})))).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
