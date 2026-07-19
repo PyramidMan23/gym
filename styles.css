@@ -120,6 +120,24 @@ dialog{color:var(--cream)}dialog::backdrop{background:rgba(7,18,36,.48);backdrop
 .pr-row strong{display:block;font-weight:800;font-size:14px}.pr-row small{display:block;color:var(--taupe);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
 .pr-row time{margin-left:auto;color:var(--taupe);font-size:11px;font-variant-numeric:tabular-nums;flex:none}
 .confirm-feel{margin:14px 0 2px}.confirm-feel p{margin:0 0 8px;font-size:12px;font-weight:700;color:var(--taupe)}
+/* Coach surface (Today) */
+.coach-card{margin-bottom:12px;padding:18px}
+.coach-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.coach-top .kicker{color:var(--amber-deep)}
+.coach-flag{background:var(--teal);color:var(--teal-ink-on);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:4px 9px 4px 8px}
+.coach-card h2{font-weight:800;font-size:21px;letter-spacing:-.02em;margin:4px 0 8px}
+.coach-superseded{margin:0 0 10px;padding:9px 11px;border-radius:var(--r2);background:rgba(224,110,31,.12);color:var(--amber-deep);font-size:12px;font-weight:700}
+.coach-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:5px}
+.coach-list li{font-size:13px;color:var(--cream);font-variant-numeric:tabular-nums lining-nums;padding-left:12px;position:relative}
+.coach-list li::before{content:'';position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:0;background:var(--amber)}
+.coach-list li.coach-skip{color:var(--taupe)}.coach-list li.coach-skip::before{background:var(--taupe)}
+.coach-prov{margin:0 0 12px;color:var(--taupe);font-size:11px;font-variant-numeric:tabular-nums lining-nums}
+.coach-sync{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--hair)}
+.coach-sync span{color:var(--taupe);font-size:11px;font-variant-numeric:tabular-nums lining-nums}
+.beighton-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;padding:13px 14px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass)}
+.beighton-toggle strong{display:block;font-weight:800;font-size:14px}
+.beighton-toggle small{display:block;margin-top:3px;color:var(--taupe);font-size:11px;line-height:1.4}
+.beighton-toggle input{width:22px;height:22px;flex:none;accent-color:var(--teal)}
 /* Load-notch motif — reserved for active set, PR marks, session receipt only */
 .notched{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%)}
 .notched-left{clip-path:polygon(14px 0,100% 0,100% 100%,0 100%,0 14px)}
@@ -150,7 +168,7 @@ dialog{color:var(--cream)}dialog::backdrop{background:rgba(7,18,36,.48);backdrop
 .receipt-card .primary-button{margin-top:18px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .app-header,.search-wrap,.workout-header,.bottom-nav,.rest-pill{background:var(--glass-solid)}
-  .card,.routine-card,.history-card,.week-card,.chart-card,.activity-card,.resume-card,.template-card,.exercise-row,.metric,.workout-exercise,.trend-card,.pr-row,.checkin-card{background:var(--card-solid)}
+  .card,.routine-card,.history-card,.week-card,.chart-card,.activity-card,.resume-card,.template-card,.exercise-row,.metric,.workout-exercise,.trend-card,.pr-row,.checkin-card,.coach-card{background:var(--card-solid)}
   .sheet,.confirm-dialog,.toast{background:var(--glass-solid)}
 }
 @media(min-width:650px){.app-shell{padding-left:28px;padding-right:28px}.template-grid{grid-template-columns:repeat(3,1fr)}.sheet{left:50%;transform:translateX(-50%);border-radius:10px 10px 0 0}.sheet[open]{animation:none}.metric-grid{gap:12px}}

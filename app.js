@@ -1,6 +1,8 @@
 'use strict';
 
 const Core = DuckGymCore;
+const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
+const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
 const STORE_KEY = 'duckGymV2';
 const DAY = 86400000;
 let currentView = 'today';
@@ -120,6 +122,7 @@ function renderToday(){
   document.getElementById('todayTitle').textContent=hour<12?'Morning.':hour<18?'Ready to train?':'Let’s finish strong.';
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
+  renderCoach();
   renderActivityRings(weekly);
   renderWeekDots();
   document.getElementById('resumeSlot').innerHTML=state.activeSession?`<div class="resume-card"><strong>Workout in progress</strong><p>${esc(state.activeSession.name)} · started ${formatElapsed(state.activeSession.started)} ago</p><button onclick="resumeWorkout()">Resume workout</button></div>`:'';
@@ -161,6 +164,66 @@ function routineCard(routine){
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
   return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} sets</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
+}
+
+// Coach surface (Today): one active source only — remote "Coach's block" when a plan validates,
+// otherwise the local ramp. A superseded/rejected remote plan is shown but never startable.
+const RETURN_RAMP=plans.find(p=>p.id==='plan-return');
+function coachContext(){
+  if(!Coach)return null;
+  const isKnown=id=>!!exerciseById(id);
+  const rawPlan=Sync?Sync.getPlan():null;
+  const beighton=Sync?Sync.getBeighton():false;
+  let verdict=null;
+  if(rawPlan)verdict=Coach.validatePlan(rawPlan,{history:state.history,beightonUnlocked:beighton,isKnown});
+  if(verdict&&verdict.status==='usable'){
+    const suggestion=Coach.coachSession(rawPlan,state.history,isKnown);
+    return {source:'coach',label:"Coach’s block",plan:rawPlan,suggestion,provenance:planProvenance(rawPlan,verdict),verdict};
+  }
+  // Local ramp fallback (also the default when there's no plan at all).
+  const confirmedFor=id=>Core.lastConfirmedExposure(state.history,id);
+  const suggestion=RETURN_RAMP?Coach.localSession(state.history,RETURN_RAMP.days,{confirmedFor}):null;
+  const superseded=verdict&&verdict.status!=='usable'?verdict.reason:'';
+  return {source:'local',label:'Local ramp',suggestion,provenance:'Joint-friendly Return Ramp · safe local programming',superseded};
+}
+function planProvenance(plan,verdict){
+  const total=Number.isFinite(plan.expiresAfterSessions)?plan.expiresAfterSessions:Coach.DEFAULT_EXPIRES;
+  const remaining=Math.max(0,total-verdict.postCount);
+  return `Based through session ${esc(String(plan.basedThroughSessionId||'—'))} · ${remaining} session${remaining===1?'':'s'} remaining`;
+}
+function renderCoach(){
+  const slot=document.getElementById('coachSlot');if(!slot)return;
+  const ctx=coachContext();
+  if(!ctx||!ctx.suggestion){slot.innerHTML='';return;}
+  const s=ctx.suggestion;
+  const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped — not in library)`;});
+  const line=e=>{const d=[e.load?`${e.load} kg`:'',e.sets?`${e.sets}×${e.reps}`:''].filter(Boolean).join(' · ');return d?` · ${d}`:'';};
+  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}</li>`).join('');
+  const sync=Sync?Sync.status():{configured:false,queued:0,lastSyncAt:null};
+  const syncLine=sync.configured
+    ?`${sync.connected?'Synced':'Sync pending'}${sync.lastSyncAt?' · '+formatDate(sync.lastSyncAt):''}${sync.queued?` · ${sync.queued} queued`:''}`
+    :`Not connected${sync.queued?` · ${sync.queued} queued`:''}`;
+  slot.innerHTML=`<section class="coach-card card" aria-label="Training coach">
+    <div class="coach-top"><p class="kicker">${ctx.source==='coach'?'COACH’S BLOCK':'LOCAL RAMP'}</p>${s.stepDown?'<span class="coach-flag notched">Step-down</span>':''}</div>
+    <h2>${esc(s.title)}</h2>
+    ${ctx.superseded?`<p class="coach-superseded">${esc(ctx.superseded)}</p>`:''}
+    <ul class="coach-list">${list}</ul>
+    <p class="coach-prov">${esc(ctx.provenance)}</p>
+    <button class="primary-button full-button" onclick="startCoachSession()">Start ${esc(s.title)}</button>
+    <div class="coach-sync"><span>${esc(syncLine)}</span>${sync.configured?'':`<button class="text-button" onclick="exportLastSession()">Export session</button>`}</div>
+  </section>`;
+}
+function startCoachSession(){
+  const ctx=coachContext();if(!ctx||!ctx.suggestion)return;
+  const ids=ctx.suggestion.exercises.map(e=>e.exerciseId).filter(id=>exerciseById(id));
+  if(!ids.length)return showToast('No usable exercises in this session');
+  beginSession({id:null,name:ctx.suggestion.title,exerciseIds:ids});
+}
+function exportLastSession(){
+  if(!Sync)return;
+  const last=state.activeSession||state.history[0];
+  if(!last)return showToast('No session to export yet');
+  Sync.exportSession(last);
 }
 
 function renderTrain(){
@@ -367,6 +430,7 @@ function finishWorkout(){
   session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
+  if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
   openReceipt(session);
 }
 function openReceipt(session){
@@ -474,8 +538,29 @@ function saveRingGoals(){
   saveState();closeSheet();renderToday();showToast('Activity goals updated');
 }
 function openSettings(){
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div><p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
 }
+// Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
+function syncSettingsMarkup(){
+  if(!Sync)return '';
+  const st=Sync.status(),cfg=Sync.loadConfig(),beighton=Sync.getBeighton();
+  const conn=st.configured?(st.connected?'Connected':'Configured — not connected'):'Not connected';
+  return `<div class="section-heading"><div><p class="kicker">SYNC & COACH</p><h2>Google Drive</h2></div></div>
+    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional. Syncs sessions to a private <strong>Gym-Sync</strong> folder and reads your coach's plan back. Scope is limited to files this app creates.</p>
+    <div class="field"><label>OAUTH CLIENT ID</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"></div>
+    <div class="stack">
+      ${st.connected?`<button class="secondary-button full-button" onclick="disconnectSync()">Disconnect</button>`:`<button class="secondary-button full-button" ${st.configured?'':'disabled style="opacity:.5"'} onclick="connectSync()">Connect Google Drive</button>`}
+    </div>
+    <p style="color:var(--taupe);font-size:11px;margin:8px 2px 0">Status: ${esc(conn)}${st.queued?` · ${st.queued} session${st.queued===1?'':'s'} queued`:''}</p>
+    <label class="beighton-toggle"><span><strong>Beighton features</strong><small>Off until your Beighton hypermobility filming is done. Unlocking accepts coach plans that use those extra capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`;
+}
+function saveSyncClientId(value){if(Sync)Sync.setClientId(value);}
+function connectSync(){
+  if(!Sync)return;
+  Sync.connect().then(()=>{openSettings();renderToday();showToast('Google Drive connected');}).catch(()=>showToast('Could not connect — try again'));
+}
+function disconnectSync(){if(Sync){Sync.disconnect();openSettings();renderToday();showToast('Disconnected');}}
+function toggleBeighton(on){if(Sync){Sync.setBeighton(on);renderToday();showToast(on?'Beighton features unlocked':'Beighton features locked');}}
 function setRestPreference(value){state.preferences.restSeconds=Number(value);saveState();showToast('Rest timer updated');}
 function exportBackup(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`gym-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
 async function importBackup(file){
@@ -507,3 +592,5 @@ document.getElementById('sheet').addEventListener('click',event=>{if(event.targe
 saveState();
 if(state.activeSession)renderToday();else renderToday();
 renderTrain();renderLibrary();renderProgress();
+// Flush any queued sessions and pull the latest coach plan on launch — silent, deferred, never blocking.
+if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
