@@ -626,7 +626,12 @@ function pickExercise(id){
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
   else if(pickerTarget==='routine'){if(!routineDraft.exerciseIds.includes(id))routineDraft.exerciseIds.push(id);renderRoutineEditor();}
 }
-function closeSheet(){document.getElementById('sheet').close();}
+function closeSheet(){
+  document.getElementById('sheet').close();
+  // While the boot PIN gate is active, any sheet dismissal (incl. the switcher's x) must land
+  // back ON the gate, never in the neutral shell (Codex: gate must be truly non-dismissible).
+  if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p&&p.pinHash)gateLockedProfile(p);}
+}
 
 function openRoutineEditor(id){
   const existing=id?state.routines.find(r=>r.id===id):null;

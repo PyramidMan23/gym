@@ -113,11 +113,14 @@
       client_id: clientId, scope: SCOPE,
       callback: response => {
         const p = pending; pending = null;
+        // Generation guard: a callback for a request minted before setUser() must never install
+        // its token into the NEW profile's session (Codex: old GIS callback after switch).
+        if (!p || p.g !== gen) return;
         if (response && response.access_token) {
           accessToken = response.access_token;
           tokenExpiry = Date.now() + (Number(response.expires_in) || 3600) * 1000;
-          p && p.resolve(accessToken);
-        } else if (p) p.reject(new Error('no-token'));
+          p.resolve(accessToken);
+        } else p.reject(new Error('no-token'));
       },
       error_callback: err => { const p = pending; pending = null; if (p) p.reject(err || new Error('token-error')); }
     });
@@ -142,7 +145,7 @@
       const tc = buildTokenClient();
       if (!tc) { preload(); return reject(new Error('gsi-not-ready')); }
       if (pending) return reject(new Error('token-in-flight'));
-      pending = { resolve, reject };
+      pending = { resolve, reject, g: gen };
       try { tc.requestAccessToken({ prompt: interactive ? 'consent' : '' }); }
       catch (e) { pending = null; reject(e); }
     });
@@ -237,7 +240,7 @@
       }), Promise.resolve()); })
       .then(() => status())
       .catch(() => status()) // deferred to next launch
-      .finally(() => { flushInFlight = null; });
+      .finally(() => { if (g === gen) flushInFlight = null; }); // stale flush must not clear the new profile's single-flight slot
     return flushInFlight;
   }
 
