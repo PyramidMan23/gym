@@ -18,7 +18,10 @@
   <div id="app" class="app-shell">
     <header class="app-header" id="appHeader">
       <button class="brand" type="button" onclick="navigate('today')" aria-label="Gym home"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 12h2M19.5 12h2M7.5 12h9"/><path d="M5.5 8.5v7M18.5 8.5v7M8.5 6.5v11M15.5 6.5v11"/></svg></span><strong>Gym</strong></button>
-      <button class="icon-button" type="button" onclick="openSettings()" aria-label="Settings">•••</button>
+      <div class="header-actions">
+        <button class="profile-chip" id="profileChip" type="button" onclick="openProfileSwitcher()" aria-label="Switch profile"><span id="profileChipInitial">?</span></button>
+        <button class="icon-button" type="button" onclick="openSettings()" aria-label="Settings">•••</button>
+      </div>
     </header>
 
     <main id="main" tabindex="-1">
@@ -113,6 +116,7 @@
 
   <script src="core.js"></script>
   <script src="exercises.js"></script>
+  <script src="profiles.js"></script>
   <script src="sync.js"></script>
   <script src="coach.js"></script>
   <script src="app.js"></script>

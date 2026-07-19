@@ -3,8 +3,22 @@
 const Core = DuckGymCore;
 const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
 const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
-const STORE_KEY = 'duckGymV2';
+const Profiles = (typeof DuckGymProfiles !== 'undefined') ? DuckGymProfiles : null;
 const DAY = 86400000;
+// ---- Active-profile binding (Track B). stateKey is the namespaced localStorage key the whole
+// app reads/writes; it is set by bootProfiles() and re-pointed on every profile switch. ----
+let activeProfileId = null;
+let stateKey = 'duckGymV2'; // safe default if the profiles module ever fails to load
+const unlockedProfiles = new Set(); // per-page-load unlock grace (council: unlock once per app open)
+let bootNeedsName = false;
+function bootProfiles(){
+  if(!Profiles)return;
+  const boot=Profiles.bootstrap(localStorage);
+  activeProfileId=boot.activeId;
+  stateKey=Profiles.stateKeyFor(activeProfileId);
+  bootNeedsName=boot.needsName;
+  if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(activeProfileId));
+}
 let currentView = 'today';
 let activeTimer = null;
 let restTimer = null;
@@ -17,22 +31,22 @@ const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 
 function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000}}; }
+// Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
+// so a brand-new profile's missing key correctly yields an empty state (never another profile's data).
 function readState(){
   try{
-    const saved=JSON.parse(localStorage.getItem(STORE_KEY));
+    const saved=JSON.parse(localStorage.getItem(stateKey));
     if(saved?.version===2){
       const preferences={...emptyState().preferences,...saved.preferences,...Core.normalizeActivityGoals(saved.preferences)};
       return {...emptyState(),...saved,preferences};
     }
   }catch{}
-  const legacy={dg_workouts:localStorage.getItem('dg_workouts'),dg_history:localStorage.getItem('dg_history'),dg_custom:localStorage.getItem('dg_custom')};
-  const migrated=Core.migrateLegacy(legacy);
-  migrated.preferences={...migrated.preferences,...Core.normalizeActivityGoals(migrated.preferences)};
-  return migrated;
+  return emptyState();
 }
+bootProfiles();
 let state=readState();
 function saveState(){
-  try{localStorage.setItem(STORE_KEY,JSON.stringify(state));return true;}
+  try{localStorage.setItem(stateKey,JSON.stringify(state));return true;}
   catch(error){console.error('Duck Gym could not persist state',error);showToast('Could not save — browser storage is full');return false;}
 }
 function allExercises(){ return [...DUCK_EXERCISES,...state.customExercises]; }
@@ -203,8 +217,15 @@ function planProvenance(plan,verdict){
   // Plain text — renderCoach esc()'s the whole provenance line once.
   return `Based through session ${String(plan.basedThroughSessionId||'—')} · ${remaining} session${remaining===1?'':'s'} remaining`;
 }
+// Coach-card scoping (council 2026-07-19): a profile only sees the Local Ramp / Coach's Block card
+// once it has skin in the game — a plan/routine, some history, or sync configured. A brand-new profile
+// gets a neutral empty state instead, so Mark-tuned re-entry programming is never pushed at housemates.
 function renderCoach(){
   const slot=document.getElementById('coachSlot');if(!slot)return;
+  if(!Core.coachEligible(state,Sync&&!!Sync.loadConfig().clientId)){
+    slot.innerHTML=`<section class="coach-card card coach-empty" aria-label="Get started"><p class="kicker">GET STARTED</p><h2>Pick a plan to get a suggested session</h2><p class="coach-empty-detail">Choose a plan built for this gym and your next session shows up here.</p><button class="primary-button full-button" onclick="navigate('train')">Pick a plan</button></section>`;
+    return;
+  }
   const ctx=coachContext();
   if(!ctx||!ctx.suggestion){slot.innerHTML='';return;}
   const s=ctx.suggestion;
@@ -662,7 +683,7 @@ function saveRingGoals(){
   saveState();closeSheet();renderToday();showToast('Activity goals updated');
 }
 function openSettings(){
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
@@ -694,7 +715,8 @@ function connectSync(){
 function disconnectSync(){if(Sync){Sync.disconnect();openSettings();renderToday();showToast('Disconnected');}}
 function toggleBeighton(on){if(Sync){Sync.setBeighton(on);renderToday();showToast(on?'Beighton features unlocked':'Beighton features locked');}}
 function setRestPreference(value){state.preferences.restSeconds=Number(value);saveState();showToast('Rest timer updated');}
-function exportBackup(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`gym-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
+function activeProfileName(){const p=Profiles?Profiles.getActive(localStorage):null;return (p&&p.name)||'me';}
+function exportBackup(){const slug=activeProfileName().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'me';const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`gym-${slug}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}
 async function importBackup(file){
   if(!file)return;
   try{
@@ -734,8 +756,186 @@ document.getElementById('filterSheet').addEventListener('click',event=>{if(event
 document.getElementById('view-library').addEventListener('click',event=>onCatalogueClick('library',event));
 document.getElementById('sheetContent').addEventListener('click',event=>onCatalogueClick('picker',event));
 document.getElementById('filterSheetContent').addEventListener('click',onFacetClick);
+// ================= Track B — local profiles UI =================
+function renderProfileChip(){
+  const chip=document.getElementById('profileChip');if(!chip)return;
+  if(!Profiles){chip.hidden=true;return;}
+  const p=Profiles.getActive(localStorage);
+  document.getElementById('profileChipInitial').textContent=p?Profiles.initial(p.name||'?'):'?';
+  chip.setAttribute('aria-label',`Switch profile${p&&p.name?` — currently ${p.name}`:''}`);
+  chip.classList.toggle('is-locked',!!(p&&p.locked));
+  chip.hidden=false;
+}
+function openProfileSwitcher(){
+  if(!Profiles)return;
+  const reg=Profiles.getRegistry(localStorage),list=reg?reg.profiles:[];
+  const rows=list.map(p=>`<button class="profile-row${p.id===activeProfileId?' active':''}" onclick="enterProfile('${p.id}')">
+    <span class="profile-ini">${esc(Profiles.initial(p.name||'?'))}</span>
+    <span class="profile-name"><strong>${esc(p.name||'Unnamed')}</strong>${p.id===activeProfileId?'<small>Training now</small>':(p.locked?'<small>Locked</small>':'')}</span>
+    <span class="profile-mark" aria-hidden="true">${p.id===activeProfileId?'✓':(p.locked?'🔒':'')}</span>
+  </button>`).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training?</h2><button class="close-button" onclick="closeSheet()">×</button></div>
+    <div class="profile-rows">${rows}<button class="profile-row add-row" onclick="addPerson()"><span class="profile-ini add">+</span><span class="profile-name"><strong>Add person</strong></span><span class="profile-mark" aria-hidden="true">›</span></button></div>`;
+  document.getElementById('sheet').showModal();
+}
+// Enter a profile: no-op if already active; PIN gate if locked-and-not-yet-unlocked; else switch now.
+function enterProfile(id){
+  if(!Profiles)return;
+  const p=Profiles.getProfile(localStorage,id);if(!p)return;
+  if(id===activeProfileId){closeSheet();return;}
+  if(p.locked&&!unlockedProfiles.has(id)){openPinGate(p,()=>{unlockedProfiles.add(id);commitSwitch(id);});return;}
+  commitSwitch(id);
+}
+// The actual swap: persist active pointer, re-point state + sync (token reset), reset transient UI, re-render.
+function commitSwitch(id){
+  Profiles.setActive(localStorage,id);
+  activeProfileId=id;
+  stateKey=Profiles.stateKeyFor(id);
+  if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(id)); // hard auth reset — no cross-profile token bleed
+  state=readState();
+  clearInterval(activeTimer);clearInterval(restTimer);
+  const pill=document.getElementById('restPill');if(pill)pill.classList.remove('show');
+  routineDraft=null;pickerTarget=null;strengthPick=null;
+  libraryFilter=newFilterState();pickerFilterState=newFilterState();
+  closeSheet();
+  currentView='today';
+  document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-today'));
+  document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view==='today'));
+  const cursor=document.getElementById('navCursor');if(cursor)cursor.style.transform='translateX(0)';
+  document.body.classList.remove('workout-active');
+  renderAllViews();renderProfileChip();
+  const main=document.getElementById('main');if(main)main.focus({preventScroll:true});window.scrollTo(0,0);
+  if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+  const name=(Profiles.getActive(localStorage)||{}).name;
+  showToast(name?`Training as ${name}`:'Profile switched');
+}
+function addPerson(){
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Add person</h2><button class="close-button" onclick="closeSheet()">×</button></div>
+    <p class="first-run-sub">A separate space on this phone — their own history, favourites and plans. The only shared thing is the gym’s exercise list.</p>
+    <div class="field"><label>NAME</label><input id="newPersonName" placeholder="Their name" onkeydown="if(event.key==='Enter')submitAddPerson()"></div>
+    <div class="sheet-actions"><button class="secondary-button" onclick="openProfileSwitcher()">Back</button><button class="primary-button" onclick="submitAddPerson()">Create & switch</button></div>`;
+  document.getElementById('sheet').showModal();
+  setTimeout(()=>document.getElementById('newPersonName')?.focus(),60);
+}
+function submitAddPerson(){
+  const name=(document.getElementById('newPersonName').value||'').trim();
+  if(!name)return showToast('Enter a name');
+  commitSwitch(Profiles.addProfile(localStorage,name));
+}
+// First-run / post-migration welcome — names the profile bootstrap already created. One screen, no friction.
+function openFirstRunSheet(){
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training on this phone?</h2></div>
+    <p class="first-run-sub">Your workouts stay in a private space on this device. You can add other people later from the profile menu.</p>
+    <div class="field"><label>YOUR NAME</label><input id="firstRunName" placeholder="Your name" onkeydown="if(event.key==='Enter')submitFirstRun()"></div>
+    <button class="primary-button full-button" onclick="submitFirstRun()">Continue</button>`;
+  document.getElementById('sheet').showModal();
+  setTimeout(()=>document.getElementById('firstRunName')?.focus(),60);
+}
+function submitFirstRun(nameArg){
+  if(!Profiles)return;
+  const name=(typeof nameArg==='string'?nameArg:(document.getElementById('firstRunName')?.value||'')).trim()||'Me';
+  Profiles.setName(localStorage,activeProfileId,name);
+  bootNeedsName=false;
+  closeSheet();renderProfileChip();renderAllViews();
+  if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+}
+// ---- Profile settings (active profile only) ----
+function profileSettingsMarkup(){
+  if(!Profiles)return '';
+  const p=Profiles.getActive(localStorage);if(!p)return '';
+  const many=Profiles.listProfiles(localStorage).length>1;
+  return `<div class="section-heading"><div><p class="kicker">PROFILE</p><h2>${esc(p.name||'Unnamed')}</h2></div><button class="text-button" onclick="openProfileSwitcher()">Switch</button></div>
+    <div class="field"><label>NAME</label><input id="profileName" value="${esc(p.name)}" placeholder="Your name" oninput="onRenameProfile(this.value)"></div>
+    <div class="stack">
+      ${p.locked?`<button class="secondary-button full-button" onclick="removeActivePin()">Remove PIN lock</button>`:`<button class="secondary-button full-button" onclick="openSetPin()">Set a PIN lock</button>`}
+      ${many?`<button class="secondary-button full-button" style="color:var(--danger)" onclick="confirmDeleteProfile('${p.id}')">Delete this profile</button>`:''}
+    </div>
+    <p style="color:var(--taupe);font-size:11px;margin:8px 2px 4px">A PIN stops casual switching, not a determined snoop. Data still lives unencrypted in this browser.</p>`;
+}
+function onRenameProfile(value){if(Profiles){Profiles.setName(localStorage,activeProfileId,value);renderProfileChip();}}
+function removeActivePin(){Profiles.clearPin(localStorage,activeProfileId);renderProfileChip();openSettings();showToast('PIN lock removed');}
+function confirmDeleteProfile(id){
+  const p=Profiles.getProfile(localStorage,id);if(!p)return;
+  document.getElementById('confirmContent').innerHTML=`<h2>Delete ${esc(p.name||'this profile')}?</h2><p>This permanently removes ${esc(p.name||'this profile')}’s history, routines, favourites and settings from this phone. It cannot be undone.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="doDeleteProfile('${id}')">Delete</button></div>`;
+  document.getElementById('confirmDialog').showModal();
+}
+function doDeleteProfile(id){
+  const wasActive=id===activeProfileId;
+  const res=Profiles.deleteProfile(localStorage,id);
+  closeConfirm();
+  if(!res.ok){showToast('You need at least one profile');return;}
+  unlockedProfiles.delete(id);
+  showToast('Profile deleted');
+  if(wasActive){closeSheet();enterProfile(res.newActiveId);}
+  else{renderProfileChip();openSettings();}
+}
+// ---- PIN entry (custom keypad sheet; council: UI privacy boundary, not forensic security) ----
+let pinBuffer='';
+let pinContext=null; // {mode:'gate',profile,onSuccess} | {mode:'set',first}
+function openPinGate(profile,onSuccess){
+  pinBuffer='';pinContext={mode:'gate',profile,onSuccess};
+  renderPinSheet(`Enter ${profile.name||'profile'}’s PIN`,'4-digit PIN to open this profile.');
+  document.getElementById('sheet').showModal();
+}
+function openSetPin(){
+  pinBuffer='';pinContext={mode:'set',first:null};
+  renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');
+  document.getElementById('sheet').showModal();
+}
+function renderPinSheet(title,sub){
+  const dots=[0,1,2,3].map(i=>`<span class="pin-dot${i<pinBuffer.length?' on':''}"></span>`).join('');
+  const keys=['1','2','3','4','5','6','7','8','9','','0','back'];
+  const pad=keys.map(k=>!k?'<span class="pin-key ghost"></span>':`<button class="pin-key${k==='back'?' pin-back':''}" type="button" onclick="pinKey('${k}')" aria-label="${k==='back'?'Delete':k}">${k==='back'?'⌫':k}</button>`).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(title)}</h2><button class="close-button" onclick="closePinSheet()">×</button></div>
+    <p class="pin-sub" id="pinSub">${esc(sub)}</p>
+    <div class="pin-dots">${dots}</div>
+    <div class="pin-pad">${pad}</div>
+    ${pinContext&&pinContext.mode==='gate'?`<button class="text-button pin-switch" onclick="openProfileSwitcher()">Use a different profile</button>`:''}`;
+}
+function refreshPinDots(){document.querySelectorAll('.pin-dots .pin-dot').forEach((d,i)=>d.classList.toggle('on',i<pinBuffer.length));}
+function pinKey(k){
+  if(k==='back'){pinBuffer=pinBuffer.slice(0,-1);refreshPinDots();return;}
+  if(pinBuffer.length>=4)return;
+  pinBuffer+=k;refreshPinDots();
+  if(pinBuffer.length===4)setTimeout(pinComplete,110);
+}
+async function pinComplete(){
+  const entered=pinBuffer;
+  if(!pinContext)return;
+  if(pinContext.mode==='gate'){
+    const ok=await Profiles.verifyPin(pinContext.profile,entered);
+    if(ok){const cb=pinContext.onSuccess;pinContext=null;pinBuffer='';cb();}
+    else pinFail('Wrong PIN — try again');
+    return;
+  }
+  // set mode: confirm the digits match before committing
+  if(!pinContext.first){pinContext.first=entered;pinBuffer='';renderPinSheet('Confirm PIN','Enter the same 4 digits again.');return;}
+  if(pinContext.first!==entered){pinContext.first=null;pinBuffer='';renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');showToast('PINs didn’t match — start again');return;}
+  await Profiles.setPin(localStorage,activeProfileId,entered);
+  unlockedProfiles.add(activeProfileId); // don't re-lock the profile you're sitting in this session
+  pinContext=null;pinBuffer='';
+  closeSheet();renderProfileChip();openSettings();showToast('PIN lock on');
+}
+function pinFail(msg){pinBuffer='';refreshPinDots();const el=document.querySelector('.pin-dots');if(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');}showToast(msg);}
+function closePinSheet(){pinContext=null;pinBuffer='';closeSheet();}
+
 saveState();
-if(state.activeSession)renderToday();else renderToday();
-renderTrain();renderLibrary();renderProgress();
-// Flush any queued sessions and pull the latest coach plan on launch — silent, deferred, never blocking.
-if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+renderProfileChip();
+// Render the active profile's data — UNLESS it's locked and not yet unlocked this page-load, in which
+// case its data is never rendered until the PIN clears (council: locked = data hidden).
+function renderAllViews(){renderToday();renderTrain();renderLibrary();renderProgress();}
+function afterUnlockBoot(){
+  renderAllViews();
+  // Flush any queued sessions and pull the latest coach plan on launch — silent, deferred, never blocking.
+  if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+}
+(function bootApp(){
+  const active=Profiles?Profiles.getActive(localStorage):null;
+  if(bootNeedsName){renderAllViews();openFirstRunSheet();return;}
+  if(active&&active.locked&&!unlockedProfiles.has(activeProfileId)){
+    // Locked at boot: leave the personal views unrendered and demand the PIN first.
+    openPinGate(active,()=>{unlockedProfiles.add(active.id);closeSheet();afterUnlockBoot();});
+    return;
+  }
+  afterUnlockBoot();
+})();
