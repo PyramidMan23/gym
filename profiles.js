@@ -10,6 +10,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
+  // Core is needed for pre-v2 dg_* migration (Codex P0-3). Browser: core.js loads first; node: require.
+  const Core = root.DuckGymCore || (typeof module === 'object' && typeof require === 'function' ? require('./core.js') : null);
+
   const PROFILES_KEY = 'gymProfiles';
   const LEGACY_STATE_KEY = 'duckGymV2';   // the app's per-user state before profiles
   const LEGACY_SYNC_KEY = 'gymSyncV1';     // the sync config before profiles
@@ -123,6 +126,15 @@
     const legacyState = storage.getItem(LEGACY_STATE_KEY);
     const legacySync = storage.getItem(LEGACY_SYNC_KEY);
     if (legacyState != null && storage.getItem(stateKeyFor(id)) == null) { storage.setItem(stateKeyFor(id), legacyState); migrated = true; }
+    else if (legacyState == null && storage.getItem(stateKeyFor(id)) == null && Core) {
+      // Pre-v2 device (Codex P0-3): no duckGymV2 but ancient dg_* keys → build the v2 state via the
+      // existing Core.migrateLegacy path and seed the profile with it. dg_* keys stay untouched (rollback rule).
+      const dg = { dg_workouts: storage.getItem('dg_workouts'), dg_history: storage.getItem('dg_history'), dg_custom: storage.getItem('dg_custom') };
+      if (dg.dg_workouts != null || dg.dg_history != null || dg.dg_custom != null) {
+        storage.setItem(stateKeyFor(id), JSON.stringify(Core.migrateLegacy(dg)));
+        migrated = true;
+      }
+    }
     if (legacySync != null && storage.getItem(syncKeyFor(id)) == null) { storage.setItem(syncKeyFor(id), legacySync); migrated = true; }
     // Legacy keys are LEFT in place untouched as a rollback safety copy.
     const fresh = {
@@ -174,8 +186,14 @@
     updateRegistry(storage, r => { const p = r.profiles.find(x => x.id === id); if (p) { p.locked = true; p.pinHash = pinHash; p.salt = salt; } });
     return true;
   }
-  function clearPin(storage, id) {
-    return updateRegistry(storage, r => { const p = r.profiles.find(x => x.id === id); if (p) { p.locked = false; p.pinHash = null; p.salt = null; } });
+  // Removing a lock REQUIRES the current PIN (Codex P0-1c): without a verified pin this refuses.
+  // A profile with no pinHash (never locked / already cleared) clears trivially.
+  async function clearPin(storage, id, pin) {
+    const p = getProfile(storage, id);
+    if (!p) return false;
+    if (p.pinHash && !(await verifyPin(p, pin))) return false;
+    updateRegistry(storage, r => { const t = r.profiles.find(x => x.id === id); if (t) { t.locked = false; t.pinHash = null; t.salt = null; } });
+    return true;
   }
   async function verifyPin(profile, pin) {
     if (!profile || !profile.pinHash || !profile.salt) return false;

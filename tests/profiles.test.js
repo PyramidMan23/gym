@@ -136,7 +136,11 @@ test('PIN: set → verify roundtrip, wrong PIN fails, salt makes hashes non-triv
   assert.notEqual(p.pinHash, '1234'); // never stored in the clear
   assert.equal(await Profiles.verifyPin(p, '1234'), true);
   assert.equal(await Profiles.verifyPin(p, '0000'), false);
-  Profiles.clearPin(s, a);
+  // Codex P0-1c: clearing a lock REQUIRES the current PIN — no pin / wrong pin refuse.
+  assert.equal(await Profiles.clearPin(s, a), false);
+  assert.equal(await Profiles.clearPin(s, a, '9999'), false);
+  assert.equal(Profiles.getProfile(s, a).locked, true); // still locked after refused attempts
+  assert.equal(await Profiles.clearPin(s, a, '1234'), true);
   const cleared = Profiles.getProfile(s, a);
   assert.equal(cleared.locked, false);
   assert.equal(cleared.pinHash, null);
@@ -148,4 +152,29 @@ test('registry survives a dangling activeId by repointing to a real profile', ()
   const boot = Profiles.bootstrap(s, 8000);
   assert.equal(boot.activeId, 'p_real');
   assert.equal(Profiles.getActive(s).id, 'p_real');
+});
+
+test('pre-v2 dg_*-only boot migrates via Core.migrateLegacy into the first profile (Codex P0-3)', () => {
+  const s = fakeStore({
+    dg_workouts: JSON.stringify([{ id: 'r1', name: 'Old upper', exerciseIds: ['b0'] }]),
+    dg_history: JSON.stringify([{ id: 's1', started: 1, exercises: [] }]),
+    dg_custom: JSON.stringify([{ id: 'c1', name: 'Old thing' }])
+  });
+  const boot = Profiles.bootstrap(s, 9000);
+  assert.equal(boot.migrated, true);
+  const st = JSON.parse(s.getItem(Profiles.stateKeyFor(boot.activeId)));
+  assert.equal(st.version, 2);
+  assert.equal(st.routines.length, 1);
+  assert.equal(st.history.length, 1);
+  assert.equal(st.customExercises[0].custom, true); // migrateLegacy stamped it
+  // dg_* keys untouched (rollback rule).
+  assert.ok(s.getItem('dg_workouts'));
+  assert.ok(s.getItem('dg_history'));
+  // Idempotent: a marker written into the namespaced state survives re-bootstraps.
+  const marker = s.getItem(Profiles.stateKeyFor(boot.activeId)).replace('"version":2', '"version":2,"marker":true');
+  s.setItem(Profiles.stateKeyFor(boot.activeId), marker);
+  Profiles.bootstrap(s, 9001);
+  Profiles.bootstrap(s, 9002);
+  assert.equal(Profiles.listProfiles(s).length, 1);
+  assert.equal(s.getItem(Profiles.stateKeyFor(boot.activeId)), marker); // never re-copied over
 });

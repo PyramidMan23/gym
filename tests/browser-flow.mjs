@@ -196,7 +196,38 @@ try {
   await sleep(500);
   await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function' && document.querySelector('#todayTitle')?.textContent.length > 0 && JSON.parse(localStorage.getItem(stateKey)).history.length === 1`);
   await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1, connectionType: 'wifi' });
-  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'offline=ok');
+
+  // Codex P0-1: a LOCKED profile's cold boot must gate behind a non-dismissible PIN sheet with
+  // ZERO profile data rendered behind it, and Escape/cancel must not close the gate.
+  await evaluate(`DuckGymProfiles.setPin(localStorage, activeProfileId, '4321').then(()=>location.reload())`);
+  await sleep(400);
+  await waitFor(`document.readyState === 'complete' && typeof pinKey === 'function' && document.getElementById('sheet').open`);
+  const lockedBoot = await evaluate(`(() => {
+    const sheetHasPad = !!document.querySelector('#sheetContent .pin-pad');
+    const hasClose = !!document.querySelector('#sheetContent .close-button');
+    // No profile data behind the gate: history list + recent session must be empty-state, state itself neutral.
+    const dataLeak = state.history.length > 0 || !!document.querySelector('#historyList .history-card') || !!document.querySelector('#recentSession .history-card');
+    const cancelEvt = new Event('cancel', { cancelable: true });
+    const cancelAllowed = document.getElementById('sheet').dispatchEvent(cancelEvt); // false = preventDefault fired
+    const saveBlocked = saveState() === false; // lockGate must refuse writes behind the gate
+    return { sheetHasPad, hasClose, dataLeak, cancelAllowed, saveBlocked, stillOpen: document.getElementById('sheet').open };
+  })()`);
+  assert.deepEqual(lockedBoot, { sheetHasPad: true, hasClose: false, dataLeak: false, cancelAllowed: false, saveBlocked: true, stillOpen: true },
+    `Locked boot must gate with no data, no close path, cancel prevented: ${JSON.stringify(lockedBoot)}`);
+  // Wrong PIN keeps the gate; right PIN unlocks and renders the real profile data.
+  await evaluate(`pinKey('0');pinKey('0');pinKey('0');pinKey('0'); true`);
+  await sleep(400);
+  assert.equal(await evaluate(`document.getElementById('sheet').open && state.history.length === 0`), true, 'Wrong PIN must keep the gate closed');
+  await evaluate(`pinKey('4');pinKey('3');pinKey('2');pinKey('1'); true`);
+  await waitFor(`!document.getElementById('sheet').open && state.history.length === 1`);
+  const unlocked = await evaluate(`(async () => ({
+    saveWorks: saveState(),
+    removedWithoutPin: await DuckGymProfiles.clearPin(localStorage, activeProfileId), // must refuse (no pin)
+    removedWithPin: await DuckGymProfiles.clearPin(localStorage, activeProfileId, '4321')
+  }))()`);
+  assert.deepEqual(unlocked, { saveWorks: true, removedWithoutPin: false, removedWithPin: true });
+
+  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'offline=ok', 'pin-gate=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

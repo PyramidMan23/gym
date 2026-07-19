@@ -81,6 +81,12 @@
   let tokenExpiry = 0;
   let pending = null;         // { resolve, reject } bridging the GIS callbacks to requestToken()
   const tokenValid = () => !!accessToken && Date.now() < tokenExpiry - 60000;
+  // Generation guard (Codex P0-2): setUser() bumps gen; every async chain captures its generation
+  // at start and aborts after EVERY await if a profile switch happened meanwhile — an in-flight
+  // chain started for profile A must never read or write through profile B's config key.
+  let gen = 0;
+  const stale = g => g !== gen;
+  function guard(g) { if (stale(g)) throw new Error('stale-user'); }
 
   function loadGsi() {
     return new Promise((resolve, reject) => {
@@ -152,21 +158,23 @@
   }
 
   // Create the app's Gym-Sync folder once; store folderId (owned-field write only).
-  function ensureFolder() {
+  function ensureFolder(g) {
+    guard(g);
     const existing = loadConfig().folderId;
     if (existing) return Promise.resolve(existing);
     return api('https://www.googleapis.com/drive/v3/files', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
-    }).then(res => res.json()).then(file => updateConfig(c => { c.folderId = file.id; }).folderId);
+    }).then(res => res.json()).then(file => { guard(g); return updateConfig(c => { c.folderId = file.id; }).folderId; });
   }
   // Create the empty coach-plan.json once; store planFileId. The PC brain UPDATES this file's
   // content later (via the synced Drive desktop mirror); the app only ever reads it by fileId.
-  function ensurePlanFile(folderId) {
+  function ensurePlanFile(folderId, g) {
+    guard(g);
     const existing = loadConfig().planFileId;
     if (existing) return Promise.resolve(existing);
     const meta = { name: PLAN_NAME, parents: [folderId], mimeType: 'application/json' };
-    return multipartCreate(meta, '{}').then(file => updateConfig(c => { c.planFileId = file.id; }).planFileId);
+    return multipartCreate(meta, '{}').then(file => { guard(g); return updateConfig(c => { c.planFileId = file.id; }).planFileId; });
   }
 
   function multipartCreate(meta, content) {
@@ -213,17 +221,20 @@
   function flush() {
     if (flushInFlight) return flushInFlight;
     if (!loadConfig().clientId || !(loadConfig().queue || []).length) return Promise.resolve(status());
+    const g = gen;
     flushInFlight = ensureToken(false)
-      .then(() => ensureFolder())
-      .then(folderId => loadConfig().queue.reduce((chain, payload) => chain.then(() =>
-        uploadSession(folderId, payload, loadConfig().uploadedFiles[payload.sessionId]).then(fileId => {
+      .then(() => ensureFolder(g))
+      .then(folderId => { guard(g); return loadConfig().queue.reduce((chain, payload) => chain.then(() => {
+        guard(g);
+        return uploadSession(folderId, payload, loadConfig().uploadedFiles[payload.sessionId]).then(fileId => {
+          guard(g); // a switch mid-upload: the file may exist on A's Drive, but B's config is never touched
           updateConfig(c => {
             c.queue = removeFromQueue(c.queue, payload.sessionId);
             c.uploadedFiles[payload.sessionId] = fileId;
             c.lastSyncAt = Date.now();
           });
-        }).catch(() => { /* keep this one queued, stop the run */ throw new Error('stop'); })
-      ), Promise.resolve()))
+        }).catch(() => { /* keep this one queued, stop the run */ throw new Error('stop'); });
+      }), Promise.resolve()); })
       .then(() => status())
       .catch(() => status()) // deferred to next launch
       .finally(() => { flushInFlight = null; });
@@ -237,10 +248,11 @@
     if (!c.clientId || !c.planFileId) return Promise.resolve(getPlan());
     // GIS token requests flash a popup even in silent mode; don't pay that on every cold open.
     if (!force && !tokenValid() && c.lastPlanFetchAt && Date.now() - c.lastPlanFetchAt < PLAN_FETCH_MS) return Promise.resolve(getPlan());
+    const g = gen;
     return ensureToken(false)
-      .then(() => api(`https://www.googleapis.com/drive/v3/files/${c.planFileId}?alt=media`))
-      .then(res => res.json())
-      .then(plan => updateConfig(c => { if (plan && plan.planId) c.plan = plan; c.lastPlanFetchAt = Date.now(); }).plan)
+      .then(() => { guard(g); return api(`https://www.googleapis.com/drive/v3/files/${c.planFileId}?alt=media`); })
+      .then(res => { guard(g); return res.json(); })
+      .then(plan => { guard(g); return updateConfig(c => { if (plan && plan.planId) c.plan = plan; c.lastPlanFetchAt = Date.now(); }).plan; })
       .catch(() => getPlan());
   }
   // Drop a stored plan the app couldn't use (poisoned/malformed) so it can't break every launch.
@@ -249,10 +261,13 @@
   // First connect — MUST be called from a user gesture (Settings). Requests consent, then creates
   // the folder + empty plan file, then flushes anything queued and pulls any existing plan.
   function connect() {
+    const g = gen;
     return ensureToken(true)
-      .then(() => ensureFolder())
-      .then(folderId => ensurePlanFile(folderId))
-      .then(() => flush()).then(() => downSync(true)).then(() => status());
+      .then(() => ensureFolder(g))
+      .then(folderId => ensurePlanFile(folderId, g))
+      .then(() => { guard(g); return flush(); })
+      .then(() => { guard(g); return downSync(true); })
+      .then(() => status());
   }
   function disconnect() {
     accessToken = null; tokenExpiry = 0;
@@ -263,6 +278,7 @@
   // Point sync at a profile's namespaced config key and HARD-RESET all in-memory auth, so one
   // profile's Google token/tokenClient can never upload another profile's sessions after a switch.
   function setUser(configKey) {
+    gen++; // invalidate every in-flight async chain (generation guard) BEFORE re-pointing the key
     activeSyncKey = configKey || SYNC_KEY;
     accessToken = null; tokenExpiry = 0; pending = null; flushInFlight = null;
     tokenClient = null; tokenClientId = null; // rebuilt on demand for the new profile's clientId
@@ -298,6 +314,9 @@
     // browser
     configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession, setUser,
-    SYNC_KEY, FOLDER_NAME
+    SYNC_KEY, FOLDER_NAME,
+    // Test-only hook: lets the node suite plant a valid token to exercise the generation guard
+    // without real GIS. Never called by the app.
+    _test: { grantToken(token, ms) { accessToken = token; tokenExpiry = Date.now() + (ms || 3600000); }, gen: () => gen }
   };
 });

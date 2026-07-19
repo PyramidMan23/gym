@@ -45,7 +45,11 @@ function readState(){
 }
 bootProfiles();
 let state=readState();
+// While a locked profile is gated (P0-1), state is a neutral empty shell and MUST never be
+// persisted — otherwise stray interactions behind the gate could clobber the real data.
+let lockGate=false;
 function saveState(){
+  if(lockGate)return false;
   try{localStorage.setItem(stateKey,JSON.stringify(state));return true;}
   catch(error){console.error('Duck Gym could not persist state',error);showToast('Could not save — browser storage is full');return false;}
 }
@@ -683,6 +687,8 @@ function saveRingGoals(){
   saveState();closeSheet();renderToday();showToast('Activity goals updated');
 }
 function openSettings(){
+  // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
+  if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
@@ -750,7 +756,7 @@ window.addEventListener('load',()=>{setTimeout(()=>{
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstall=event;});
 window.addEventListener('beforeunload',event=>{if(state.activeSession){event.preventDefault();event.returnValue='';}});
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
-document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeSheet();});
+document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget&&!(pinContext&&pinContext.mandatory)&&!lockGate)closeSheet();});
 document.getElementById('filterSheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeFiltersSheet();});
 // Catalogue event delegation — one listener per surface; row/star/quick/muscle actions read data-id/data-muscle (no inline handlers).
 document.getElementById('view-library').addEventListener('click',event=>onCatalogueClick('library',event));
@@ -782,7 +788,11 @@ function openProfileSwitcher(){
 function enterProfile(id){
   if(!Profiles)return;
   const p=Profiles.getProfile(localStorage,id);if(!p)return;
-  if(id===activeProfileId){closeSheet();return;}
+  if(id===activeProfileId){
+    // Tapping the current profile while it's still gated re-opens the gate, never the app (P0-1).
+    if(lockGate){gateLockedProfile(p);return;}
+    closeSheet();return;
+  }
   if(p.locked&&!unlockedProfiles.has(id)){openPinGate(p,()=>{unlockedProfiles.add(id);commitSwitch(id);});return;}
   commitSwitch(id);
 }
@@ -792,6 +802,7 @@ function commitSwitch(id){
   activeProfileId=id;
   stateKey=Profiles.stateKeyFor(id);
   if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(id)); // hard auth reset — no cross-profile token bleed
+  pinContext=null;pinBuffer='';lockGate=false; // leaving any gate: the switched-to profile is unlocked-by-definition here
   state=readState();
   clearInterval(activeTimer);clearInterval(restTimer);
   const pill=document.getElementById('restPill');if(pill)pill.classList.remove('show');
@@ -844,22 +855,43 @@ function profileSettingsMarkup(){
   if(!Profiles)return '';
   const p=Profiles.getActive(localStorage);if(!p)return '';
   const many=Profiles.listProfiles(localStorage).length>1;
+  // P1-4: every action is bound to THIS profile id at render time; each handler re-checks the
+  // registry before acting, so a tab whose Settings sheet went stale can never hit the wrong person.
   return `<div class="section-heading"><div><p class="kicker">PROFILE</p><h2>${esc(p.name||'Unnamed')}</h2></div><button class="text-button" onclick="openProfileSwitcher()">Switch</button></div>
-    <div class="field"><label>NAME</label><input id="profileName" value="${esc(p.name)}" placeholder="Your name" oninput="onRenameProfile(this.value)"></div>
+    <div class="field"><label>NAME</label><input id="profileName" data-profile-id="${p.id}" value="${esc(p.name)}" placeholder="Your name" oninput="onRenameProfile('${p.id}',this.value)"></div>
     <div class="stack">
-      ${p.locked?`<button class="secondary-button full-button" onclick="removeActivePin()">Remove PIN lock</button>`:`<button class="secondary-button full-button" onclick="openSetPin()">Set a PIN lock</button>`}
+      ${p.locked?`<button class="secondary-button full-button" onclick="removeActivePin('${p.id}')">Remove PIN lock</button>`:`<button class="secondary-button full-button" onclick="openSetPin('${p.id}')">Set a PIN lock</button>`}
       ${many?`<button class="secondary-button full-button" style="color:var(--danger)" onclick="confirmDeleteProfile('${p.id}')">Delete this profile</button>`:''}
     </div>
     <p style="color:var(--taupe);font-size:11px;margin:8px 2px 4px">A PIN stops casual switching, not a determined snoop. Data still lives unencrypted in this browser.</p>`;
 }
-function onRenameProfile(value){if(Profiles){Profiles.setName(localStorage,activeProfileId,value);renderProfileChip();}}
-function removeActivePin(){Profiles.clearPin(localStorage,activeProfileId);renderProfileChip();openSettings();showToast('PIN lock removed');}
+// The bound id must still be BOTH this tab's active profile and the registry's current activeId.
+function settingsTargetOk(id){
+  if(!Profiles||!id)return false;
+  const reg=Profiles.getRegistry(localStorage);
+  return !!reg&&reg.activeId===id&&id===activeProfileId;
+}
+function onRenameProfile(id,value){
+  if(!settingsTargetOk(id))return showToast('Profile changed in another tab');
+  Profiles.setName(localStorage,id,value);renderProfileChip();
+}
+// Removing the lock requires the CURRENT PIN (P0-1c): keypad verify first, then clearPin(pin).
+function removeActivePin(id){
+  if(!settingsTargetOk(id))return showToast('Profile changed in another tab');
+  const p=Profiles.getProfile(localStorage,id);if(!p)return;
+  openPinGate(p,async pin=>{
+    const ok=await Profiles.clearPin(localStorage,id,pin);
+    closeSheet();renderProfileChip();openSettings();
+    showToast(ok?'PIN lock removed':'Could not remove the PIN');
+  });
+}
 function confirmDeleteProfile(id){
   const p=Profiles.getProfile(localStorage,id);if(!p)return;
   document.getElementById('confirmContent').innerHTML=`<h2>Delete ${esc(p.name||'this profile')}?</h2><p>This permanently removes ${esc(p.name||'this profile')}’s history, routines, favourites and settings from this phone. It cannot be undone.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="doDeleteProfile('${id}')">Delete</button></div>`;
   document.getElementById('confirmDialog').showModal();
 }
 function doDeleteProfile(id){
+  if(!settingsTargetOk(id)){closeConfirm();return showToast('Profile changed in another tab');}
   const wasActive=id===activeProfileId;
   const res=Profiles.deleteProfile(localStorage,id);
   closeConfirm();
@@ -872,13 +904,16 @@ function doDeleteProfile(id){
 // ---- PIN entry (custom keypad sheet; council: UI privacy boundary, not forensic security) ----
 let pinBuffer='';
 let pinContext=null; // {mode:'gate',profile,onSuccess} | {mode:'set',first}
-function openPinGate(profile,onSuccess){
-  pinBuffer='';pinContext={mode:'gate',profile,onSuccess};
+// mandatory=true (boot gate for the ACTIVE locked profile): NON-DISMISSIBLE — no × path back to
+// the app, Escape ('cancel') intercepted; the only ways out are the keypad or switching person.
+function openPinGate(profile,onSuccess,mandatory){
+  pinBuffer='';pinContext={mode:'gate',profile,onSuccess,mandatory:!!mandatory};
   renderPinSheet(`Enter ${profile.name||'profile'}’s PIN`,'4-digit PIN to open this profile.');
   document.getElementById('sheet').showModal();
 }
-function openSetPin(){
-  pinBuffer='';pinContext={mode:'set',first:null};
+function openSetPin(id){
+  if(!settingsTargetOk(id))return showToast('Profile changed in another tab');
+  pinBuffer='';pinContext={mode:'set',first:null,targetId:id};
   renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');
   document.getElementById('sheet').showModal();
 }
@@ -886,11 +921,12 @@ function renderPinSheet(title,sub){
   const dots=[0,1,2,3].map(i=>`<span class="pin-dot${i<pinBuffer.length?' on':''}"></span>`).join('');
   const keys=['1','2','3','4','5','6','7','8','9','','0','back'];
   const pad=keys.map(k=>!k?'<span class="pin-key ghost"></span>':`<button class="pin-key${k==='back'?' pin-back':''}" type="button" onclick="pinKey('${k}')" aria-label="${k==='back'?'Delete':k}">${k==='back'?'⌫':k}</button>`).join('');
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(title)}</h2><button class="close-button" onclick="closePinSheet()">×</button></div>
+  const mandatory=!!(pinContext&&pinContext.mandatory);
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(title)}</h2>${mandatory?'':'<button class="close-button" onclick="closePinSheet()">×</button>'}</div>
     <p class="pin-sub" id="pinSub">${esc(sub)}</p>
     <div class="pin-dots">${dots}</div>
     <div class="pin-pad">${pad}</div>
-    ${pinContext&&pinContext.mode==='gate'?`<button class="text-button pin-switch" onclick="openProfileSwitcher()">Use a different profile</button>`:''}`;
+    ${pinContext&&pinContext.mode==='gate'?`<button class="text-button pin-switch" onclick="openProfileSwitcher()">Switch person</button>`:''}`;
 }
 function refreshPinDots(){document.querySelectorAll('.pin-dots .pin-dot').forEach((d,i)=>d.classList.toggle('on',i<pinBuffer.length));}
 function pinKey(k){
@@ -904,20 +940,22 @@ async function pinComplete(){
   if(!pinContext)return;
   if(pinContext.mode==='gate'){
     const ok=await Profiles.verifyPin(pinContext.profile,entered);
-    if(ok){const cb=pinContext.onSuccess;pinContext=null;pinBuffer='';cb();}
+    if(ok){const cb=pinContext.onSuccess;pinContext=null;pinBuffer='';cb(entered);}
     else pinFail('Wrong PIN — try again');
     return;
   }
-  // set mode: confirm the digits match before committing
+  // set mode: confirm the digits match before committing (target bound at render time — P1-4)
   if(!pinContext.first){pinContext.first=entered;pinBuffer='';renderPinSheet('Confirm PIN','Enter the same 4 digits again.');return;}
   if(pinContext.first!==entered){pinContext.first=null;pinBuffer='';renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');showToast('PINs didn’t match — start again');return;}
-  await Profiles.setPin(localStorage,activeProfileId,entered);
-  unlockedProfiles.add(activeProfileId); // don't re-lock the profile you're sitting in this session
+  const target=pinContext.targetId;
+  if(!settingsTargetOk(target)){pinContext=null;pinBuffer='';closeSheet();showToast('Profile changed in another tab');return;}
+  await Profiles.setPin(localStorage,target,entered);
+  unlockedProfiles.add(target); // don't re-lock the profile you're sitting in this session
   pinContext=null;pinBuffer='';
   closeSheet();renderProfileChip();openSettings();showToast('PIN lock on');
 }
 function pinFail(msg){pinBuffer='';refreshPinDots();const el=document.querySelector('.pin-dots');if(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');}showToast(msg);}
-function closePinSheet(){pinContext=null;pinBuffer='';closeSheet();}
+function closePinSheet(){if(pinContext&&pinContext.mandatory)return;pinContext=null;pinBuffer='';closeSheet();}
 
 saveState();
 renderProfileChip();
@@ -929,13 +967,43 @@ function afterUnlockBoot(){
   // Flush any queued sessions and pull the latest coach plan on launch — silent, deferred, never blocking.
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
 }
+// Gate the ACTIVE locked profile behind a non-dismissible PIN sheet with a NEUTRAL shell behind it:
+// in-memory state is swapped to empty (and saveState blocked via lockGate) so even a forced
+// dismissal renders zero profile data and can never persist over the real state (P0-1).
+function gateLockedProfile(profile){
+  lockGate=true;state=emptyState();
+  renderAllViews();
+  openPinGate(profile,()=>{
+    unlockedProfiles.add(profile.id);
+    lockGate=false;state=readState();
+    closeSheet();afterUnlockBoot();
+  },true);
+}
 (function bootApp(){
   const active=Profiles?Profiles.getActive(localStorage):null;
   if(bootNeedsName){renderAllViews();openFirstRunSheet();return;}
-  if(active&&active.locked&&!unlockedProfiles.has(activeProfileId)){
-    // Locked at boot: leave the personal views unrendered and demand the PIN first.
-    openPinGate(active,()=>{unlockedProfiles.add(active.id);closeSheet();afterUnlockBoot();});
-    return;
-  }
+  if(active&&active.locked&&!unlockedProfiles.has(activeProfileId)){gateLockedProfile(active);return;}
   afterUnlockBoot();
 })();
+// The mandatory gate is non-dismissible: Escape fires 'cancel' on the dialog — intercept it.
+document.getElementById('sheet').addEventListener('cancel',event=>{
+  if((pinContext&&pinContext.mandatory)||lockGate)event.preventDefault();
+});
+// Cross-tab identity sync (P1-4): if another tab changes the registry, re-sync this tab's active
+// profile (adopting its lock state) instead of acting on a stale identity.
+window.addEventListener('storage',event=>{
+  if(!Profiles||event.key!==Profiles.PROFILES_KEY)return;
+  const reg=Profiles.getRegistry(localStorage);if(!reg)return;
+  if(reg.activeId!==activeProfileId){
+    activeProfileId=reg.activeId;
+    stateKey=Profiles.stateKeyFor(activeProfileId);
+    if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(activeProfileId));
+    clearInterval(activeTimer);clearInterval(restTimer);
+    const p=Profiles.getActive(localStorage);
+    renderProfileChip();
+    if(p&&p.locked&&!unlockedProfiles.has(p.id)){gateLockedProfile(p);return;}
+    lockGate=false;state=readState();renderAllViews();
+    return;
+  }
+  renderProfileChip(); // rename/PIN change elsewhere — refresh the chip only
+});
