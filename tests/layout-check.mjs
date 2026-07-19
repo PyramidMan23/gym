@@ -138,6 +138,25 @@ try {
   await waitFor(`document.readyState==='complete' && typeof startQuickWorkout==='function'`);
   await evaluate(PAGE_HELPERS);
 
+  // 0) Track B: a clean boot opens the first-run "Who's training?" sheet — audit it, then name the
+  // profile to dismiss it, then audit the profile switcher. Same clipped-shell / edge-to-edge rules.
+  await setWidth(390);
+  await waitFor(`document.getElementById('sheet').open && typeof submitFirstRun === 'function'`);
+  await evaluate(PAGE_HELPERS);
+  await auditSheet('first-run@390', '#sheet', '#sheet .sheet-scroll');
+  await evaluate(`submitFirstRun('Tester'); true`);
+  await waitFor(`!document.getElementById('sheet').open`);
+  assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting after first-run dismissed');
+  for (const w of [360, 390]) {
+    await setWidth(w);
+    await evaluate(`openProfileSwitcher(); true`);
+    await waitFor(`document.getElementById('sheet').open`);
+    await evaluate(PAGE_HELPERS);
+    await auditSheet(`profile-switcher@${w}`, '#sheet', '#sheet .sheet-scroll');
+    await evaluate(`closeSheet(); true`);
+    assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting (profile switcher)');
+  }
+
   const WIDTHS = [320, 360, 390, 430];
   // 1) Every primary screen at every width — no horizontal overflow, nothing cut off.
   for (const view of ['today', 'train', 'library', 'progress']) {
@@ -215,7 +234,7 @@ try {
     await evaluate(`closeReceipt(); true`);
   }
 
-  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=filters,settings,picker,confirm,receipt sticky=ok safe-area=ok radii∈{0,4,10}');
+  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,confirm,receipt sticky=ok safe-area=ok radii∈{0,4,10}');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

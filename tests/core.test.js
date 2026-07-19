@@ -173,3 +173,30 @@ test('validateBackup carries exerciseCues through import', () => {
   assert.deepEqual(Core.validateBackup(data).exerciseCues, { ch1: { text: 'stance square', updated: 5 } });
   assert.deepEqual(Core.validateBackup({ ...data, exerciseCues: undefined }).exerciseCues, {});
 });
+
+test('coachEligible gates the coach card on skin-in-the-game (Track B scoping)', () => {
+  // Brand-new profile: no history, no routines, no sync → neutral empty state (card suppressed).
+  assert.equal(Core.coachEligible({ history: [], routines: [] }, false), false);
+  // Any of the three signals earns the card.
+  assert.equal(Core.coachEligible({ history: [{ id: 's1' }], routines: [] }, false), true);
+  assert.equal(Core.coachEligible({ history: [], routines: [{ id: 'r1' }] }, false), true);
+  assert.equal(Core.coachEligible({ history: [], routines: [] }, true), true);
+  // Defensive: missing fields never throw and read as ineligible.
+  assert.equal(Core.coachEligible(undefined, false), false);
+  assert.equal(Core.coachEligible({}, false), false);
+});
+
+test('per-profile backup round-trips a profile state without bleeding into another', () => {
+  // A profile exports its own state; validateBackup normalises it back with favourites/history intact.
+  const profileA = { version: 2, routines: [{ id: 'r1', name: 'Upper', exerciseIds: ['b0'] }],
+    history: [{ id: 's1', started: 1, exercises: [] }], customExercises: [], activeSession: null,
+    favourites: ['b0'], preferences: { restSeconds: 120 } };
+  const restored = Core.validateBackup(profileA, ['b0']);
+  assert.deepEqual(restored.favourites, ['b0']);
+  assert.equal(restored.history.length, 1);
+  assert.equal(restored.routines[0].name, 'Upper');
+  assert.equal(restored.preferences.restSeconds, 120);
+  // Deep copy — importing into one profile can't mutate the exported object shared with another.
+  restored.history.push({ id: 's2' });
+  assert.equal(profileA.history.length, 1);
+});

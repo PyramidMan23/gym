@@ -91,13 +91,18 @@ try {
 
   await evaluate(`localStorage.clear(); location.reload()`);
   await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function'`);
+  // Track B: a clean boot opens the first-run "Who's training?" sheet. Name the migrated/created
+  // profile programmatically so the modal doesn't block hit-tested clicks later (does not weaken any guard).
+  await waitFor(`document.getElementById('sheet').open && typeof submitFirstRun === 'function'`);
+  await evaluate(`submitFirstRun('Tester'); true`);
+  await waitFor(`!document.getElementById('sheet').open && typeof stateKey === 'string' && !!stateKey`);
   await capture('today', 320, 800);
   await capture('today', 390, 844);
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
 
   await evaluate(`navigate('train'); document.querySelector('#view-train .big-button').click(); true`);
-  await waitFor(`document.body.classList.contains('workout-active') && !!JSON.parse(localStorage.duckGymV2).activeSession`);
+  await waitFor(`document.body.classList.contains('workout-active') && !!JSON.parse(localStorage.getItem(stateKey)).activeSession`);
 
   await evaluate(`addExerciseToWorkout('b0'); true`);
   await waitFor(`document.querySelectorAll('.set-row').length === 1`);
@@ -108,11 +113,11 @@ try {
     document.querySelector('.set-done').click();
     return true;
   })()`);
-  await waitFor(`document.querySelector('.set-row.completed') && JSON.parse(localStorage.duckGymV2).activeSession.exercises[0].sets[0].done === true`);
+  await waitFor(`document.querySelector('.set-row.completed') && JSON.parse(localStorage.getItem(stateKey)).activeSession.exercises[0].sets[0].done === true`);
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('main')).outlineStyle`), 'none', 'Programmatically focused main landmark must not draw a page-sized outline');
   await capture('active-workout', 390, 844);
 
-  const draft = await evaluate(`JSON.parse(localStorage.duckGymV2).activeSession`);
+  const draft = await evaluate(`JSON.parse(localStorage.getItem(stateKey)).activeSession`);
   assert.equal(draft.exercises[0].sets[0].weight, '80');
   assert.equal(draft.exercises[0].sets[0].reps, '8');
   const replacementGuard = await evaluate(`(() => {
@@ -130,7 +135,7 @@ try {
   await realClick('.finish-button');
   await waitFor(`document.querySelector('#confirmDialog[open]')`);
   await realClick('#confirmDialog .primary-button');
-  await waitFor(`!JSON.parse(localStorage.duckGymV2).activeSession && JSON.parse(localStorage.duckGymV2).history.length === 1`);
+  await waitFor(`!JSON.parse(localStorage.getItem(stateKey)).activeSession && JSON.parse(localStorage.getItem(stateKey)).history.length === 1`);
   await waitFor(`!document.getElementById('receiptOverlay').hidden && document.querySelectorAll('.receipt-line').length === 4`);
   await realClick('#receiptCard .primary-button');
   await waitFor(`document.getElementById('receiptOverlay').hidden`);
@@ -156,7 +161,7 @@ try {
   assert.equal(activeViewOutline, 'none', 'Programmatically focused screen must not draw a page-sized outline');
 
   const result = await evaluate(`(() => {
-    const saved=JSON.parse(localStorage.duckGymV2);
+    const saved=JSON.parse(localStorage.getItem(stateKey));
     return {
       history:saved.history.length,
       completed:saved.history[0].exercises[0].sets.filter(set=>set.done).length,
@@ -189,7 +194,7 @@ try {
   await command('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0, connectionType: 'none' });
   await command('Page.reload', { ignoreCache: true });
   await sleep(500);
-  await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function' && document.querySelector('#todayTitle')?.textContent.length > 0 && JSON.parse(localStorage.duckGymV2).history.length === 1`);
+  await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function' && document.querySelector('#todayTitle')?.textContent.length > 0 && JSON.parse(localStorage.getItem(stateKey)).history.length === 1`);
   await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1, connectionType: 'wifi' });
   console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'offline=ok');
 } finally {
