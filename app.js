@@ -707,7 +707,15 @@ async function importBackup(file){
   finally{document.getElementById('importInput').value='';}
 }
 function clearAllData(){if(!confirm('Delete all routines, custom exercises and workout history?'))return;state=emptyState();saveState();closeSheet();renderView(currentView);showToast('All data cleared');}
-async function installApp(){if(deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;}else showToast('Use your browser menu → Install app');}
+async function installApp(){
+  if(deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;return;}
+  const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  if(standalone)return showToast('Already installed');
+  const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  // iOS never fires beforeinstallprompt and only Safari can install — give the real steps.
+  if(ios){document.getElementById('confirmContent').innerHTML=`<h2>Install on iPhone</h2><p>In <strong>Safari</strong>, tap the Share button (the square with the up arrow), then <strong>“Add to Home Screen”</strong>. Chrome and Brave can’t install apps on iOS.</p><div class="confirm-actions"><button class="primary-button" onclick="closeConfirm()">Got it</button></div>`;document.getElementById('confirmDialog').showModal();return;}
+  showToast('Use your browser menu → Install app');
+}
 
 // Self-heal: if an invisible layer covers the nav at boot (stale-cache CSS, future overlay bugs), neutralise it.
 window.addEventListener('load',()=>{setTimeout(()=>{
