@@ -32,6 +32,7 @@
       prs: Array.isArray(s.prs) ? s.prs : [],
       exercises: (s.exercises || []).map(ex => ({
         exerciseId: ex.exerciseId,
+        exerciseName: (typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).name) || '',
         notes: ex.notes || '',
         sets: (ex.sets || []).map(set => ({
           weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null
@@ -54,8 +55,12 @@
   // ---------- config store (browser-only, defensive) ----------
   const hasLS = () => typeof localStorage !== 'undefined';
   function defaults() {
-    return { clientId: '', folderId: null, planFileId: null, queue: [], beightonUnlocked: false, lastSyncAt: null, plan: null };
+    return { clientId: '', folderId: null, planFileId: null, queue: [], uploadedFiles: {}, beightonUnlocked: false, lastSyncAt: null, plan: null };
   }
+  // Stale-snapshot rule: a config object held across an await may be outdated (a workout can
+  // finish and enqueue meanwhile). After every await: re-loadConfig(), mutate ONLY the fields
+  // you own, save. Never persist a queue captured before an await.
+  function updateConfig(mutate) { const fresh = loadConfig(); mutate(fresh); return saveConfig(fresh); }
   function loadConfig() {
     if (!hasLS()) return defaults();
     try { const c = JSON.parse(localStorage.getItem(SYNC_KEY)); return { ...defaults(), ...(c || {}) }; }
@@ -116,35 +121,42 @@
       .then(res => { if (!res.ok) throw new Error(`drive-${res.status}`); return res; });
   }
 
-  // Create the app's Gym-Sync folder once; store folderId.
-  function ensureFolder(config) {
-    if (config.folderId) return Promise.resolve(config.folderId);
+  // Create the app's Gym-Sync folder once; store folderId (owned-field write only).
+  function ensureFolder() {
+    const existing = loadConfig().folderId;
+    if (existing) return Promise.resolve(existing);
     return api('https://www.googleapis.com/drive/v3/files', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
-    }).then(res => res.json()).then(file => { config.folderId = file.id; saveConfig(config); return file.id; });
+    }).then(res => res.json()).then(file => updateConfig(c => { c.folderId = file.id; }).folderId);
   }
   // Create the empty coach-plan.json once; store planFileId. The PC brain UPDATES this file's
   // content later (via the synced Drive desktop mirror); the app only ever reads it by fileId.
-  function ensurePlanFile(config) {
-    if (config.planFileId) return Promise.resolve(config.planFileId);
-    const meta = { name: PLAN_NAME, parents: [config.folderId], mimeType: 'application/json' };
-    const boundary = 'gymsync' + Date.now();
-    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`
-      + `--${boundary}\r\nContent-Type: application/json\r\n\r\n{}\r\n--${boundary}--`;
-    return api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body
-    }).then(res => res.json()).then(file => { config.planFileId = file.id; saveConfig(config); return file.id; });
+  function ensurePlanFile(folderId) {
+    const existing = loadConfig().planFileId;
+    if (existing) return Promise.resolve(existing);
+    const meta = { name: PLAN_NAME, parents: [folderId], mimeType: 'application/json' };
+    return multipartCreate(meta, '{}').then(file => updateConfig(c => { c.planFileId = file.id; }).planFileId);
   }
 
-  function uploadSession(config, payload) {
-    const meta = { name: `session-${payload.sessionId}.json`, parents: [config.folderId] };
+  function multipartCreate(meta, content) {
     const boundary = 'gymsync' + Date.now();
     const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n`
-      + `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n--${boundary}--`;
+      + `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
     return api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
       method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body
-    });
+    }).then(res => res.json());
+  }
+  // Upload one session. If we already created a Drive file for this sessionId, PATCH its
+  // content instead of POST-creating a duplicate. Resolves with the fileId.
+  function uploadSession(folderId, payload, existingFileId) {
+    const json = JSON.stringify(payload);
+    if (existingFileId) {
+      return api(`https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: json
+      }).then(() => existingFileId);
+    }
+    return multipartCreate({ name: `session-${payload.sessionId}.json`, parents: [folderId] }, json).then(file => file.id);
   }
 
   // ---------- public browser API ----------
@@ -160,28 +172,32 @@
 
   // Enqueue on session completion, then try to flush. Silent-fails to the queue.
   function onSessionComplete(session) {
-    const c = loadConfig();
-    c.queue = enqueue(c.queue, sessionToPayload(session));
-    saveConfig(c);
+    updateConfig(c => { c.queue = enqueue(c.queue, sessionToPayload(session)); });
     return flush();
   }
 
   // Flush the queue. Never popup (silent token only); on any failure items stay queued.
+  // Single-flight: concurrent callers share one in-flight promise so the same session is
+  // never uploaded twice in parallel; a lost response re-PATCHes via uploadedFiles, not re-POSTs.
+  let flushInFlight = null;
   function flush() {
-    const c = loadConfig();
-    if (!c.clientId || !(c.queue || []).length) return Promise.resolve(status());
-    return ensureToken(false)
-      .then(() => ensureFolder(c))
-      .then(() => (c.queue || []).reduce((chain, payload) => chain.then(() =>
-        uploadSession(c, payload).then(() => {
-          const fresh = loadConfig();
-          fresh.queue = removeFromQueue(fresh.queue, payload.sessionId);
-          fresh.lastSyncAt = Date.now();
-          saveConfig(fresh);
+    if (flushInFlight) return flushInFlight;
+    if (!loadConfig().clientId || !(loadConfig().queue || []).length) return Promise.resolve(status());
+    flushInFlight = ensureToken(false)
+      .then(() => ensureFolder())
+      .then(folderId => loadConfig().queue.reduce((chain, payload) => chain.then(() =>
+        uploadSession(folderId, payload, loadConfig().uploadedFiles[payload.sessionId]).then(fileId => {
+          updateConfig(c => {
+            c.queue = removeFromQueue(c.queue, payload.sessionId);
+            c.uploadedFiles[payload.sessionId] = fileId;
+            c.lastSyncAt = Date.now();
+          });
         }).catch(() => { /* keep this one queued, stop the run */ throw new Error('stop'); })
       ), Promise.resolve()))
       .then(() => status())
-      .catch(() => status()); // deferred to next launch
+      .catch(() => status()) // deferred to next launch
+      .finally(() => { flushInFlight = null; });
+    return flushInFlight;
   }
 
   // Down-sync: read coach-plan.json by stored fileId, parse, store. Silent-fails.
@@ -191,21 +207,23 @@
     return ensureToken(false)
       .then(() => api(`https://www.googleapis.com/drive/v3/files/${c.planFileId}?alt=media`))
       .then(res => res.json())
-      .then(plan => { const fresh = loadConfig(); fresh.plan = plan && plan.planId ? plan : fresh.plan; saveConfig(fresh); return fresh.plan; })
+      .then(plan => updateConfig(c => { if (plan && plan.planId) c.plan = plan; }).plan)
       .catch(() => getPlan());
   }
+  // Drop a stored plan the app couldn't use (poisoned/malformed) so it can't break every launch.
+  function clearPlan() { return updateConfig(c => { c.plan = null; }).plan; }
 
   // First connect — MUST be called from a user gesture (Settings). Requests consent, then creates
   // the folder + empty plan file, then flushes anything queued and pulls any existing plan.
   function connect() {
-    return ensureToken(true).then(() => {
-      const c = loadConfig();
-      return ensureFolder(c).then(() => ensurePlanFile(c)).then(() => flush()).then(() => downSync()).then(() => status());
-    });
+    return ensureToken(true)
+      .then(() => ensureFolder())
+      .then(folderId => ensurePlanFile(folderId))
+      .then(() => flush()).then(() => downSync()).then(() => status());
   }
   function disconnect() {
     accessToken = null; tokenExpiry = 0;
-    const c = loadConfig(); c.plan = null; saveConfig(c); // keep folderId/planFileId so the loop survives reconnect
+    updateConfig(c => { c.plan = null; }); // keep folderId/planFileId so the loop survives reconnect
     return status();
   }
 
@@ -230,9 +248,9 @@
 
   return {
     // pure
-    sessionToPayload, enqueue, removeFromQueue, loadConfig, saveConfig,
+    sessionToPayload, enqueue, removeFromQueue, loadConfig, saveConfig, updateConfig,
     // browser
-    configured, status, getBeighton, setBeighton, getPlan, setClientId,
+    configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession,
     SYNC_KEY, FOLDER_NAME
   };
