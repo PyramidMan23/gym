@@ -6,7 +6,9 @@
   'use strict';
 
   const num = value => Number(value) || 0;
-  const doneSets = exercise => (exercise?.sets || []).filter(set => set.done);
+  // A completed set with NO numbers is not training evidence (blank done-ticks must not mint
+  // volume, exposures, or tolerated baselines) — Codex adversarial finding, council data-honesty rule.
+  const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && !(String(set.weight ?? '') === '' && String(set.reps ?? '') === ''));
 
   function calculateVolume(session) {
     return (session?.exercises || []).reduce((total, exercise) =>
@@ -328,10 +330,16 @@
   // prefills. Because it reads the completed set's ACTUAL stored numbers, any edit a lifter made to
   // a prefilled set is exactly what carries forward next. Returns {weight, reps} or null.
   function carryForward(exercise, setIndex) {
-    if (!exercise || setIndex <= 0) return null;
+    if (!exercise) return null;
     const sets = exercise.sets || [];
-    for (let i = Math.min(setIndex, sets.length) - 1; i >= 0; i--) {
-      if (sets[i] && sets[i].done) return { weight: sets[i].weight, reps: sets[i].reps };
+    // Destination must be a real, existing set after the first (Codex: all-complete has no destination).
+    if (setIndex <= 0 || setIndex >= sets.length) return null;
+    for (let i = setIndex - 1; i >= 0; i--) {
+      const s = sets[i];
+      if (!s || !s.done) continue;
+      // A blank completed set is not training evidence and must never seed a prefill (Codex).
+      if (String(s.weight ?? '') === '' && String(s.reps ?? '') === '') continue;
+      return { weight: s.weight, reps: s.reps };
     }
     return null;
   }

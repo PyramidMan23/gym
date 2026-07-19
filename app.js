@@ -554,7 +554,7 @@ function adoptLast(exerciseIndex){
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
   const prev=Core.previousPerformance(state.history,ex.exerciseId)[0];if(!prev)return;
   const set=ex.sets[0];if(!set||set.done||set.weight!==''||set.reps!=='')return;
-  set.weight=String(prev.weight);set.reps=String(prev.reps);delete set.prefilled; // adopted = user's chosen load, not a soft prefill
+  set.weight=prev.weight?String(prev.weight):'';set.reps=String(prev.reps);delete set.prefilled; // adopted = user's chosen load; empty bodyweight stays empty, never a fabricated 0
   saveState();renderWorkout();
 }
 // ponytail: side-tagging = tap the set number, cycling both→L→R. Zero extra columns; feeds the future L/R balance view.
@@ -576,6 +576,11 @@ function carryForwardExercise(exercise){
 function toggleSet(exerciseIndex,setIndex){
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
   if(set.done){delete set.prefilled;startRest(state.preferences.restSeconds,exerciseIndex);if(setIndex===state.activeSession.exercises[exerciseIndex].sets.length-1)addSet(exerciseIndex,true);carryForwardExercise(state.activeSession.exercises[exerciseIndex]);buzz(15);}
+  else{ // un-complete: downstream prefills seeded by this set are stale — reset + re-derive (Codex)
+    const ex=state.activeSession.exercises[exerciseIndex];
+    ex.sets.forEach((s,i)=>{if(i>setIndex&&s.prefilled&&!s.done){s.weight='';s.reps='';delete s.prefilled;}});
+    carryForwardExercise(ex);
+  }
   saveState();renderWorkout();
   if(set.done&&!REDUCED_MOTION){
     const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
@@ -652,8 +657,8 @@ function padKeyboard(){
   if(!t)return;
   const inp=document.querySelector(`.set-input[data-ex="${t.exIdx}"][data-set="${t.setIdx}"][data-key="${t.key}"]`);
   if(!inp)return;
-  inp.readOnly=false;inp.focus();inp.select&&inp.select();
-  const restore=()=>{inp.readOnly=true;inp.removeEventListener('blur',restore);};
+  inp.readOnly=false;inp.removeAttribute('role');inp.focus();inp.select&&inp.select();
+  const restore=()=>{inp.readOnly=true;inp.setAttribute('role','button');inp.removeEventListener('blur',restore);};
   inp.addEventListener('blur',restore);
 }
 function closePad(){padHoldStop();document.getElementById('padSheet').close();padTarget=null;if(state.activeSession)renderWorkout();}

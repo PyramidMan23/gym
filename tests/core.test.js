@@ -194,7 +194,9 @@ test('carryForward: set 1 never prefills; completion prefills the next set; per-
   bench.sets = [{ weight: '80', reps: '8', done: true }, { weight: '', reps: '', done: false }];
   assert.deepEqual(Core.carryForward(bench, 1), { weight: '80', reps: '8' });
   // Edit override: the completed set's edited value is exactly what carries forward.
+  // (Destination must be a real set — index 2 requires a third set to exist.)
   bench.sets[0].weight = '85';
+  bench.sets.push({ weight: '', reps: '', done: false });
   assert.deepEqual(Core.carryForward(bench, 2), { weight: '85', reps: '8' });
   // Nearest PRECEDING completed set wins when several are done.
   bench.sets = [{ weight: '80', reps: '8', done: true }, { weight: '82.5', reps: '6', done: true }, { weight: '', reps: '', done: false }];
