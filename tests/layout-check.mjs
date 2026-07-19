@@ -54,13 +54,21 @@ window.__leaks=(root)=>{
     const r=el.getBoundingClientRect();
     if(r.width===0&&r.height===0)continue;
     if(r.right<=vw+1&&r.left>=-1)continue;
-    // Allowed: the element sits inside a genuine horizontal scroller (chips/quick-picks/trend rows).
+    // Allowed: the element sits inside a DESIGNATED horizontal scroller (chips/quick-picks/trend rows).
+    // Codex P2: do NOT excuse generic overflow-x:auto ancestors — .sheet-scroll computes overflow-x:auto
+    // and would blanket-excuse every leak inside a sheet. Only these classes scroll sideways by design.
+    const HSCROLLERS=['filter-row','quick-row','trend-picker','picker-filters'];
     let p=el.parentElement, excused=false;
-    while(p){const ox=getComputedStyle(p).overflowX; if(ox==='auto'||ox==='scroll'){excused=true;break;} p=p.parentElement;}
+    while(p){const cl=p.classList, pox=getComputedStyle(p).overflowX;
+      // designated horizontal scrollers scroll by design; overflow-x:hidden/clip ancestors truly clip
+      // (a raw rect past the viewport behind a clip can't be seen or scrolled to — not a leak).
+      if((cl&&HSCROLLERS.some(c=>cl.contains(c)))||pox==='hidden'||pox==='clip'){excused=true;break;}
+      p=p.parentElement;}
     if(!excused)bad.push((el.id||el.className||el.tagName)+' L'+Math.round(r.left)+' R'+Math.round(r.right)+'/'+vw);
   }
   return bad.slice(0,12);
 };
+window.__closedHidden=()=>{const out=[];for(const d of document.querySelectorAll('dialog')){if(d.open)continue;const cs=getComputedStyle(d);const r=d.getBoundingClientRect();if(cs.display!=='none'||r.height>0)out.push((d.id||'dialog')+' display='+cs.display+' h='+Math.round(r.height));}return out;};
 window.__hoverflow=()=>document.documentElement.scrollWidth-document.documentElement.clientWidth;
 window.__radiusOk=(sel)=>{const el=document.querySelector(sel);if(!el)return 'missing';const r=getComputedStyle(el).borderTopLeftRadius;return ['0px','4px','10px'].includes(r)?'ok':r;};
 `;
@@ -142,6 +150,7 @@ try {
     await evaluate(PAGE_HELPERS);
     await auditSheet(`filters-sheet@${w}`, '#filterSheet', '#filterSheet .sheet-scroll');
     await evaluate(`closeFiltersSheet(); true`);
+    assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting (display must be none when not [open])');
   }
 
   // 3) Settings sheet at 360 and 390.
@@ -152,6 +161,7 @@ try {
     await evaluate(PAGE_HELPERS);
     await auditSheet(`settings-sheet@${w}`, '#sheet', '#sheet .sheet-scroll');
     await evaluate(`closeSheet(); true`);
+    assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting (display must be none when not [open])');
   }
 
   // 4) Exercise picker sheet — sticky search must stay put while the list scrolls.
@@ -170,6 +180,7 @@ try {
     assert.equal(sticky.pos, 'sticky', `picker-sheet@${w}: search header must be sticky`);
     assert.ok(sticky.stuck, `picker-sheet@${w}: search header scrolled away instead of sticking`);
     await evaluate(`closeSheet(); cancelWorkout(); confirmCancelWorkout && confirmCancelWorkout(); true`);
+    assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting (display must be none when not [open])');
     await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
   }
 
