@@ -120,6 +120,12 @@ try {
   const draft = await evaluate(`JSON.parse(localStorage.getItem(stateKey)).activeSession`);
   assert.equal(draft.exercises[0].sets[0].weight, '80');
   assert.equal(draft.exercises[0].sets[0].reps, '8');
+  // Carry-forward: completing set 1 pre-fills the next (auto-added) set with today's numbers, flagged
+  // prefilled so it renders muted. Cells are now readonly (tap → numeric pad), but JS value+change still logs.
+  assert.equal(draft.exercises[0].sets[1].weight, '80', 'next set should carry forward the completed weight');
+  assert.equal(draft.exercises[0].sets[1].reps, '8', 'next set should carry forward the completed reps');
+  assert.equal(draft.exercises[0].sets[1].prefilled, true, 'carried-forward set must be flagged prefilled');
+  assert.equal(await evaluate(`document.querySelector('.set-input[data-key="weight"]').readOnly`), true, 'weight cell must be readonly so a tap opens the pad, not the keyboard');
   const replacementGuard = await evaluate(`(() => {
     const before=state.activeSession.id;
     beginSession({id:null,name:'Should not replace',exerciseIds:[]});

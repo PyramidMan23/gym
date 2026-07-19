@@ -210,6 +210,20 @@ try {
     await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
   }
 
+  // 4b) Numeric pad sheet — opened by tapping a weight/reps cell. Same clipped-shell / edge-to-edge
+  // rules as every other sheet, and it MUST be display:none when closed (dialog [open] scoping).
+  for (const w of [320, 360, 390]) {
+    await setWidth(w);
+    await evaluate(`(()=>{if(state.activeSession){state.activeSession=null;saveState();} navigate('today'); startQuickWorkout(); addExerciseToWorkout('b0'); openPad(0,0,'weight');})(); true`);
+    await waitFor(`document.getElementById('padSheet').open && !!document.getElementById('padDisplay')`);
+    await evaluate(PAGE_HELPERS);
+    await auditSheet(`pad-sheet@${w}`, '#padSheet', '#padSheet .sheet-scroll');
+    await evaluate(`closePad(); true`);
+    await waitFor(`!document.getElementById('padSheet').open`);
+    assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed pad still painting (display must be none when not [open])');
+    await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
+  }
+
   // 5) Finish-workout confirm dialog + session receipt.
   for (const w of [360, 390]) {
     await setWidth(w);
@@ -234,7 +248,7 @@ try {
     await evaluate(`closeReceipt(); true`);
   }
 
-  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,confirm,receipt sticky=ok safe-area=ok radii∈{0,4,10}');
+  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok radii∈{0,4,10}');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();
