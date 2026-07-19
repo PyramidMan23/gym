@@ -213,6 +213,66 @@
     };
   }
 
+  // ---- Catalogue picker (council 2026-07-19): flat, search/filter-first over the multi-tag model. ----
+  // Facet readers tolerate custom exercises (name/muscle/equipment only, no muscles[]/patterns[]/equip[]/family).
+  const exMuscles = e => (Array.isArray(e?.muscles) && e.muscles.length) ? e.muscles : (e?.muscle ? [e.muscle] : []);
+  const exPatterns = e => Array.isArray(e?.patterns) ? e.patterns : [];
+  const exEquip = e => Array.isArray(e?.equip) ? e.equip : [];
+  // Everything a search query can hit: name + muscle(s) + equipment string + family + pattern/equip tags.
+  const searchText = e => [e?.name, ...exMuscles(e), e?.equipment, e?.family, ...exPatterns(e), ...exEquip(e)]
+    .filter(Boolean).join(' ').toLowerCase();
+
+  // One exercise vs one criteria set — muscle (single) + patterns/equip/families (multi) + query, all AND-combined.
+  function matchesExercise(exercise, criteria) {
+    const c = criteria || {};
+    if (c.muscle && c.muscle !== 'All' && !exMuscles(exercise).includes(c.muscle)) return false;
+    const pats = c.patterns || [];
+    if (pats.length) { const ep = exPatterns(exercise); if (!pats.some(p => ep.includes(p))) return false; }
+    const eqs = c.equip || [];
+    if (eqs.length) { const ee = exEquip(exercise); if (!eqs.some(q => ee.includes(q))) return false; }
+    const fams = c.families || [];
+    if (fams.length && (!exercise.family || !fams.includes(exercise.family))) return false;
+    const q = (c.query || '').trim().toLowerCase();
+    if (q && !searchText(exercise).includes(q)) return false;
+    return true;
+  }
+
+  // Relevance for query-time ranking: name-prefix > name-substring > any-tag match.
+  function searchScore(exercise, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return 0;
+    const name = (exercise?.name || '').toLowerCase();
+    if (name.startsWith(q)) return 3;
+    if (name.includes(q)) return 2;
+    if (searchText(exercise).includes(q)) return 1;
+    return 0;
+  }
+
+  // Filter + order the catalogue: relevance-ranked while a query is present, otherwise deterministic alphabetical.
+  function filterExercises(list, criteria) {
+    const c = criteria || {};
+    const matched = (list || []).filter(e => matchesExercise(e, c));
+    const q = (c.query || '').trim().toLowerCase();
+    if (q) {
+      return matched
+        .map(e => ({ e, s: searchScore(e, q) }))
+        .sort((a, b) => b.s - a.s || (a.e.name || '').localeCompare(b.e.name || ''))
+        .map(x => x.e);
+    }
+    return matched.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+
+  // Quick Picks accelerator: favourites first (in order), then distinct recents from history, deduped, capped.
+  // ponytail: personal history is small, so a plain scan beats any index. Cap keeps the strip fixed-height.
+  function quickPicks(favourites, history, isKnown, cap = 8) {
+    const known = id => (typeof isKnown === 'function' ? isKnown(id) : true);
+    const seen = new Set(), out = [];
+    const push = id => { if (id && !seen.has(id) && known(id)) { seen.add(id); out.push(id); } };
+    for (const id of favourites || []) push(id);
+    for (const session of history || []) for (const ex of session.exercises || []) push(ex.exerciseId);
+    return out.slice(0, cap);
+  }
+
   function validateBackup(data) {
     const validObject = data && typeof data === 'object' && !Array.isArray(data);
     const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession));
@@ -230,9 +290,11 @@
       customExercises: JSON.parse(JSON.stringify(data.customExercises || [])),
       activeSession: data.activeSession == null ? null : JSON.parse(JSON.stringify(data.activeSession)),
       exerciseCues: (data.exerciseCues && typeof data.exerciseCues === 'object' && !Array.isArray(data.exerciseCues)) ? JSON.parse(JSON.stringify(data.exerciseCues)) : {},
+      // Favourites survive a backup round-trip; unknown/older backups without them default to empty.
+      favourites: Array.isArray(data.favourites) ? data.favourites.filter(id => typeof id === 'string') : [],
       preferences
     };
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure };
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks };
 });

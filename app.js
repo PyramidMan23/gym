@@ -6,7 +6,6 @@ const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
 const STORE_KEY = 'duckGymV2';
 const DAY = 86400000;
 let currentView = 'today';
-let muscleFilter = 'All';
 let activeTimer = null;
 let restTimer = null;
 let restRemaining = 0;
@@ -17,7 +16,7 @@ let deferredInstall = null;
 const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 
-function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000}}; }
+function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000}}; }
 function readState(){
   try{
     const saved=JSON.parse(localStorage.getItem(STORE_KEY));
@@ -97,6 +96,8 @@ function animateNumbers(scope){
 
 function navigate(view){
   if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
+  // A fresh Library open always starts unfiltered — a stale filter must never silently hide exercises (council 2026-07-19).
+  if(view==='library')libraryFilter=newFilterState();
   currentView=view;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
   document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
@@ -242,6 +243,7 @@ function startCoachSession(){
     if(typeof rx.cue==='string'&&rx.cue)exercise.notes=rx.cue;
   });
   session.checkin={pre:null,post:null}; // same three-touch safety loop as beginSession
+  pickerFilterState=newFilterState();
   state.activeSession=session;
   saveState();navigate('workout');
 }
@@ -262,6 +264,7 @@ function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(ro
 function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exerciseIds:[]}); }
 function beginSession(routine){
   if(state.activeSession){showToast('You already have a workout running');navigate('workout');return;}
+  pickerFilterState=newFilterState(); // each workout's add-exercise flow starts clean, then persists across opens
   state.activeSession=Core.createSession(routine);
   state.activeSession.checkin={pre:null,post:null}; // three-touch safety loop (council 2026-07-18)
   saveState();navigate('workout');
@@ -281,16 +284,81 @@ function applyPlan(id){
   saveState();closeSheet();renderTrain();renderToday();showToast(`${plan.name} added — ${plan.days.length} routines ready`);
 }
 
-function renderLibrary(){
-  const search=(document.getElementById('librarySearch')?.value||'').trim().toLowerCase();
-  const groups=['All',...new Set(allExercises().map(e=>e.muscle))];
-  document.getElementById('muscleFilters').innerHTML=groups.map(group=>`<button class="filter-chip ${muscleFilter===group?'active':''}" onclick="setMuscleFilter('${esc(group)}')">${esc(group)}</button>`).join('');
-  const list=allExercises().filter(e=>(muscleFilter==='All'||e.muscle===muscleFilter)&&`${e.name} ${e.equipment} ${e.muscle}`.toLowerCase().includes(search));
-  document.getElementById('libraryCount').textContent=`${list.length} exercise${list.length===1?'':'s'}${search?' found':''}`;
-  document.getElementById('exerciseLibrary').innerHTML=list.length?list.map(exerciseRow).join(''):`<div class="empty-card card"><strong>Nothing found</strong>Try another exercise, muscle or equipment name.</div>`;
+// ---- Exercise catalogue (council 2026-07-19): flat, search/filter-first, shared by Library + the add-exercise picker.
+// Quick Picks (favourites+recent) sit ABOVE a stable list; muscle chips single-select refine; secondary facets live behind Filters.
+const MUSCLE_ORDER=['Chest','Back','Shoulders','Arms','Grip','Legs','Core','Full Body','Cardio','Mobility','Calisthenics','Stretches'];
+const FILTERS_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
+function newFilterState(){return {query:'',muscle:'All',patterns:[],equip:[],families:[]};}
+let libraryFilter=newFilterState();
+let pickerFilterState=newFilterState();
+const CAT={
+  library:{addAction:'quickExercise',ids:{quick:'libraryQuickPicks',chips:'muscleFilters',filtersBtn:'libraryFiltersBtn',count:'libraryCount',list:'exerciseLibrary',search:'librarySearch'}},
+  picker:{addAction:'pickExercise',ids:{quick:'pk_quick',chips:'pk_chips',filtersBtn:'pk_filtersBtn',count:'pk_count',list:'pk_list',search:'pk_search'}}
+};
+function catState(ctx){return ctx==='library'?libraryFilter:pickerFilterState;}
+function catEl(ctx,key){return document.getElementById(CAT[ctx].ids[key]);}
+// Full render (quick + chips + list). The search <input> node is only re-valued, never replaced, so focus/caret survive.
+function renderCatalogue(ctx){
+  const input=catEl(ctx,'search'); if(input)input.value=catState(ctx).query;
+  renderCatalogueQuick(ctx);renderCatalogueChips(ctx);renderCatalogueList(ctx,false);
 }
-function exerciseRow(exercise,addAction='quickExercise'){ return `<article class="exercise-row"><div><strong>${esc(exercise.name)}</strong><small>${esc(exercise.muscle)} · ${esc(exercise.equipment||'Custom equipment')}</small></div><button class="exercise-add" onclick="${addAction}('${exercise.id}')" aria-label="Add ${esc(exercise.name)}">+</button></article>`; }
-function setMuscleFilter(group){muscleFilter=group;renderLibrary();}
+function renderCatalogueQuick(ctx){
+  const host=catEl(ctx,'quick'); if(!host)return;
+  const ids=Core.quickPicks(state.favourites,state.history,id=>!!exerciseById(id),8);
+  if(!ids.length){host.innerHTML='';return;}
+  const favSet=new Set(state.favourites||[]),add=CAT[ctx].addAction;
+  const chips=ids.map(id=>{const e=exerciseById(id);if(!e)return '';return `<button class="quick-chip" onclick="${add}('${id}')" aria-label="Add ${esc(e.name)}">${favSet.has(id)?'<span class="quick-star" aria-hidden="true">★</span>':''}<span>${esc(e.name)}</span></button>`;}).join('');
+  host.innerHTML=`<p class="kicker quick-kicker">QUICK PICKS</p><div class="quick-row">${chips}</div>`;
+}
+function renderCatalogueChips(ctx){
+  const fs=catState(ctx),host=catEl(ctx,'chips');
+  if(host)host.innerHTML=['All',...MUSCLE_ORDER].map(m=>`<button class="filter-chip ${fs.muscle===m?'active':''}" onclick="setCatMuscle('${ctx}','${esc(m)}')" aria-pressed="${fs.muscle===m}">${esc(m)}</button>`).join('');
+  const btn=catEl(ctx,'filtersBtn');
+  if(btn){const n=fs.patterns.length+fs.equip.length+fs.families.length;btn.classList.toggle('has-active',n>0);const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
+}
+function renderCatalogueList(ctx,animate){
+  const fs=catState(ctx),list=Core.filterExercises(allExercises(),fs),add=CAT[ctx].addAction;
+  const count=catEl(ctx,'count'); if(count)count.textContent=`${list.length} exercise${list.length===1?'':'s'}${fs.query?' found':''}`;
+  const host=catEl(ctx,'list'); if(!host)return;
+  host.innerHTML=list.length?list.map(e=>exerciseRow(e,add,ctx)).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+  if(animate&&!REDUCED_MOTION){host.style.animation='none';void host.offsetWidth;host.style.animation='catFade .18s var(--ease)';}
+}
+// Row: whole name area taps to add (exact id — logging unchanged); a star toggles favourite (filled vs outline shape, ≥44px).
+function exerciseRow(exercise,addAction,ctx){
+  const fav=(state.favourites||[]).includes(exercise.id);
+  const meta=`${esc(exercise.muscle||'')} · ${esc(exercise.equipment||'Custom equipment')}`;
+  return `<article class="exercise-row"><button class="exercise-pick" onclick="${addAction}('${exercise.id}')" aria-label="Add ${esc(exercise.name)}"><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" onclick="toggleFavourite('${exercise.id}','${ctx}')" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
+}
+function onCatSearch(ctx,value){catState(ctx).query=value;renderCatalogueList(ctx,false);}
+function setCatMuscle(ctx,muscle){catState(ctx).muscle=muscle;renderCatalogueChips(ctx);renderCatalogueList(ctx,true);}
+function toggleFavourite(id,ctx){
+  if(!Array.isArray(state.favourites))state.favourites=[];
+  const i=state.favourites.indexOf(id);
+  if(i>=0)state.favourites.splice(i,1);else state.favourites.push(id);
+  saveState();renderCatalogueQuick(ctx);renderCatalogueList(ctx,false);
+  showToast(i>=0?'Removed from favourites':'Added to favourites');
+}
+function resetCatalogue(ctx){if(ctx==='library')libraryFilter=newFilterState();else pickerFilterState=newFilterState();renderCatalogue(ctx);}
+// Secondary facets (pattern / equipment / family) live in their own dialog so the muscle row stays a single fast strip.
+// Facet vocab is derived from the catalogue itself (custom exercises carry no tags → they contribute none, and are never crashed by a facet).
+function distinctTags(getter){const s=new Set();for(const e of allExercises())for(const v of (getter(e)||[]))s.add(v);return [...s].sort();}
+function distinctFamilies(){const s=new Set();for(const e of allExercises())if(e.family)s.add(e.family);return [...s].sort();}
+let filterSheetCtx='library';
+function openFiltersSheet(ctx){filterSheetCtx=ctx;renderFiltersSheet();document.getElementById('filterSheet').showModal();}
+function renderFiltersSheet(){
+  const fs=catState(filterSheetCtx),n=fs.patterns.length+fs.equip.length+fs.families.length;
+  const group=(title,kind,values,selected)=>values.length?`<div class="filter-group"><p class="kicker">${title}</p><div class="chip-wrap">${values.map(v=>`<button class="facet-chip${selected.includes(v)?' on':''}" onclick="toggleFacet('${kind}','${esc(v)}')" aria-pressed="${selected.includes(v)}">${esc(v)}</button>`).join('')}</div></div>`:'';
+  document.getElementById('filterSheetContent').innerHTML=`<div class="sheet-head"><h2>Filters</h2><button class="close-button" onclick="closeFiltersSheet()">×</button></div>${group('MOVEMENT PATTERN','patterns',distinctTags(e=>e.patterns),fs.patterns)}${group('EQUIPMENT','equip',distinctTags(e=>e.equip),fs.equip)}${group('FAMILY','families',distinctFamilies(),fs.families)}<div class="sheet-actions"><button class="secondary-button" ${n?'':'disabled style="opacity:.5"'} onclick="clearFacets()">Clear${n?` (${n})`:''}</button><button class="primary-button" onclick="closeFiltersSheet()">Show results</button></div>`;
+}
+function toggleFacet(kind,value){
+  const arr=catState(filterSheetCtx)[kind],i=arr.indexOf(value);
+  if(i>=0)arr.splice(i,1);else arr.push(value);
+  renderFiltersSheet();renderCatalogueChips(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);
+}
+function clearFacets(){const fs=catState(filterSheetCtx);fs.patterns=[];fs.equip=[];fs.families=[];renderFiltersSheet();renderCatalogueChips(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);}
+function closeFiltersSheet(){document.getElementById('filterSheet').close();}
+// Keep the renderLibrary name — renderView, boot and saveCustomExercise all call it.
+function renderLibrary(){renderCatalogue('library');}
 function quickExercise(id){
   if(state.activeSession){addExerciseToWorkout(id);showToast('Added to current workout');return;}
   const exercise=exerciseById(id);beginSession({id:null,name:exercise?.name||'Quick workout',exerciseIds:[id]});
@@ -484,20 +552,15 @@ function cancelWorkout(){
 function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
 function closeConfirm(){document.getElementById('confirmDialog').close();}
 
-let pickerFilter='All';
 function openExercisePicker(target){
-  pickerTarget=target;pickerFilter='All';const content=document.getElementById('sheetContent');
-  content.innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pickerSearch" type="search" placeholder="Search exercise or equipment" oninput="renderPickerList()"></div><div id="pickerFilters" class="filter-row picker-filters" aria-label="Filter by muscle group"></div><div id="pickerCount" class="result-count"></div><div id="pickerList" class="exercise-list"></div>`;
-  renderPickerList();document.getElementById('sheet').showModal();
-}
-function setPickerFilter(group){pickerFilter=group;renderPickerList();}
-function renderPickerList(){
-  const query=(document.getElementById('pickerSearch')?.value||'').trim().toLowerCase();
-  const groups=['All',...new Set(allExercises().map(e=>e.muscle))];
-  document.getElementById('pickerFilters').innerHTML=groups.map(group=>`<button class="filter-chip ${pickerFilter===group?'active':''}" onclick="setPickerFilter('${esc(group)}')">${esc(group)}</button>`).join('');
-  const list=allExercises().filter(e=>(pickerFilter==='All'||e.muscle===pickerFilter)&&`${e.name} ${e.muscle} ${e.equipment}`.toLowerCase().includes(query));
-  document.getElementById('pickerCount').textContent=`${list.length} exercise${list.length===1?'':'s'}`;
-  document.getElementById('pickerList').innerHTML=list.length?list.map(e=>exerciseRow(e,'pickExercise')).join(''):`<div class="empty-card card"><strong>Nothing found</strong>Try another name, muscle or equipment.</div>`;
+  pickerTarget=target;
+  if(target!=='workout')pickerFilterState=newFilterState(); // routine editing browses fresh; a workout's flow keeps its filters across opens
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
+    +`<div id="pk_quick" class="quick-picks"></div>`
+    +`<div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pk_search" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('picker',this.value)" aria-label="Search exercises"></div>`
+    +`<div class="catalogue-controls"><div id="pk_chips" class="filter-row" aria-label="Filter by muscle group"></div><button id="pk_filtersBtn" class="filters-button" onclick="openFiltersSheet('picker')" aria-label="More filters">${FILTERS_ICON}<span>Filters</span><span class="filters-badge" hidden>0</span></button></div>`
+    +`<div id="pk_count" class="result-count"></div><div id="pk_list" class="exercise-list"></div>`;
+  renderCatalogue('picker');document.getElementById('sheet').showModal();
 }
 function pickExercise(id){
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
@@ -623,6 +686,7 @@ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();def
 window.addEventListener('beforeunload',event=>{if(state.activeSession){event.preventDefault();event.returnValue='';}});
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeSheet();});
+document.getElementById('filterSheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeFiltersSheet();});
 saveState();
 if(state.activeSession)renderToday();else renderToday();
 renderTrain();renderLibrary();renderProgress();

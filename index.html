@@ -57,8 +57,12 @@
 
       <section id="view-library" class="view" aria-labelledby="libraryTitle">
         <div class="page-lead"><p class="kicker">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
-        <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search exercise or equipment" oninput="renderLibrary()" aria-label="Search exercise library"></div>
-        <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
+        <div id="libraryQuickPicks" class="quick-picks"></div>
+        <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('library',this.value)" aria-label="Search exercise library"></div>
+        <div class="catalogue-controls">
+          <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
+          <button id="libraryFiltersBtn" class="filters-button" onclick="openFiltersSheet('library')" aria-label="More filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg><span>Filters</span><span class="filters-badge" hidden>0</span></button>
+        </div>
         <div id="libraryCount" class="result-count"></div>
         <div id="exerciseLibrary" class="exercise-list"></div>
         <button class="secondary-button full-button" onclick="openCustomExercise()">+ Add custom exercise</button>
@@ -102,6 +106,7 @@
   <div id="receiptOverlay" class="receipt-overlay" role="dialog" aria-modal="true" aria-label="Session receipt" hidden style="display:none"><div class="receipt-card notched" id="receiptCard"></div></div>
 
   <dialog id="sheet" class="sheet"><div class="sheet-handle"></div><div id="sheetContent"></div></dialog>
+  <dialog id="filterSheet" class="sheet"><div class="sheet-handle"></div><div id="filterSheetContent"></div></dialog>
   <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <input id="importInput" type="file" accept="application/json" hidden onchange="importBackup(this.files[0])">
