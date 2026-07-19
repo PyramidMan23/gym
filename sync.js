@@ -13,6 +13,9 @@
   'use strict';
 
   const SYNC_KEY = 'gymSyncV1';
+  // Per-profile isolation (Track B): the active config key is swapped on profile switch via setUser().
+  // Defaults to the legacy key so node tests and a pre-profiles boot keep working unchanged.
+  let activeSyncKey = SYNC_KEY;
   const FOLDER_NAME = 'Gym-Sync';
   const PLAN_NAME = 'coach-plan.json';
   const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -63,11 +66,11 @@
   function updateConfig(mutate) { const fresh = loadConfig(); mutate(fresh); return saveConfig(fresh); }
   function loadConfig() {
     if (!hasLS()) return defaults();
-    try { const c = JSON.parse(localStorage.getItem(SYNC_KEY)); return { ...defaults(), ...(c || {}) }; }
+    try { const c = JSON.parse(localStorage.getItem(activeSyncKey)); return { ...defaults(), ...(c || {}) }; }
     catch { return defaults(); }
   }
   function saveConfig(config) {
-    if (hasLS()) { try { localStorage.setItem(SYNC_KEY, JSON.stringify(config)); } catch { } }
+    if (hasLS()) { try { localStorage.setItem(activeSyncKey, JSON.stringify(config)); } catch { } }
     return config;
   }
 
@@ -257,6 +260,16 @@
     return status();
   }
 
+  // Point sync at a profile's namespaced config key and HARD-RESET all in-memory auth, so one
+  // profile's Google token/tokenClient can never upload another profile's sessions after a switch.
+  function setUser(configKey) {
+    activeSyncKey = configKey || SYNC_KEY;
+    accessToken = null; tokenExpiry = 0; pending = null; flushInFlight = null;
+    tokenClient = null; tokenClientId = null; // rebuilt on demand for the new profile's clientId
+    if (typeof document !== 'undefined') { try { preload(); } catch (e) { } }
+    return activeSyncKey;
+  }
+
   // Fallback when sync isn't configured: share the session JSON as a file (download-fallback).
   function exportSession(session) {
     const payload = sessionToPayload(session);
@@ -284,7 +297,7 @@
     sessionToPayload, enqueue, removeFromQueue, loadConfig, saveConfig, updateConfig,
     // browser
     configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
-    onSessionComplete, flush, downSync, connect, disconnect, exportSession,
+    onSessionComplete, flush, downSync, connect, disconnect, exportSession, setUser,
     SYNC_KEY, FOLDER_NAME
   };
 });

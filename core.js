@@ -312,5 +312,15 @@
     };
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks };
+  // Coach-card scoping (council 2026-07-19): a profile earns the Local Ramp / Coach's Block card only
+  // once it has skin in the game — some history, a saved routine, or sync configured. Brand-new profiles
+  // get a neutral empty state instead, so Mark's re-entry programming is never pushed at housemates.
+  function coachEligible(state, syncConfigured) {
+    const s = state || {};
+    return (Array.isArray(s.history) && s.history.length > 0)
+      || (Array.isArray(s.routines) && s.routines.length > 0)
+      || !!syncConfigured;
+  }
+
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible };
 });
