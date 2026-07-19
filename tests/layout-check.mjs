@@ -103,6 +103,13 @@ async function auditSheet(where, shellSel, scrollSel) {
   assert.equal(info.radius, 'ok', `${where}: shell radius must be 0/4/10px, got ${info.radius}`);
   assert.ok(info.padBottom >= 22, `${where}: scroller needs a safe-area bottom pad >=22px, got ${info.padBottom}`);
   assert.ok(info.lastBottom <= info.vh + 1, `${where}: last control (${info.lastBottom}) sits below the viewport (${info.vh}) — under the gesture bar`);
+  // UA dialog max-width regression guard: bottom sheets must reach both screen edges on mobile.
+  if (shellSel !== '#confirmDialog') {
+    const edge = await evaluate(`(()=>{const s=document.querySelector(${JSON.stringify(shellSel)});const r=s.getBoundingClientRect();return {l:Math.round(r.left),r:Math.round(r.right),vw:window.innerWidth}})()`);
+    if (edge.vw < 650) {
+      assert.ok(edge.l <= 1 && edge.r >= edge.vw - 1, `${where}: sheet not edge-to-edge (left=${edge.l}, right=${edge.r}, vw=${edge.vw}) — UA dialog max-width leaking back`);
+    }
+  }
   await auditActive(where);
 }
 

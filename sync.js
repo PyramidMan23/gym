@@ -228,13 +228,16 @@
   }
 
   // Down-sync: read coach-plan.json by stored fileId, parse, store. Silent-fails.
-  function downSync() {
+  const PLAN_FETCH_MS = 6 * 3600 * 1000; // brain writes the plan nightly; a 6h cadence is plenty
+  function downSync(force) {
     const c = loadConfig();
     if (!c.clientId || !c.planFileId) return Promise.resolve(getPlan());
+    // GIS token requests flash a popup even in silent mode; don't pay that on every cold open.
+    if (!force && !tokenValid() && c.lastPlanFetchAt && Date.now() - c.lastPlanFetchAt < PLAN_FETCH_MS) return Promise.resolve(getPlan());
     return ensureToken(false)
       .then(() => api(`https://www.googleapis.com/drive/v3/files/${c.planFileId}?alt=media`))
       .then(res => res.json())
-      .then(plan => updateConfig(c => { if (plan && plan.planId) c.plan = plan; }).plan)
+      .then(plan => updateConfig(c => { if (plan && plan.planId) c.plan = plan; c.lastPlanFetchAt = Date.now(); }).plan)
       .catch(() => getPlan());
   }
   // Drop a stored plan the app couldn't use (poisoned/malformed) so it can't break every launch.
@@ -246,7 +249,7 @@
     return ensureToken(true)
       .then(() => ensureFolder())
       .then(folderId => ensurePlanFile(folderId))
-      .then(() => flush()).then(() => downSync()).then(() => status());
+      .then(() => flush()).then(() => downSync(true)).then(() => status());
   }
   function disconnect() {
     accessToken = null; tokenExpiry = 0;
