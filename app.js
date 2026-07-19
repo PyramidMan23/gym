@@ -565,6 +565,7 @@ function saveRingGoals(){
 }
 function openSettings(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
+  if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
 function syncSettingsMarkup(){
@@ -583,7 +584,14 @@ function syncSettingsMarkup(){
 function saveSyncClientId(value){if(Sync)Sync.setClientId(value);}
 function connectSync(){
   if(!Sync)return;
-  Sync.connect().then(()=>{openSettings();renderToday();showToast('Google Drive connected');}).catch(()=>showToast('Could not connect — try again'));
+  Sync.connect().then(()=>{openSettings();renderToday();showToast('Google Drive connected');}).catch(e=>{
+    const m=String((e&&e.message)||e);
+    showToast(
+      m==='gsi-not-ready'?'Still loading Google — tap Connect again':
+      m==='popup_failed_to_open'?'Pop-up blocked — allow pop-ups for this site, then tap Connect':
+      m==='no-token'||m==='access_denied'?'Sign-in cancelled — tap Connect to retry':
+      'Could not connect — try again');
+  });
 }
 function disconnectSync(){if(Sync){Sync.disconnect();openSettings();renderToday();showToast('Disconnected');}}
 function toggleBeighton(on){if(Sync){Sync.setBeighton(on);renderToday();showToast(on?'Beighton features unlocked':'Beighton features locked');}}

@@ -73,8 +73,10 @@
 
   // ---------- token (in-memory only; SPAs get no refresh token, ~1h expiry) ----------
   let tokenClient = null;
+  let tokenClientId = null;   // the clientId the current tokenClient was built for
   let accessToken = null;
   let tokenExpiry = 0;
+  let pending = null;         // { resolve, reject } bridging the GIS callbacks to requestToken()
   const tokenValid = () => !!accessToken && Date.now() < tokenExpiry - 60000;
 
   function loadGsi() {
@@ -91,25 +93,50 @@
     });
   }
 
-  // interactive=false → silent; if it needs interaction we reject so the caller can defer to next launch.
+  // Build (or reuse) the token client for the configured clientId. Returns null if GIS isn't
+  // loaded yet or no clientId. The GIS callbacks resolve/reject whatever token request is pending.
+  function buildTokenClient() {
+    const clientId = loadConfig().clientId;
+    if (!clientId) return null;
+    if (!(root.google && root.google.accounts && root.google.accounts.oauth2)) return null;
+    if (tokenClient && tokenClientId === clientId) return tokenClient;
+    tokenClient = root.google.accounts.oauth2.initTokenClient({
+      client_id: clientId, scope: SCOPE,
+      callback: response => {
+        const p = pending; pending = null;
+        if (response && response.access_token) {
+          accessToken = response.access_token;
+          tokenExpiry = Date.now() + (Number(response.expires_in) || 3600) * 1000;
+          p && p.resolve(accessToken);
+        } else if (p) p.reject(new Error('no-token'));
+      },
+      error_callback: err => { const p = pending; pending = null; if (p) p.reject(err || new Error('token-error')); }
+    });
+    tokenClientId = clientId;
+    return tokenClient;
+  }
+
+  // Preload the GIS library and pre-build the client so a later Connect tap can open the popup
+  // SYNCHRONOUSLY. Loading the library inside the click handler (the old bug) drops the browser's
+  // transient user activation, so the popup is blocked ('popup_failed_to_open') on every device.
+  function preload() {
+    if (typeof document === 'undefined' || !loadConfig().clientId) return Promise.resolve(false);
+    return loadGsi().then(() => !!buildTokenClient()).catch(() => false);
+  }
+
+  // interactive=false → silent; interactive=true → account chooser. MUST run synchronously from the
+  // user gesture: requestAccessToken is called with NO async work before it, so preload() must have
+  // already built the client (done at boot + on setClientId). If not ready yet, reject 'gsi-not-ready'
+  // and warm it up so the next tap succeeds.
   function requestToken(interactive) {
-    return loadGsi().then(() => new Promise((resolve, reject) => {
-      const clientId = loadConfig().clientId;
-      if (!clientId) return reject(new Error('not-configured'));
-      tokenClient = root.google.accounts.oauth2.initTokenClient({
-        client_id: clientId, scope: SCOPE,
-        callback: response => {
-          if (response && response.access_token) {
-            accessToken = response.access_token;
-            tokenExpiry = Date.now() + (Number(response.expires_in) || 3600) * 1000;
-            resolve(accessToken);
-          } else reject(new Error('no-token'));
-        },
-        error_callback: err => reject(err || new Error('token-error'))
-      });
-      // '' = silent (no UI); 'consent' forces the account chooser on the first connect.
-      tokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
-    }));
+    return new Promise((resolve, reject) => {
+      const tc = buildTokenClient();
+      if (!tc) { preload(); return reject(new Error('gsi-not-ready')); }
+      if (pending) return reject(new Error('token-in-flight'));
+      pending = { resolve, reject };
+      try { tc.requestAccessToken({ prompt: interactive ? 'consent' : '' }); }
+      catch (e) { pending = null; reject(e); }
+    });
   }
   function ensureToken(interactive) {
     if (tokenValid()) return Promise.resolve(accessToken);
@@ -168,7 +195,7 @@
   function getBeighton() { return !!loadConfig().beightonUnlocked; }
   function setBeighton(on) { const c = loadConfig(); c.beightonUnlocked = !!on; return saveConfig(c).beightonUnlocked; }
   function getPlan() { return loadConfig().plan; }
-  function setClientId(id) { const c = loadConfig(); c.clientId = String(id || '').trim(); saveConfig(c); return c.clientId; }
+  function setClientId(id) { const c = loadConfig(); c.clientId = String(id || '').trim(); saveConfig(c); preload(); return c.clientId; }
 
   // Enqueue on session completion, then try to flush. Silent-fails to the queue.
   function onSessionComplete(session) {
@@ -246,11 +273,14 @@
     URL.revokeObjectURL(link.href);
   }
 
+  // Warm up GIS at startup if a clientId is already saved, so the first Connect tap opens the popup.
+  if (typeof document !== 'undefined') { try { preload(); } catch (e) {} }
+
   return {
     // pure
     sessionToPayload, enqueue, removeFromQueue, loadConfig, saveConfig, updateConfig,
     // browser
-    configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan,
+    configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession,
     SYNC_KEY, FOLDER_NAME
   };
