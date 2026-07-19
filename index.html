@@ -106,7 +106,7 @@
   <div id="receiptOverlay" class="receipt-overlay" role="dialog" aria-modal="true" aria-label="Session receipt" hidden style="display:none"><div class="receipt-card notched" id="receiptCard"></div></div>
 
   <dialog id="sheet" class="sheet"><div class="sheet-handle"></div><div id="sheetContent"></div></dialog>
-  <dialog id="filterSheet" class="sheet"><div class="sheet-handle"></div><div id="filterSheetContent"></div></dialog>
+  <dialog id="filterSheet" class="sheet" aria-labelledby="filterSheetTitle"><div class="sheet-handle"></div><div id="filterSheetContent"></div></dialog>
   <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent"></div></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <input id="importInput" type="file" accept="application/json" hidden onchange="importBackup(this.files[0])">

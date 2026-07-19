@@ -273,7 +273,23 @@
     return out.slice(0, cap);
   }
 
-  function validateBackup(data) {
+  // Custom-exercise ids reach inline DOM attributes and become the logging key, so a hostile backup must not smuggle
+  // quotes/scripts or a numeric/duplicate id through. Coerce to String, keep only safe chars, drop collisions.
+  function sanitizeCustomExercises(list, reservedIds) {
+    const idOk = /^[A-Za-z0-9_-]+$/;
+    const seen = new Set(Array.isArray(reservedIds) ? reservedIds.map(String) : []);
+    const out = [];
+    for (const raw of Array.isArray(list) ? list : []) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const id = String(raw.id == null ? '' : raw.id);
+      if (!idOk.test(id) || seen.has(id)) continue; // injconnectable, numeric-collision, or duplicate id -> dropped
+      seen.add(id);
+      out.push({ ...JSON.parse(JSON.stringify(raw)), id });
+    }
+    return out;
+  }
+
+  function validateBackup(data, reservedIds) {
     const validObject = data && typeof data === 'object' && !Array.isArray(data);
     const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession));
     if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession) {
@@ -287,7 +303,7 @@
       version: 2,
       routines: JSON.parse(JSON.stringify(data.routines)),
       history: JSON.parse(JSON.stringify(data.history)),
-      customExercises: JSON.parse(JSON.stringify(data.customExercises || [])),
+      customExercises: sanitizeCustomExercises(data.customExercises, reservedIds),
       activeSession: data.activeSession == null ? null : JSON.parse(JSON.stringify(data.activeSession)),
       exerciseCues: (data.exerciseCues && typeof data.exerciseCues === 'object' && !Array.isArray(data.exerciseCues)) ? JSON.parse(JSON.stringify(data.exerciseCues)) : {},
       // Favourites survive a backup round-trip; unknown/older backups without them default to empty.

@@ -292,51 +292,83 @@ function newFilterState(){return {query:'',muscle:'All',patterns:[],equip:[],fam
 let libraryFilter=newFilterState();
 let pickerFilterState=newFilterState();
 const CAT={
-  library:{addAction:'quickExercise',ids:{quick:'libraryQuickPicks',chips:'muscleFilters',filtersBtn:'libraryFiltersBtn',count:'libraryCount',list:'exerciseLibrary',search:'librarySearch'}},
-  picker:{addAction:'pickExercise',ids:{quick:'pk_quick',chips:'pk_chips',filtersBtn:'pk_filtersBtn',count:'pk_count',list:'pk_list',search:'pk_search'}}
+  library:{ids:{quick:'libraryQuickPicks',chips:'muscleFilters',filtersBtn:'libraryFiltersBtn',count:'libraryCount',list:'exerciseLibrary',search:'librarySearch'}},
+  picker:{ids:{quick:'pk_quick',chips:'pk_chips',filtersBtn:'pk_filtersBtn',count:'pk_count',list:'pk_list',search:'pk_search'}}
 };
 function catState(ctx){return ctx==='library'?libraryFilter:pickerFilterState;}
 function catEl(ctx,key){return document.getElementById(CAT[ctx].ids[key]);}
+function catAdd(ctx,id){(ctx==='library'?quickExercise:pickExercise)(id);} // add by EXACT id — logging/progression path unchanged
 // Full render (quick + chips + list). The search <input> node is only re-valued, never replaced, so focus/caret survive.
 function renderCatalogue(ctx){
   const input=catEl(ctx,'search'); if(input)input.value=catState(ctx).query;
+  const list=catEl(ctx,'list'); if(list)list._catKey=null; // force a rebuild on a fresh open
   renderCatalogueQuick(ctx);renderCatalogueChips(ctx);renderCatalogueList(ctx,false);
 }
 function renderCatalogueQuick(ctx){
   const host=catEl(ctx,'quick'); if(!host)return;
   const ids=Core.quickPicks(state.favourites,state.history,id=>!!exerciseById(id),8);
   if(!ids.length){host.innerHTML='';return;}
-  const favSet=new Set(state.favourites||[]),add=CAT[ctx].addAction;
-  const chips=ids.map(id=>{const e=exerciseById(id);if(!e)return '';return `<button class="quick-chip" onclick="${add}('${id}')" aria-label="Add ${esc(e.name)}">${favSet.has(id)?'<span class="quick-star" aria-hidden="true">★</span>':''}<span>${esc(e.name)}</span></button>`;}).join('');
+  const favSet=new Set(state.favourites||[]);
+  const chips=ids.map(id=>{const e=exerciseById(id);if(!e)return '';return `<button class="quick-chip" data-id="${esc(id)}" aria-label="Add ${esc(e.name)}">${favSet.has(id)?'<span class="quick-star" aria-hidden="true">★</span>':''}<span>${esc(e.name)}</span></button>`;}).join('');
   host.innerHTML=`<p class="kicker quick-kicker">QUICK PICKS</p><div class="quick-row">${chips}</div>`;
 }
 function renderCatalogueChips(ctx){
   const fs=catState(ctx),host=catEl(ctx,'chips');
-  if(host)host.innerHTML=['All',...MUSCLE_ORDER].map(m=>`<button class="filter-chip ${fs.muscle===m?'active':''}" onclick="setCatMuscle('${ctx}','${esc(m)}')" aria-pressed="${fs.muscle===m}">${esc(m)}</button>`).join('');
-  const btn=catEl(ctx,'filtersBtn');
-  if(btn){const n=fs.patterns.length+fs.equip.length+fs.families.length;btn.classList.toggle('has-active',n>0);const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
+  if(host)host.innerHTML=['All',...MUSCLE_ORDER].map(m=>`<button class="filter-chip ${fs.muscle===m?'active':''}" data-muscle="${esc(m)}" aria-pressed="${fs.muscle===m}">${esc(m)}</button>`).join('');
+  updateFiltersControl(ctx);
+}
+// Reflect the active facet count on the Filters button (badge + accent) and the open dialog's Clear button — in place, no rebuild.
+function updateFiltersControl(ctx){
+  const fs=catState(ctx),n=fs.patterns.length+fs.equip.length+fs.families.length,btn=catEl(ctx,'filtersBtn');
+  if(btn){btn.classList.toggle('has-active',n>0);const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
+  if(ctx===filterSheetCtx){const clear=document.getElementById('filterClearBtn');if(clear)clear.disabled=n===0;}
 }
 function renderCatalogueList(ctx,animate){
-  const fs=catState(ctx),list=Core.filterExercises(allExercises(),fs),add=CAT[ctx].addAction;
+  const fs=catState(ctx),list=Core.filterExercises(allExercises(),fs);
   const count=catEl(ctx,'count'); if(count)count.textContent=`${list.length} exercise${list.length===1?'':'s'}${fs.query?' found':''}`;
   const host=catEl(ctx,'list'); if(!host)return;
-  host.innerHTML=list.length?list.map(e=>exerciseRow(e,add,ctx)).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+  // Skip the 239-row rebuild when the filtered id-set + query-state is unchanged (favourite toggles patch stars in place, so the DOM stays correct).
+  const key=(fs.query?'q:':'')+list.map(e=>e.id).join(',');
+  if(host._catKey===key)return;
+  host._catKey=key;
+  host.innerHTML=list.length?list.map(exerciseRow).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
   if(animate&&!REDUCED_MOTION){host.style.animation='none';void host.offsetWidth;host.style.animation='catFade .18s var(--ease)';}
 }
-// Row: whole name area taps to add (exact id — logging unchanged); a star toggles favourite (filled vs outline shape, ≥44px).
-function exerciseRow(exercise,addAction,ctx){
+// Row markup carries the exact id in data-id (never interpolated into a handler string); a delegated listener does the work.
+// Whole name area taps to add; the ≥44px star toggles favourite (filled vs outline shape, not colour-only).
+function exerciseRow(exercise){
   const fav=(state.favourites||[]).includes(exercise.id);
-  const meta=`${esc(exercise.muscle||'')} · ${esc(exercise.equipment||'Custom equipment')}`;
-  return `<article class="exercise-row"><button class="exercise-pick" onclick="${addAction}('${exercise.id}')" aria-label="Add ${esc(exercise.name)}"><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" onclick="toggleFavourite('${exercise.id}','${ctx}')" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
+  const meta=`${esc(exercise.muscle||'')} · ${esc(exercise.equipment||'Custom equipment')}`,id=esc(exercise.id);
+  return `<article class="exercise-row"><button class="exercise-pick" data-id="${id}" aria-label="Add ${esc(exercise.name)}"><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
 }
-function onCatSearch(ctx,value){catState(ctx).query=value;renderCatalogueList(ctx,false);}
+// One delegated click listener per catalogue surface — no per-row handlers, no id interpolation (injection-safe).
+function onCatalogueClick(ctx,e){
+  const pick=e.target.closest('.exercise-pick'); if(pick){if(pick.dataset.id)catAdd(ctx,pick.dataset.id);return;}
+  const star=e.target.closest('.exercise-star'); if(star){if(star.dataset.id)toggleFavourite(star.dataset.id,ctx,star);return;}
+  const quick=e.target.closest('.quick-chip'); if(quick){if(quick.dataset.id)catAdd(ctx,quick.dataset.id);return;}
+  const chip=e.target.closest('.filter-chip'); if(chip&&chip.dataset.muscle!=null)setCatMuscle(ctx,chip.dataset.muscle);
+}
+let catSearchTimer=null;
+// Debounced so a fast typist doesn't rebuild the list on every keystroke; the input node persists so caret/focus survive.
+function onCatSearch(ctx,value){catState(ctx).query=value;clearTimeout(catSearchTimer);catSearchTimer=setTimeout(()=>renderCatalogueList(ctx,false),120);}
 function setCatMuscle(ctx,muscle){catState(ctx).muscle=muscle;renderCatalogueChips(ctx);renderCatalogueList(ctx,true);}
-function toggleFavourite(id,ctx){
+// Favourite toggle: flip THIS star in place, refresh only Quick Picks, and hold the tapped row's screen position (never rebuild the list).
+function toggleFavourite(id,ctx,starEl){
   if(!Array.isArray(state.favourites))state.favourites=[];
-  const i=state.favourites.indexOf(id);
-  if(i>=0)state.favourites.splice(i,1);else state.favourites.push(id);
-  saveState();renderCatalogueQuick(ctx);renderCatalogueList(ctx,false);
-  showToast(i>=0?'Removed from favourites':'Added to favourites');
+  const i=state.favourites.indexOf(id),willFav=i<0;
+  if(willFav)state.favourites.push(id);else state.favourites.splice(i,1);
+  saveState();
+  if(starEl){
+    const name=exerciseById(id)?.name||'exercise';
+    starEl.classList.toggle('on',willFav);
+    starEl.setAttribute('aria-pressed',String(willFav));
+    starEl.setAttribute('aria-label',`${willFav?'Remove':'Add'} ${name} ${willFav?'from':'to'} favourites`);
+  }
+  const scroller=ctx==='library'?null:document.getElementById('sheet');
+  const before=starEl?starEl.getBoundingClientRect().top:null;
+  renderCatalogueQuick(ctx);
+  if(before!=null){const d=starEl.getBoundingClientRect().top-before;if(d){scroller?scroller.scrollTop+=d:window.scrollBy(0,d);}}
+  showToast(willFav?'Added to favourites':'Removed from favourites');
 }
 function resetCatalogue(ctx){if(ctx==='library')libraryFilter=newFilterState();else pickerFilterState=newFilterState();renderCatalogue(ctx);}
 // Secondary facets (pattern / equipment / family) live in their own dialog so the muscle row stays a single fast strip.
@@ -347,15 +379,18 @@ let filterSheetCtx='library';
 function openFiltersSheet(ctx){filterSheetCtx=ctx;renderFiltersSheet();document.getElementById('filterSheet').showModal();}
 function renderFiltersSheet(){
   const fs=catState(filterSheetCtx),n=fs.patterns.length+fs.equip.length+fs.families.length;
-  const group=(title,kind,values,selected)=>values.length?`<div class="filter-group"><p class="kicker">${title}</p><div class="chip-wrap">${values.map(v=>`<button class="facet-chip${selected.includes(v)?' on':''}" onclick="toggleFacet('${kind}','${esc(v)}')" aria-pressed="${selected.includes(v)}">${esc(v)}</button>`).join('')}</div></div>`:'';
-  document.getElementById('filterSheetContent').innerHTML=`<div class="sheet-head"><h2>Filters</h2><button class="close-button" onclick="closeFiltersSheet()">×</button></div>${group('MOVEMENT PATTERN','patterns',distinctTags(e=>e.patterns),fs.patterns)}${group('EQUIPMENT','equip',distinctTags(e=>e.equip),fs.equip)}${group('FAMILY','families',distinctFamilies(),fs.families)}<div class="sheet-actions"><button class="secondary-button" ${n?'':'disabled style="opacity:.5"'} onclick="clearFacets()">Clear${n?` (${n})`:''}</button><button class="primary-button" onclick="closeFiltersSheet()">Show results</button></div>`;
+  const group=(title,kind,values,selected)=>values.length?`<div class="filter-group"><p class="kicker">${title}</p><div class="chip-wrap">${values.map(v=>`<button class="facet-chip${selected.includes(v)?' on':''}" data-kind="${kind}" data-value="${esc(v)}" aria-pressed="${selected.includes(v)}">${esc(v)}</button>`).join('')}</div></div>`:'';
+  document.getElementById('filterSheetContent').innerHTML=`<div class="sheet-head"><h2 id="filterSheetTitle">Filters</h2><button class="close-button" onclick="closeFiltersSheet()">×</button></div>${group('MOVEMENT PATTERN','patterns',distinctTags(e=>e.patterns),fs.patterns)}${group('EQUIPMENT','equip',distinctTags(e=>e.equip),fs.equip)}${group('FAMILY','families',distinctFamilies(),fs.families)}<div class="sheet-actions"><button id="filterClearBtn" class="secondary-button"${n?'':' disabled'} onclick="clearFacets()">Clear</button><button class="primary-button" onclick="closeFiltersSheet()">Show results</button></div>`;
 }
-function toggleFacet(kind,value){
-  const arr=catState(filterSheetCtx)[kind],i=arr.indexOf(value);
-  if(i>=0)arr.splice(i,1);else arr.push(value);
-  renderFiltersSheet();renderCatalogueChips(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);
+// Facet toggle (delegated): flip THIS chip + the Filters badge in place — never rebuild the dialog, so keyboard focus survives.
+function onFacetClick(e){
+  const chip=e.target.closest('.facet-chip'); if(!chip)return;
+  const kind=chip.dataset.kind,value=chip.dataset.value,arr=catState(filterSheetCtx)[kind],i=arr.indexOf(value),on=i<0;
+  if(on)arr.push(value);else arr.splice(i,1);
+  chip.classList.toggle('on',on);chip.setAttribute('aria-pressed',String(on));
+  updateFiltersControl(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);
 }
-function clearFacets(){const fs=catState(filterSheetCtx);fs.patterns=[];fs.equip=[];fs.families=[];renderFiltersSheet();renderCatalogueChips(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);}
+function clearFacets(){const fs=catState(filterSheetCtx);fs.patterns=[];fs.equip=[];fs.families=[];renderFiltersSheet();updateFiltersControl(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);}
 function closeFiltersSheet(){document.getElementById('filterSheet').close();}
 // Keep the renderLibrary name — renderView, boot and saveCustomExercise all call it.
 function renderLibrary(){renderCatalogue('library');}
@@ -663,7 +698,7 @@ function exportBackup(){const blob=new Blob([JSON.stringify({...state,exportedAt
 async function importBackup(file){
   if(!file)return;
   try{
-    const candidate=Core.validateBackup(JSON.parse(await file.text()));
+    const candidate=Core.validateBackup(JSON.parse(await file.text()),DUCK_EXERCISES.map(e=>e.id));
     const previous=state;
     state=candidate;
     if(!saveState()){state=previous;return;}
@@ -687,6 +722,10 @@ window.addEventListener('beforeunload',event=>{if(state.activeSession){event.pre
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeSheet();});
 document.getElementById('filterSheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeFiltersSheet();});
+// Catalogue event delegation — one listener per surface; row/star/quick/muscle actions read data-id/data-muscle (no inline handlers).
+document.getElementById('view-library').addEventListener('click',event=>onCatalogueClick('library',event));
+document.getElementById('sheetContent').addEventListener('click',event=>onCatalogueClick('picker',event));
+document.getElementById('filterSheetContent').addEventListener('click',onFacetClick);
 saveState();
 if(state.activeSession)renderToday();else renderToday();
 renderTrain();renderLibrary();renderProgress();

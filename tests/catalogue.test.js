@@ -150,3 +150,20 @@ test('favourites survive a validateBackup round-trip', () => {
   const dirty = Core.validateBackup({ version: 2, routines: [], history: [], customExercises: [], activeSession: null, favourites: ['ch1', 5, null, 'ba2'], preferences: {} });
   assert.deepEqual(dirty.favourites, ['ch1', 'ba2'], 'non-string entries are dropped');
 });
+
+test('validateBackup sanitizes custom-exercise ids: coerce, drop unsafe, dedupe against catalogue', () => {
+  const backup = {
+    version: 2, routines: [], history: [], activeSession: null, preferences: {},
+    customExercises: [
+      { id: "c'1", name: 'Inject', muscle: 'Chest', equipment: 'x' }, // quote -> dropped (injection guard)
+      { id: 42, name: 'Numeric', muscle: 'Legs', equipment: 'y' },    // numeric -> coerced to "42", kept
+      { id: 'ch1', name: 'Shadow', muscle: 'Back', equipment: 'z' },  // collides with a catalogue id -> dropped
+      { id: 'c-2', name: 'Fine', muscle: 'Arms', equipment: 'w' },    // valid -> kept
+      { id: 'c-2', name: 'Dup', muscle: 'Arms', equipment: 'w' }      // duplicate -> dropped
+    ]
+  };
+  const restored = Core.validateBackup(backup, DUCK_EXERCISES.map(e => e.id));
+  assert.deepEqual(restored.customExercises.map(e => e.id), ['42', 'c-2']);
+  assert.equal(restored.customExercises.find(e => e.id === '42').name, 'Numeric');
+  assert.equal(typeof restored.customExercises.find(e => e.id === '42').id, 'string', 'numeric id coerced to String');
+});
