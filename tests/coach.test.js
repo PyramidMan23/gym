@@ -63,6 +63,37 @@ test('a flare BEFORE the boundary does not supersede', () => {
   assert.equal(Coach.validatePlan(basePlan(), ctx({ history })).status, 'usable');
 });
 
+// ---- malformed-plan hardening (cross-review #3) ----
+test('sessions:[null] is rejected, not thrown', () => {
+  assert.equal(Coach.validatePlan(basePlan({ sessions: [null] }), ctx()).status, 'rejected');
+});
+test('exercises:[null] inside a session is rejected, not thrown', () => {
+  assert.equal(Coach.validatePlan(basePlan({ sessions: [{ title: 'A', exercises: [null] }] }), ctx()).status, 'rejected');
+});
+test('non-object plans (string/array) are rejected, not thrown', () => {
+  assert.equal(Coach.validatePlan('a plan', ctx()).status, 'rejected');
+  assert.equal(Coach.validatePlan([basePlan()], ctx()).status, 'rejected');
+  assert.equal(Coach.validatePlan(basePlan({ sessions: [{ title: 'A' }] }), ctx()).status, 'rejected'); // missing exercises array
+});
+
+// ---- untrusted-field rendering safety (cross-review #1) ----
+test('doseLine renders hostile plan fields inert: strings dropped, only finite numbers shown', () => {
+  assert.equal(Coach.doseLine({ load: '<img src=x onerror=alert(1)>', sets: '<script>', reps: 8 }), '');
+  assert.equal(Coach.doseLine({ load: 40, sets: 3, reps: 8 }), '40 kg · 3×8');
+  assert.equal(Coach.doseLine({ load: Infinity, sets: NaN, reps: 8 }), '');
+  assert.equal(Coach.doseLine({ sets: 3, reps: 8 }), '3×8');
+  assert.equal(Coach.doseLine(null), '');
+});
+test('coachSession sanitizes untrusted fields: numeric strings become null, cue coerced to string', () => {
+  const plan = basePlan({ sessions: [{ title: 'A', exercises: [
+    { exerciseId: 'ch1', sets: '3"><i>', reps: 8, load: '40', cue: { evil: true } }] }] });
+  const s = Coach.coachSession(plan, [], () => true);
+  assert.equal(s.exercises[0].sets, null);
+  assert.equal(s.exercises[0].load, null);
+  assert.equal(s.exercises[0].reps, 8);
+  assert.equal(s.exercises[0].cue, '');
+});
+
 // ---- unknown exercise ids ----
 test('unknown exercise ids are collected, not crashed on, plan still usable', () => {
   const plan = basePlan({ sessions: [{ title: 'Day A', exercises: [
