@@ -186,6 +186,50 @@ test('coachEligible gates the coach card on skin-in-the-game (Track B scoping)',
   assert.equal(Core.coachEligible({}, false), false);
 });
 
+test('carryForward: set 1 never prefills; completion prefills the next set; per-exercise isolated', () => {
+  // Set 1 (index 0) always returns null — a conscious load choice, never assumed.
+  const bench = { exerciseId: 'bench', sets: [{ weight: '', reps: '', done: false }] };
+  assert.equal(Core.carryForward(bench, 0), null);
+  // A completed set 1 pre-fills set 2 with its ACTUAL numbers (from this session, not history).
+  bench.sets = [{ weight: '80', reps: '8', done: true }, { weight: '', reps: '', done: false }];
+  assert.deepEqual(Core.carryForward(bench, 1), { weight: '80', reps: '8' });
+  // Edit override: the completed set's edited value is exactly what carries forward.
+  bench.sets[0].weight = '85';
+  assert.deepEqual(Core.carryForward(bench, 2), { weight: '85', reps: '8' });
+  // Nearest PRECEDING completed set wins when several are done.
+  bench.sets = [{ weight: '80', reps: '8', done: true }, { weight: '82.5', reps: '6', done: true }, { weight: '', reps: '', done: false }];
+  assert.deepEqual(Core.carryForward(bench, 2), { weight: '82.5', reps: '6' });
+  // Never from history: carryForward takes no history and reads only this exercise's own sets.
+  const fresh = { exerciseId: 'squat', sets: [{ weight: '', reps: '', done: false }, { weight: '', reps: '', done: false }] };
+  assert.equal(Core.carryForward(fresh, 1), null); // no completed set before it → no prefill
+});
+
+test('showAdoptAction only offers set 1 while it is untouched and history exists', () => {
+  const empty = { weight: '', reps: '', done: false };
+  assert.equal(Core.showAdoptAction(empty, 0, true), true);   // set 1, empty, has history
+  assert.equal(Core.showAdoptAction(empty, 0, false), false); // no history → nothing to adopt
+  assert.equal(Core.showAdoptAction(empty, 1, true), false);  // only set 1 gets the action
+  assert.equal(Core.showAdoptAction({ weight: '40', reps: '', done: false }, 0, true), false); // touched
+  assert.equal(Core.showAdoptAction({ weight: '', reps: '', done: true }, 0, true), false);    // already done
+});
+
+test('stepValue clamps at zero and rounds away float dust', () => {
+  assert.equal(Core.stepValue(40, 2.5, 1), 42.5);
+  assert.equal(Core.stepValue(40, 2.5, -1), 37.5);
+  assert.equal(Core.stepValue(0, 2.5, -1), 0);   // clamp at zero
+  assert.equal(Core.stepValue(2.5, 2.5, -1), 0);
+  assert.equal(Core.stepValue(0.1, 0.2, 1), 0.3); // 0.1+0.2 dust rounded
+  assert.equal(Core.stepValue(8, 1, 1), 9);
+});
+
+test('shouldBuzz gates on the API existing AND the pref not being off', () => {
+  assert.equal(Core.shouldBuzz({ haptics: true }, true), true);
+  assert.equal(Core.shouldBuzz({}, true), true);            // default ON (undefined)
+  assert.equal(Core.shouldBuzz({ haptics: false }, true), false); // pref off
+  assert.equal(Core.shouldBuzz({ haptics: true }, false), false); // no vibrate API (iOS)
+  assert.equal(Core.shouldBuzz(undefined, true), true);           // missing prefs → default ON
+});
+
 test('per-profile backup round-trips a profile state without bleeding into another', () => {
   // A profile exports its own state; validateBackup normalises it back with favourites/history intact.
   const profileA = { version: 2, routines: [{ id: 'r1', name: 'Upper', exerciseIds: ['b0'] }],

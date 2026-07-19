@@ -322,5 +322,38 @@
       || !!syncConfigured;
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible };
+  // ---- Current-session carry-forward (council 2026-07-19, Codex design). ----
+  // Prefill for a set comes ONLY from the nearest preceding COMPLETED set IN THIS SESSION —
+  // never from history (empty = "not entered", never "assume last time"). Set 1 (index 0) never
+  // prefills. Because it reads the completed set's ACTUAL stored numbers, any edit a lifter made to
+  // a prefilled set is exactly what carries forward next. Returns {weight, reps} or null.
+  function carryForward(exercise, setIndex) {
+    if (!exercise || setIndex <= 0) return null;
+    const sets = exercise.sets || [];
+    for (let i = Math.min(setIndex, sets.length) - 1; i >= 0; i--) {
+      if (sets[i] && sets[i].done) return { weight: sets[i].weight, reps: sets[i].reps };
+    }
+    return null;
+  }
+
+  // Explicit set-1 adoption action ("Use last: 40 kg × 8") is offered ONLY while set 1 is still
+  // untouched — incomplete AND both fields empty — and there is a last-session source to adopt.
+  // The done-tick never auto-adopts; this is the sole path from history into a logged set.
+  function showAdoptAction(set, setIndex, hasHistory) {
+    return setIndex === 0 && !!hasHistory && !set?.done && set?.weight === '' && set?.reps === '';
+  }
+
+  // Numeric-pad −/+ step: clamp at zero, round away binary-float dust (2.5-kg steps otherwise drift).
+  function stepValue(current, step, dir) {
+    const base = Math.max(0, num(current) + num(step) * (dir < 0 ? -1 : 1));
+    return Math.round(base * 100) / 100;
+  }
+
+  // Haptics gate: fire only when the device exposes vibrate AND the profile hasn't turned it off
+  // (default ON — undefined reads as enabled). iOS has no navigator.vibrate, so hasVibrate is false.
+  function shouldBuzz(preferences, hasVibrate) {
+    return !!hasVibrate && (preferences?.haptics !== false);
+  }
+
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz };
 });
