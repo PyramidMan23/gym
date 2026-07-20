@@ -82,12 +82,18 @@
 
       <section id="view-progress" class="view" aria-labelledby="progressTitle">
         <div class="page-lead compact-lead"><p class="kicker accent">STRENGTH</p><h1 id="progressTitle">Getting stronger.</h1></div>
+        <div id="weeklyRecap"></div>
+        <div id="painTrend"></div>
         <div id="strengthPicker" class="trend-picker"></div>
         <div id="strengthTrend"></div>
         <div class="section-heading"><div><p class="kicker">THIS WEEK</p><h2>By the numbers</h2></div></div>
         <div id="progressStats" class="metric-grid"></div>
         <div class="section-heading"><div><p class="kicker">WEEKLY VOLUME</p><h2>Sets per muscle</h2></div></div>
         <div id="muscleVolume" class="mv-board"></div>
+        <div class="section-heading"><div><p class="kicker">BALANCE</p><h2>Left vs right</h2></div></div>
+        <div id="balanceBoard"></div>
+        <div class="section-heading"><div><p class="kicker">BODY</p><h2>Bodyweight</h2></div><button class="text-button" onclick="openBodyweightLog()">Log weight</button></div>
+        <div id="bodyweightCard"></div>
         <div class="fold-2">
           <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
           <div id="weekChart" class="chart-card"></div>
@@ -125,9 +131,11 @@
   <dialog id="padSheet" class="sheet" aria-label="Number pad"><div class="sheet-scroll"><div class="sheet-handle"></div><div id="padContent"></div></div></dialog>
   <dialog id="filterSheet" class="sheet" aria-labelledby="filterSheetTitle"><div class="sheet-scroll"><div class="sheet-handle"></div><div id="filterSheetContent"></div></div></dialog>
   <dialog id="confirmDialog" class="confirm-dialog"><div id="confirmContent" class="dialog-scroll"></div></dialog>
+  <button id="updatePill" class="update-pill" type="button" onclick="applyUpdate()" hidden aria-live="polite"><span class="update-dot" aria-hidden="true"></span>Update ready — tap to refresh</button>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <input id="importInput" type="file" accept="application/json" hidden onchange="importBackup(this.files[0])">
 
+  <script src="build.js"></script>
   <script src="core.js"></script>
   <script src="exercises.js"></script>
   <script src="profiles.js"></script>

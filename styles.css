@@ -471,3 +471,119 @@ body.nav-condense.scrolled .nav-cursor{height:calc(54px - 16px)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .routine-strip-card,.live-metrics{background:var(--card-solid)}
 }
+
+/* ========================================================================
+   WAVES 1–3 (council 2026-07-20): progression loop, evidence surfaces, depth.
+   All colours are token-paired (flip with the scheme). Motion is auto-killed
+   by the global prefers-reduced-motion rule above.
+   ======================================================================== */
+
+/* ---- Update-ready pill (release truth). Chrome glass, persistent + tappable, slides up. ---- */
+.update-pill{position:fixed;left:50%;bottom:calc(var(--nav-height) + 14px + env(safe-area-inset-bottom));transform:translate(-50%,140%);z-index:60;display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 18px;border:1px solid var(--amber);border-radius:999px;background:var(--glass-solid);color:var(--cream);font-weight:800;font-size:13px;box-shadow:var(--shadow),var(--glass-edge);transition:transform .4s var(--ease),opacity .3s var(--ease);opacity:0}
+.update-pill[hidden]{display:none}
+.update-pill.show{transform:translate(-50%,0);opacity:1}
+.update-pill .update-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(var(--bloom-amber),.22)}
+body.workout-active .update-pill{bottom:calc(14px + env(safe-area-inset-bottom))}
+
+/* ---- Wave 1: progression target line under "Last time". Fades/slides in after the previous-strip. ---- */
+.target-line{display:flex;align-items:center;gap:7px;margin-top:6px;font-size:13px;color:var(--cream);animation:targetIn .34s var(--ease) both;animation-delay:.06s}
+.target-line b{color:var(--amber-deep);font-weight:800}
+.target-line .target-lead{color:var(--taupe);font-weight:700}
+.target-line strong{font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.target-line.blocked{color:var(--danger)}
+.target-line.blocked b,.target-line.blocked strong{color:var(--danger)}
+.why-target{border:0;background:transparent;color:var(--amber-deep);font-weight:800;font-size:12px;text-decoration:underline;text-underline-offset:2px;min-height:44px;padding:0 4px;margin-left:auto}
+@keyframes targetIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* ---- Wave 1: RIR capture chips + collapsed note. Chips pop in with a spring. ---- */
+.rir-row{display:flex;flex-direction:column;gap:8px;margin:4px 14px 0;padding:12px 0 2px;border-top:1px dashed var(--hair);animation:rirIn .3s var(--ease) both}
+.rir-label{font-size:12px;font-weight:800;color:var(--taupe)}
+.rir-chips{display:flex;gap:7px;flex-wrap:wrap}
+.rir-chip{min-width:44px;min-height:44px;padding:0 12px;border:1px solid var(--hair);border-radius:var(--r1);background:var(--glass-2);color:var(--cream);font-weight:800;font-size:14px;transition:transform .12s var(--ease),background .15s var(--ease)}
+.rir-chip:active{transform:scale(.92);background:var(--amber);color:var(--on-amber);border-color:var(--amber)}
+.rir-note{display:inline-flex;align-items:baseline;gap:8px;margin:6px 14px 0;min-height:44px;padding:0 12px;border:1px solid rgba(var(--bloom-amber),.5);border-radius:var(--r1);background:rgba(var(--bloom-amber),.1);color:var(--amber-deep);font-weight:800;font-size:13px}
+.rir-note small{color:var(--taupe);font-weight:700;font-size:11px}
+@keyframes rirIn{from{opacity:0;transform:translateY(6px) scale(.97)}60%{transform:translateY(-1px) scale(1.01)}to{opacity:1;transform:none}}
+
+/* ---- Wave 1: "why this target" sheet. ---- */
+.why-evidence{margin:2px 0 8px;color:var(--taupe);font-size:13px;font-variant-numeric:tabular-nums lining-nums}
+.why-sentence{margin:0 0 8px;color:var(--cream);font-size:15px;line-height:1.5}
+.why-foot{margin:14px 0 4px;color:var(--faint);font-size:11px}
+.why-block{display:flex;gap:12px;align-items:flex-start;padding:16px;border-radius:var(--radius);border:1px solid var(--danger);background:var(--danger-soft);color:var(--danger)}
+.why-block-glyph{flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;border:2px solid var(--danger);font-weight:800}
+.why-block p{margin:0;font-weight:700;font-size:14px;line-height:1.5}
+
+/* ---- Wave 1: receipt NEXT SESSION block. Rows stagger in like the receipt lines. ---- */
+.receipt-next{margin-top:16px;padding-top:4px}
+.receipt-next .kicker{color:var(--amber-deep)}
+.receipt-next-rows{margin-top:8px}
+.receipt-next-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 0;border-top:1px solid var(--hair);animation:receiptIn .4s var(--ease) both;animation-delay:calc(var(--i)*55ms + .3s)}
+.receipt-next-row span{color:var(--taupe);font-size:13px;font-weight:700}
+.receipt-next-row strong{font-weight:800;font-variant-numeric:tabular-nums lining-nums;text-align:right}
+.receipt-next-row strong em{font-style:normal;font-weight:800;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--amber-deep)}
+
+/* ---- Wave 2: exercise detail sheet. ---- */
+.exercise-title{cursor:pointer}
+.detail-equip{margin:-2px 0 12px;color:var(--taupe);font-size:13px}
+.detail-stat{display:flex;align-items:baseline;gap:10px;margin:4px 0 6px}
+.detail-stat strong{font-size:34px;font-weight:800;color:var(--amber-deep);line-height:1}
+.detail-stat span{color:var(--taupe);font-size:11px;font-weight:800;letter-spacing:1px}
+.rr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.rr-cell{border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow);padding:11px 8px;text-align:center}
+.rr-cell strong{display:block;font-weight:800;font-size:19px;font-variant-numeric:tabular-nums lining-nums}
+.rr-cell small{display:block;margin-top:2px;color:var(--taupe);font-size:11px}
+
+/* ---- Wave 2: weekly recap card + honest accumulation state. ---- */
+.recap-card{padding:18px;margin-bottom:14px}
+.recap-card .kicker{color:var(--amber-deep)}
+.recap-locked strong{display:block;margin:6px 0 4px;font-weight:800;font-size:18px;color:var(--cream)}
+.recap-locked p{margin:0;color:var(--taupe);font-size:13px}
+.recap-locked .lock-progress{display:flex;gap:6px;margin-top:12px}
+.recap-locked .lock-progress i{width:26px;height:6px;border-radius:2px;background:var(--glass-2);border:1px solid var(--hair)}
+.recap-locked .lock-progress i.full{background:var(--amber);border-color:var(--amber)}
+.rc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:12px}
+.rc-stat{display:flex;flex-direction:column;gap:2px}
+.rc-stat>span{color:var(--taupe);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px}
+.rc-stat>strong{font-weight:800;font-size:24px;font-variant-numeric:tabular-nums lining-nums;line-height:1.05}
+.rc-delta{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.rc-delta.up{color:var(--teal)}
+.rc-delta.down{color:var(--danger)}
+.rc-delta.flat{color:var(--taupe)}
+.rc-insights{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair)}
+.rc-insights p{margin:0 0 4px;color:var(--cream);font-size:13px}
+.rc-pain{margin:8px 0 0;color:var(--taupe);font-size:12px}
+
+/* ---- Wave 2: L/R balance board. Mirrored bars from a center axis, shared scale. ---- */
+.bal-board{display:grid;gap:10px}
+.bal-row{border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow);padding:13px 15px}
+.bal-name{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:9px}
+.bal-flag{font-size:11px;font-weight:800;color:var(--danger)}
+.bal-bars{display:grid;grid-template-columns:1fr 2px 1fr;align-items:center;gap:0}
+.bal-side{display:flex;align-items:center;gap:8px;min-width:0}
+.bal-side i{display:block;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--amber-soft),var(--amber));min-width:3px;transition:width .5s var(--ease)}
+.bal-side b{font-size:11px;font-weight:800;color:var(--taupe);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.bal-left{flex-direction:row-reverse;justify-content:flex-start}
+.bal-left i{transform-origin:right}
+.bal-right{justify-content:flex-start}
+.bal-axis{width:2px;align-self:stretch;background:var(--hair-bright)}
+.bal-gap{margin-top:8px;color:var(--taupe);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+/* One-sided partial rows: dashed, honest, no gap % (Codex P3). */
+.bal-partial{border-style:dashed;background:var(--glass)}
+.bal-partial .bal-name{margin-bottom:4px}
+.bal-partial-line{color:var(--taupe);font-size:12px;font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- Wave 3: pain trend bars (teal, value labels). ---- */
+.pain-bars{height:120px;padding:14px 10px 10px;display:flex;align-items:flex-end;gap:6px}
+.pain-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.pain-col b{font-size:11px;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums lining-nums;margin-bottom:4px}
+.pain-col i{display:block;width:70%;max-width:22px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--teal),rgba(var(--bloom-teal),.5))}
+.pain-col small{margin-top:5px;color:var(--taupe);font-size:10px}
+
+/* ---- Wave 3: bodyweight card. ---- */
+.bw-card{padding:16px}
+.bw-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.bw-head strong{font-size:34px;font-weight:800;color:var(--amber-deep);line-height:1}
+.bw-head span{color:var(--taupe);font-size:12px;font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- Wave 3: rep-range distribution line in the muscle detail sheet. ---- */
+.rep-dist{margin:8px 0 2px;color:var(--cream);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}

@@ -174,7 +174,7 @@
       const t = num(session.started);
       if (t < start || t > now) continue;
       for (const ex of session.exercises || []) {
-        const done = (ex.sets || []).filter(s => s.done).length;
+        const done = doneSets(ex).length; // blank done-ticks are not evidence — same rule everywhere (Codex P1)
         if (!done) continue;
         const m = getMuscles(ex.exerciseId);
         if (!m || !m.primary) continue;
@@ -372,6 +372,8 @@
       exerciseCues: (data.exerciseCues && typeof data.exerciseCues === 'object' && !Array.isArray(data.exerciseCues)) ? JSON.parse(JSON.stringify(data.exerciseCues)) : {},
       // Favourites survive a backup round-trip; unknown/older backups without them default to empty.
       favourites: Array.isArray(data.favourites) ? data.favourites.filter(id => typeof id === 'string') : [],
+      // Bodyweight log (Wave 3) survives the round-trip; only well-formed {t,kg} points are kept.
+      bodyweight: Array.isArray(data.bodyweight) ? data.bodyweight.filter(e => e && typeof e === 'object' && !Array.isArray(e) && Number.isFinite(Number(e.t)) && Number.isFinite(Number(e.kg))).map(e => ({ t: Number(e.t), kg: Number(e.kg) })) : [],
       preferences
     };
   }
@@ -425,5 +427,188 @@
     return !!hasVibrate && (preferences?.haptics !== false);
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks };
+  // ---- Progression loop (Wave 1, council 2026-07-20). All pure, all evidence-gated. ----
+  const roundToStep = (v, step) => { const s = num(step) || 2.5; return Math.round((num(v) / s)) * s; };
+  // Rounds float dust that 2.5-kg steps leave behind (e.g. 82.50000001).
+  const clean = v => Math.round(num(v) * 100) / 100;
+
+  // The basis for progression: the most recent CONFIRMED-TOLERATED session's TOP completed set for
+  // this exercise (same double-confirmation gate as lastConfirmedExposure — post !== 'worse' AND the
+  // next-session flare check came back 'no'). Returns {weight, reps, rir} or null. rir is that session
+  // exercise's stored last-set RIR (number, 'skip', or undefined when never captured).
+  function confirmedBasis(history, exerciseId) {
+    const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
+    for (const session of ordered) {
+      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
+      const sets = exercise ? doneSets(exercise) : [];
+      if (!sets.length) continue;
+      const checkin = session.checkin;
+      if (!checkin || checkin.post === 'worse' || checkin.flare !== false) continue;
+      // Drop sets are deliberate back-off work — never the progression basis, and RIR evidence only
+      // earns progression when it belongs to the basis (top NON-DROP) set (Codex P1: a drop's RIR 3
+      // must not progress the heavy set). RIR is captured on the last non-drop set (app side), so on
+      // an all-drop exercise the stored rir has no working-set referent → treat as absent.
+      const working = sets.filter(s => !s.drop);
+      const pool = working.length ? working : sets;
+      let top = pool[0];
+      for (const s of pool) {
+        if (num(s.weight) > num(top.weight) || (num(s.weight) === num(top.weight) && num(s.reps) > num(top.reps))) top = s;
+      }
+      return { weight: num(top.weight), reps: num(top.reps), rir: working.length ? exercise.rir : undefined };
+    }
+    return null;
+  }
+
+  // Conservative double progression. Never progresses without RIR evidence (council non-negotiable #3).
+  // opts: {repRange:[lo,hi]=[8,12], step=2.5, stepDown, block, lastRir}. Returns {weight,reps,rule} —
+  // or null when there is no prior confirmed data to build a target from.
+  function nextTarget(history, exerciseId, opts) {
+    const o = opts || {};
+    const range = Array.isArray(o.repRange) && o.repRange.length === 2 ? o.repRange : [8, 12];
+    const [lo, hi] = [num(range[0]) || 8, num(range[1]) || 12];
+    const step = num(o.step) || 2.5;
+    if (o.block) return { weight: null, reps: null, rule: 'blocked' };
+    const basis = confirmedBasis(history, exerciseId);
+    if (!basis) return null;
+    if (o.stepDown) return { weight: clean(roundToStep(basis.weight * 0.9, step)), reps: basis.reps, rule: 'step-down' };
+    const rir = o.lastRir !== undefined ? o.lastRir : basis.rir;
+    // No RIR evidence (never captured or explicitly skipped) → repeat last, never progress.
+    if (rir == null || rir === 'skip') return { weight: basis.weight, reps: basis.reps, rule: 'repeat-no-rir' };
+    if (num(rir) <= 1) return { weight: basis.weight, reps: basis.reps, rule: 'hold' };
+    // rir >= 2: eligible to progress. Fill reps to the top of the range first, then add a load step.
+    if (basis.reps < hi) return { weight: basis.weight, reps: basis.reps + 1, rule: 'add-rep' };
+    return { weight: clean(basis.weight + step), reps: lo, rule: 'add-load' };
+  }
+
+  // Pain controller for the workout logger (council non-negotiable #2). Reads pre-session pain, not charts.
+  const PAIN_BLOCK_COPY = 'Pain 7+/10 — train around it today; pain-free alternative only. If severe or persistent, get it assessed.';
+  function painGate(history, currentPre) {
+    if (currentPre != null && num(currentPre) >= 7) return { block: true, stepDown: false, reason: PAIN_BLOCK_COPY };
+    // Rising pain across the last 3 sessions' check-ins (today included when entered), strictly
+    // increasing and all non-null → forced step-down.
+    const pres = [];
+    if (currentPre != null) pres.push(num(currentPre));
+    for (const session of [...(history || [])].sort((a, b) => num(b.started) - num(a.started))) {
+      const pre = session.checkin ? session.checkin.pre : null;
+      if (pre != null) pres.push(num(pre));
+    }
+    const last3 = pres.slice(0, 3).reverse(); // oldest → newest
+    if (last3.length === 3 && last3[0] < last3[1] && last3[1] < last3[2]) {
+      return { block: false, stepDown: true, reason: 'Pain has risen three sessions running — stepping the load back today.' };
+    }
+    return { block: false, stepDown: false, reason: '' };
+  }
+
+  // L/R imbalance (Wave 2). Per exerciseId with any side-tagged completed set: {left,right,gapPct,gapSessions}.
+  // gapPct = signed top-weight gap (positive = left heavier) relative to the heavier side; null unless both
+  // sides have a top weight. gapSessions = sessions where both sides logged and the gap exceeded 10%.
+  function sideBalance(history) {
+    const acc = {};
+    const perSession = {};
+    for (const session of history || []) {
+      for (const exercise of session.exercises || []) {
+        const sided = doneSets(exercise).filter(s => s.side === 'L' || s.side === 'R');
+        if (!sided.length) continue;
+        const id = exercise.exerciseId;
+        const slot = acc[id] || (acc[id] = { left: { topWeight: 0, volume: 0, sets: 0 }, right: { topWeight: 0, volume: 0, sets: 0 } });
+        const sess = perSession[id] || (perSession[id] = []);
+        const sTop = { L: 0, R: 0 };
+        for (const set of sided) {
+          const side = set.side === 'L' ? 'left' : 'right';
+          slot[side].topWeight = Math.max(slot[side].topWeight, num(set.weight));
+          slot[side].volume += num(set.weight) * num(set.reps);
+          slot[side].sets += 1;
+          sTop[set.side] = Math.max(sTop[set.side], num(set.weight));
+        }
+        sess.push(sTop);
+      }
+    }
+    const out = {};
+    for (const [id, slot] of Object.entries(acc)) {
+      const l = slot.left.topWeight, r = slot.right.topWeight;
+      const gapPct = (l > 0 && r > 0) ? Math.round((l - r) / Math.max(l, r) * 100) : null;
+      const gapSessions = (perSession[id] || []).filter(s => s.L > 0 && s.R > 0 && Math.abs(s.L - s.R) / Math.max(s.L, s.R) > 0.1).length;
+      out[id] = { ...slot, gapPct, gapSessions };
+    }
+    return out;
+  }
+
+  // Weekly recap (Wave 2): this local week vs last, with per-muscle direct-set deltas + pain delta.
+  function weeklyRecap(history, getMuscles, now = Date.now()) {
+    const thisStart = startOfLocalWeek(now);
+    const lastEnd = thisStart - 1, lastStart = startOfLocalWeek(lastEnd);
+    const inWindow = (start, end) => (history || []).filter(s => num(s.started) >= start && num(s.started) <= end);
+    const measure = sessions => {
+      let sets = 0, volume = 0, prs = 0, preSum = 0, preCount = 0;
+      for (const s of sessions) {
+        sets += summarizeSession(s).completedSets;
+        volume += calculateVolume(s);
+        prs += Array.isArray(s.prs) ? s.prs.length : num(s.prs);
+        const pre = s.checkin ? s.checkin.pre : null;
+        if (pre != null) { preSum += num(pre); preCount += 1; }
+      }
+      return { sets, volume: Math.round(volume), workouts: sessions.length, prs, preAvg: preCount ? preSum / preCount : null };
+    };
+    const cur = measure(inWindow(thisStart, now)), prev = measure(inWindow(lastStart, lastEnd));
+    const curMv = muscleVolume(history, getMuscles, now), lastMv = muscleVolume(history, getMuscles, lastEnd);
+    const muscles = new Set([...Object.keys(curMv), ...Object.keys(lastMv)]);
+    const deltas = [...muscles].map(m => ({ muscle: m, delta: (curMv[m]?.direct || 0) - (lastMv[m]?.direct || 0) }))
+      .filter(d => d.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 2);
+    const painDelta = (cur.preAvg != null && prev.preAvg != null) ? Math.round((cur.preAvg - prev.preAvg) * 10) / 10 : null;
+    return {
+      sets: cur.sets, setsDelta: cur.sets - prev.sets,
+      volume: cur.volume, volumeDelta: cur.volume - prev.volume,
+      workouts: cur.workouts, workoutsDelta: cur.workouts - prev.workouts,
+      prs: cur.prs, prsDelta: cur.prs - prev.prs,
+      topMuscleDeltas: deltas, painDelta
+    };
+  }
+
+  // Honest, number-only recap sentences. balanceEntry (optional) = {name, side:'left'|'right', gapPct}.
+  function recapInsights(recap, balanceEntry) {
+    const out = [];
+    const r = recap || {};
+    const top = (r.topMuscleDeltas || [])[0];
+    if (top && top.delta) out.push(`${top.muscle} direct sets ${top.delta > 0 ? 'up' : 'down'} ${Math.abs(top.delta)} vs last week.`);
+    if (balanceEntry && balanceEntry.gapPct != null && Math.abs(balanceEntry.gapPct) > 10) {
+      const strong = balanceEntry.gapPct > 0 ? 'left' : 'right';
+      out.push(`${strong === 'left' ? 'Left' : 'Right'} leads ${strong === 'left' ? 'right' : 'left'} by ${Math.abs(balanceEntry.gapPct)}% on ${balanceEntry.name}.`);
+    }
+    return out.slice(0, 2);
+  }
+
+  // Rep records: heaviest completed weight at each rep count 1..10 across history (Wave 2). Only rows that exist.
+  function repRecords(history, exerciseId) {
+    const best = {};
+    for (const session of history || []) {
+      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
+      for (const set of exercise ? doneSets(exercise) : []) {
+        const reps = num(set.reps), w = num(set.weight);
+        if (reps >= 1 && reps <= 10 && w > 0 && w > (best[reps] || 0)) best[reps] = w;
+      }
+    }
+    return Object.keys(best).map(Number).sort((a, b) => a - b).map(reps => ({ reps, weight: best[reps] }));
+  }
+
+  // Last N sessions' completed sets for an exercise (Wave 2 detail sheet), newest first.
+  function recentSessionsFor(history, exerciseId, limit = 3) {
+    const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
+    const out = [];
+    for (const session of ordered) {
+      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
+      const sets = exercise ? doneSets(exercise) : [];
+      if (!sets.length) continue;
+      out.push({ started: num(session.started), sets: sets.map(s => ({ weight: num(s.weight), reps: num(s.reps) })) });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  // Bodyweight trend, last N days, oldest → newest (Wave 3).
+  function bodyweightTrend(entries, days = 90, now = Date.now()) {
+    const cutoff = now - days * 86400000;
+    return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
+  }
+
+  return { doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
 });

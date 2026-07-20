@@ -8,10 +8,11 @@ const CAT = {
 };
 const look = id => CAT[id] || null;
 const now = Date.now();
+// Sets carry real numbers: a blank done-tick is not evidence and mints nothing (Codex P1 hardening).
 const session = { started: now - 1000, exercises: [
-  { exerciseId: 'bench', sets: [{ done: true }, { done: true }, { done: false }] },
-  { exerciseId: 'squat', sets: [{ done: true }] },
-  { exerciseId: 'unknown', sets: [{ done: true }] }
+  { exerciseId: 'bench', sets: [{ weight: 80, reps: 8, done: true }, { weight: 80, reps: 8, done: true }, { weight: 80, reps: 8, done: false }] },
+  { exerciseId: 'squat', sets: [{ weight: 100, reps: 5, done: true }] },
+  { exerciseId: 'unknown', sets: [{ weight: 50, reps: 10, done: true }] }
 ] };
 
 test('two-ledger counts: primary direct, secondaries assisting, incomplete + unknown excluded', () => {
@@ -61,4 +62,15 @@ test('planVolume: default 3 sets per exercise, same two ledgers', () => {
   assert.equal(pv.Legs.direct, 3);
   assert.equal(pv.Core.assisting, 3);
   assert.equal(pv.Shoulders.direct, 0);
+});
+
+test('a blank done-tick mints no muscle volume (not evidence — Codex P1)', () => {
+  const blankSession = { started: now - 500, exercises: [
+    { exerciseId: 'bench', sets: [{ done: true }, { weight: '', reps: '', done: true }] },
+    { exerciseId: 'squat', sets: [{ weight: 100, reps: 5, done: true }, { weight: '', reps: '', done: true }] }
+  ] };
+  const mv = Core.muscleVolume([blankSession], look, now);
+  assert.equal(mv.Chest, undefined); // both bench ticks blank → nothing minted
+  assert.equal(mv.Legs.direct, 1);   // only the real squat set counts
+  assert.equal(mv.Core.assisting, 1);
 });

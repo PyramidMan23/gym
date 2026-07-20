@@ -33,7 +33,7 @@ let deferredInstall = null;
 const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 
-function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
+function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
 // Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
 // so a brand-new profile's missing key correctly yields an empty state (never another profile's data).
 function readState(){
@@ -130,13 +130,18 @@ function navigate(view){
   // A fresh Library open always starts unfiltered — a stale filter must never silently hide exercises (council 2026-07-19).
   if(view==='library')libraryFilter=newFilterState();
   currentView=view;
-  document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
-  document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
+  // View Transitions (Wave 2): morph the view swap (content + active classes together) when supported
+  // and motion is allowed; otherwise swap silently. Feature-detected, reduced-motion-gated.
+  const swap=()=>{
+    document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
+    document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
+    document.body.classList.toggle('workout-active',view==='workout');
+    renderView(view);
+  };
+  if(!REDUCED_MOTION&&document.startViewTransition){document.startViewTransition(swap);}else swap();
   const navIdx={today:0,train:1,library:2,progress:3}[view];
   const navCursor=document.getElementById('navCursor');
   if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
-  document.body.classList.toggle('workout-active',view==='workout');
-  renderView(view);
   window.scrollTo(0,0);
   document.getElementById('main').focus({preventScroll:true});
 }
@@ -392,7 +397,12 @@ function exerciseRow(exercise,activeMuscle){
 }
 // One delegated click listener per catalogue surface — no per-row handlers, no id interpolation (injection-safe).
 function onCatalogueClick(ctx,e){
-  const pick=e.target.closest('.exercise-pick'); if(pick){if(pick.dataset.id)catAdd(ctx,pick.dataset.id);return;}
+  const pick=e.target.closest('.exercise-pick');
+  if(pick&&pick.dataset.id){
+    // Library: the info area opens the exercise detail sheet; the + glyph still adds. Picker: pick always adds.
+    if(ctx==='library'&&!e.target.closest('.exercise-plus')){openExerciseDetail(pick.dataset.id);return;}
+    catAdd(ctx,pick.dataset.id);return;
+  }
   const star=e.target.closest('.exercise-star'); if(star){if(star.dataset.id)toggleFavourite(star.dataset.id,ctx,star);return;}
   const quick=e.target.closest('.quick-chip'); if(quick){if(quick.dataset.id)catAdd(ctx,quick.dataset.id);return;}
   const chip=e.target.closest('.filter-chip'); if(chip&&chip.dataset.muscle!=null)setCatMuscle(ctx,chip.dataset.muscle);
@@ -452,8 +462,12 @@ function renderProgress(){
   const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0);
   document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${Math.round(lifetimeVolume)}" data-fmt="compact">0</strong><span>LIFETIME KG</span></div>`;
   animateNumbers(document.getElementById('progressStats'));
+  renderWeeklyRecap();
+  renderPainTrend();
   renderStrength();
   renderMuscleVolume();
+  renderBalance();
+  renderBodyweight();
   renderWeekChart();
   renderPrFeed();
   document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="empty-card card"><strong>Your progress starts at one</strong>Finish a workout and it will appear here.</div>`;
@@ -491,12 +505,35 @@ function openMuscleDetail(muscle){
   const range=(state.preferences.muscleRanges||{})[muscle]||['',''];
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">THIS WEEK · ${muscle.toUpperCase()}</p><h2>${slot.direct} direct · ${slot.assisting} assisting</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
   <p style="color:var(--taupe);margin-top:-6px;font-size:13px">Direct = completed sets where ${muscle.toLowerCase()} is the primary mover. Assisting = sets where it helps (bench press: chest direct; shoulders and arms assisting). The two are counted separately, never added.</p>
+  ${(()=>{const ws=new Date();ws.setHours(0,0,0,0);ws.setDate(ws.getDate()-((ws.getDay()+6)%7));const wkStart=ws.getTime();const b=[0,0,0];let tot=0;for(const s of state.history){if(s.started<wkStart)continue;for(const ex of s.exercises||[]){if(muscleLookup(ex.exerciseId)?.primary!==muscle)continue;for(const set of ex.sets||[]){if(!set.done)continue;const r=Number(set.reps)||0;if(!r)continue;tot++;if(r<=5)b[0]++;else if(r<=12)b[1]++;else b[2]++;}}}if(!tot)return '';const p=n=>Math.round(n/tot*100);return `<p class="rep-dist">This week: ${p(b[0])}% sets 1–5 · ${p(b[1])}% 6–12 · ${p(b[2])}% 13+</p>`;})()}
   <div class="section-heading"><div><p class="kicker">DIRECT</p><h2>Working sets</h2></div></div><div class="selected-list">${rows('direct')}</div>
   <div class="section-heading"><div><p class="kicker">ASSISTING</p><h2>Exposure</h2></div></div><div class="selected-list">${rows('assisting')}</div>
   ${(()=>{const dvals=Core.muscleVolumeWeeks(state.history,muscleLookup,8).map(w=>w[muscle]?.direct||0);const dmax=Math.max(1,...dvals);return dvals.some(v=>v)?`<div class="section-heading"><div><p class="kicker">TREND</p><h2>Direct sets · 8 weeks</h2></div></div><div class="chart-card mv-spark">${dvals.map((v,i)=>`<span class="bar-col ${i===7?'active':''}"><b>${v||''}</b><i style="height:${Math.max(3,v/dmax*72)}%"></i><small>${i===7?'Now':'−'+(7-i)}</small></span>`).join('')}</div>`:'';})()}
   <div class="section-heading"><div><p class="kicker">OPTIONAL</p><h2>Weekly range — direct sets only</h2></div></div>
   <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label>MIN</label><input id="mvMin" type="number" min="0" inputmode="numeric" value="${range[0]}"></div><div class="field" style="flex:1"><label>MAX</label><input id="mvMax" type="number" min="0" inputmode="numeric" value="${range[1]}"></div></div>
   <div class="sheet-actions"><button class="secondary-button" onclick="clearMuscleRange('${muscle}')">Clear range</button><button class="primary-button" onclick="saveMuscleRange('${muscle}')">Save</button></div>`;
+  document.getElementById('sheet').showModal();
+}
+// Exercise detail sheet (Wave 2): e1RM trend, this-week volume, rep records, recent sessions, active cue.
+// Opened from Library rows and the workout exercise head — one lean screen, no tabs.
+function openExerciseDetail(id){
+  const item=exerciseById(id);if(!item)return;
+  const trend=Core.exerciseTrend(state.history,id);
+  const chart=trend.length>=2?chartSvg(trend.map(p=>({t:p.started,v:p.e1rm})),`Estimated one rep max trend for ${item.name}`):`<div class="locked-card card"><strong>Trend builds with data</strong>Log this lift across a few sessions and its estimated-1RM line appears here.</div>`;
+  const look=muscleLookup(id),mv=look?Core.muscleVolume(state.history,muscleLookup):{};
+  const weekDirect=look&&mv[look.primary]?.by?.[id]?.direct||0;
+  const records=Core.repRecords(state.history,id);
+  const recordRows=records.length?records.map(r=>`<div class="rr-cell"><strong>${r.weight}</strong><small>${r.reps} rep${r.reps===1?'':'s'}</small></div>`).join(''):'<div class="empty-card card">No completed sets yet.</div>';
+  const recent=Core.recentSessionsFor(state.history,id,3);
+  const recentRows=recent.length?recent.map(s=>`<div class="selected-row"><span><strong>${formatDate(s.started)}</strong><small style="display:block;color:var(--muted)">${s.sets.map(x=>`${x.weight||0} kg × ${x.reps||0}`).join(' · ')}</small></span></div>`).join(''):'<div class="empty-card card">No sessions logged yet.</div>';
+  const cue=state.exerciseCues?.[id];
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">EXERCISE</p><h2>${esc(item.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
+  <p class="detail-equip">${esc(item.equipment||'')}${item.muscle?` · ${esc(item.muscle)}`:''}</p>
+  ${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}
+  <div class="detail-stat"><strong class="hero-num">${weekDirect}</strong><span>DIRECT SET${weekDirect===1?'':'S'} THIS WEEK</span></div>
+  <div class="section-heading"><div><p class="kicker">EST. 1RM</p><h2>Strength trend</h2></div></div>${chart}
+  <div class="section-heading"><div><p class="kicker">REP RECORDS</p><h2>Heaviest at each rep</h2></div></div><div class="rr-grid">${recordRows}</div>
+  <div class="section-heading"><div><p class="kicker">RECENT</p><h2>Last sessions</h2></div></div><div class="selected-list">${recentRows}</div>`;
   document.getElementById('sheet').showModal();
 }
 function saveMuscleRange(muscle){
@@ -533,22 +570,28 @@ function renderStrength(){
   trendEl.innerHTML=hero+trendChart(points,name);
 }
 function pickStrength(id){strengthPick=id;renderStrength();}
-function trendChart(points,name){
-  if(points.length<2)return `<div class="locked-card card"><strong>Almost there</strong>One more session of ${esc(name)} draws the line.</div>`;
+// Shared line-chart SVG (council 2026-07-20 refactor): points=[{t,v}], oldest→newest. Reused by the
+// strength trend, the exercise detail sheet's e1RM, and the bodyweight trend — one drawing routine.
+function chartSvg(points,ariaLabel){
   const W=340,H=160,PL=36,PR=12,PT=16,PB=26,IW=W-PL-PR,IH=H-PT-PB;
-  const xs=points.map(p=>p.started),ys=points.map(p=>p.e1rm);
+  const xs=points.map(p=>p.t),ys=points.map(p=>p.v);
   const minX=xs[0],maxX=xs.at(-1)||minX+1;
   let lo=Math.min(...ys),hi=Math.max(...ys);
   if(hi-lo<2){lo-=2;hi+=2;} const pad=(hi-lo)*0.12;lo=Math.max(0,lo-pad);hi+=pad;
   const X=t=>PL+(maxX===minX?IW/2:(t-minX)/(maxX-minX)*IW);
   const Y=v=>PT+IH-(v-lo)/(hi-lo)*IH;
-  const line=points.map((p,i)=>`${i?'L':'M'}${X(p.started).toFixed(1)} ${Y(p.e1rm).toFixed(1)}`).join(' ');
+  const line=points.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ');
   const area=`${line} L${X(maxX).toFixed(1)} ${(PT+IH).toFixed(1)} L${X(minX).toFixed(1)} ${(PT+IH).toFixed(1)} Z`;
   const ticks=[0,.5,1].map(k=>{const v=lo+(hi-lo)*(1-k),y=PT+IH*k;return `<line class="trend-grid-line" x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}"/><text class="trend-tick" x="${PL-6}" y="${y+3}" text-anchor="end">${Math.round(v)}</text>`;}).join('');
-  const dots=points.map(p=>`<circle class="trend-dot" cx="${X(p.started).toFixed(1)}" cy="${Y(p.e1rm).toFixed(1)}" r="3.4"/>`).join('');
+  const dots=points.map(p=>`<circle class="trend-dot" cx="${X(p.t).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.4"/>`).join('');
   const shortDate=t=>new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short'}).format(new Date(t));
-  const latest=ys.at(-1),delta=Math.round((latest-ys[0])*10)/10;
-  return `<div class="trend-card"><div class="trend-head"><strong>${esc(name)}</strong><span>${latest} kg est. 1RM${delta?` · ${delta>0?'+':''}${delta} kg`:''}</span></div><svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Estimated one rep max trend for ${esc(name)}"><defs><linearGradient id="trendFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(224,110,31,.26)"/><stop offset="1" stop-color="rgba(224,110,31,0)"/></linearGradient></defs>${ticks}<path class="trend-area" d="${area}"/><path class="trend-line" d="${line}"/>${dots}<text class="trend-tick" x="${PL}" y="${H-8}">${shortDate(minX)}</text><text class="trend-tick" x="${W-PR}" y="${H-8}" text-anchor="end">${shortDate(maxX)}</text></svg></div>`;
+  return `<svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ariaLabel)}"><defs><linearGradient id="trendFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(224,110,31,.26)"/><stop offset="1" stop-color="rgba(224,110,31,0)"/></linearGradient></defs>${ticks}<path class="trend-area" d="${area}"/><path class="trend-line" d="${line}"/>${dots}<text class="trend-tick" x="${PL}" y="${H-8}">${shortDate(minX)}</text><text class="trend-tick" x="${W-PR}" y="${H-8}" text-anchor="end">${shortDate(maxX)}</text></svg>`;
+}
+function trendChart(points,name){
+  if(points.length<2)return `<div class="locked-card card"><strong>Almost there</strong>One more session of ${esc(name)} draws the line.</div>`;
+  const ys=points.map(p=>p.e1rm),latest=ys.at(-1),delta=Math.round((latest-ys[0])*10)/10;
+  const svg=chartSvg(points.map(p=>({t:p.started,v:p.e1rm})),`Estimated one rep max trend for ${name}`);
+  return `<div class="trend-card"><div class="trend-head"><strong>${esc(name)}</strong><span>${latest} kg est. 1RM${delta?` · ${delta>0?'+':''}${delta} kg`:''}</span></div>${svg}</div>`;
 }
 function renderPrFeed(){
   const feed=Core.prFeed(state.history,8);
@@ -565,6 +608,91 @@ function renderWeekChart(){
   document.getElementById('weekChart').innerHTML=weeks.map((week,index)=>`<span class="bar-col ${index===7?'active':''}"><b>${week.count||''}</b><i style="height:${Math.max(3,week.count/max*72)}%" title="${week.count} workouts"></i><small>${week.label}</small></span>`).join('');
 }
 
+// ---- Weekly recap (Wave 2): gated card, honest accumulation state below the unlock threshold. ----
+const RECAP_MIN_SESSIONS=3;
+function renderWeeklyRecap(){
+  const el=document.getElementById('weeklyRecap');if(!el)return;
+  const sessions=state.history.length;
+  const spanDays=sessions?(Date.now()-Math.min(...state.history.map(s=>s.started)))/DAY:0;
+  if(sessions<RECAP_MIN_SESSIONS&&spanDays<7){
+    if(!sessions){el.innerHTML='';return;}
+    const need=RECAP_MIN_SESSIONS-sessions;
+    el.innerHTML=`<div class="recap-card card recap-locked"><p class="kicker">WEEKLY RECAP</p><strong>${sessions} of ${RECAP_MIN_SESSIONS} sessions logged</strong><p>Recap unlocks with ${need} more session${need===1?'':'s'} — or a week of data.</p><div class="lock-progress">${[0,1,2].map(i=>`<i class="${i<sessions?'full':''}"></i>`).join('')}</div></div>`;
+    return;
+  }
+  const recap=Core.weeklyRecap(state.history,muscleLookup);
+  // Top persistent imbalance (with name) for an honest L/R insight sentence.
+  const bal=Core.sideBalance(state.history);
+  let balEntry=null;
+  for(const [id,b] of Object.entries(bal)){
+    if(b.gapPct==null||b.left.sets<1||b.right.sets<1)continue;
+    if(!balEntry||Math.abs(b.gapPct)>Math.abs(balEntry.gapPct))balEntry={name:exerciseById(id)?.name||'a lift',gapPct:b.gapPct};
+  }
+  const insights=Core.recapInsights(recap,balEntry);
+  const delta=(n,fmt)=>{if(!n)return '<span class="rc-delta flat">no change</span>';const f=fmt||(v=>String(v));return `<span class="rc-delta ${n>0?'up':'down'}">${n>0?'▲':'▼'} ${f(Math.abs(n))}</span>`;};
+  const stat=(label,val,d)=>`<div class="rc-stat"><span>${label}</span><strong>${val}</strong>${d}</div>`;
+  const painTxt=recap.painDelta==null?'':`<p class="rc-pain">Avg pre-session pain ${recap.painDelta>0?'up':recap.painDelta<0?'down':'level'} ${Math.abs(recap.painDelta)} vs last week.</p>`;
+  el.innerHTML=`<div class="recap-card card card-live"><p class="kicker">WEEKLY RECAP · VS LAST WEEK</p><div class="rc-grid">
+    ${stat('Sets',recap.sets,delta(recap.setsDelta))}
+    ${stat('Volume',compact(recap.volume)+' kg',delta(recap.volumeDelta,compact))}
+    ${stat('Workouts',recap.workouts,delta(recap.workoutsDelta))}
+    ${stat('PRs',recap.prs,delta(recap.prsDelta))}
+  </div>${insights.length?`<div class="rc-insights">${insights.map(s=>`<p>${esc(s)}</p>`).join('')}</div>`:''}${painTxt}</div>`;
+}
+// ---- Pain trend (Wave 3): bars once >=3 sessions carry a pre-session check-in. ----
+function renderPainTrend(){
+  const el=document.getElementById('painTrend');if(!el)return;
+  const pts=state.history.slice().sort((a,b)=>a.started-b.started).filter(s=>s.checkin&&s.checkin.pre!=null).map(s=>({t:s.started,v:Number(s.checkin.pre)}));
+  if(pts.length<3){el.innerHTML='';return;}
+  const recent=pts.slice(-10);
+  el.innerHTML=`<div class="section-heading"><div><p class="kicker">PAIN CHECK-IN</p><h2>Pre-session · 0–10</h2></div></div><div class="chart-card pain-bars">${recent.map(p=>`<span class="bar-col pain-col"><b>${p.v}</b><i style="height:${Math.max(4,p.v/10*72)}%"></i><small>${new Intl.DateTimeFormat(undefined,{day:'numeric'}).format(new Date(p.t))}</small></span>`).join('')}</div>`;
+}
+// ---- L/R balance board (Wave 2): mirrored bars from a center axis, shared scale, persistent-gap flag. ----
+function renderBalance(){
+  const el=document.getElementById('balanceBoard');if(!el)return;
+  const bal=Core.sideBalance(state.history);
+  const entries=Object.entries(bal);
+  if(!entries.length){el.innerHTML=`<div class="empty-card card"><strong>No side-tagged sets yet</strong>Tap a set's number during a workout to tag it Left or Right, and the comparison builds here.</div>`;return;}
+  // Mirrored comparison only for exercises with BOTH sides; one-sided data gets a truthful partial
+  // row instead of a misleading "no data" empty state (Codex P3).
+  const both=entries.filter(([,b])=>b.left.sets>0&&b.right.sets>0);
+  const oneSided=entries.filter(([,b])=>!(b.left.sets>0&&b.right.sets>0));
+  const max=Math.max(1,...both.map(([,b])=>Math.max(b.left.topWeight,b.right.topWeight)));
+  const bothRows=both.map(([id,b])=>{
+    const flag=b.gapPct!=null&&Math.abs(b.gapPct)>10&&b.gapSessions>=2;
+    const gapTxt=b.gapPct==null?'':`${b.gapPct>0?'L':'R'} +${Math.abs(b.gapPct)}%`;
+    return `<div class="bal-row"><div class="bal-name">${esc(exerciseById(id)?.name||id)}${flag?'<span class="bal-flag">⚠ · gap</span>':''}</div>
+      <div class="bal-bars"><div class="bal-side bal-left"><i style="width:${b.left.topWeight/max*100}%"></i><b>${b.left.topWeight} kg L</b></div><div class="bal-axis" aria-hidden="true"></div><div class="bal-side bal-right"><i style="width:${b.right.topWeight/max*100}%"></i><b>R ${b.right.topWeight} kg</b></div></div>
+      ${gapTxt?`<div class="bal-gap">${gapTxt} top-set gap</div>`:''}</div>`;
+  }).join('');
+  const partialRows=oneSided.map(([id,b])=>{
+    const hasL=b.left.sets>0,side=hasL?'Left':'Right',other=hasL?'right':'left',top=hasL?b.left.topWeight:b.right.topWeight,n=hasL?b.left.sets:b.right.sets;
+    return `<div class="bal-row bal-partial"><div class="bal-name">${esc(exerciseById(id)?.name||id)}</div><div class="bal-partial-line">${side} only so far — ${top} kg top, ${n} set${n===1?'':'s'}. Tag some ${other} sets to compare.</div></div>`;
+  }).join('');
+  el.innerHTML=`<div class="bal-board">${bothRows}${partialRows}</div>`;
+}
+// ---- Bodyweight (Wave 3): current weight + 90-day trend via the shared chart. ----
+function renderBodyweight(){
+  const el=document.getElementById('bodyweightCard');if(!el)return;
+  const log=Core.bodyweightTrend(state.bodyweight,90);
+  if(!log.length){el.innerHTML=`<div class="empty-card card"><strong>No weigh-ins yet</strong>Tap “Log weight” to start your trend.</div>`;return;}
+  const latest=log.at(-1),first=log[0],d=Math.round((latest.kg-first.kg)*10)/10;
+  const chart=log.length>=2?chartSvg(log.map(p=>({t:p.t,v:p.kg})),'Bodyweight trend, last 90 days'):'';
+  el.innerHTML=`<div class="bw-card card"><div class="bw-head"><strong class="hero-num">${latest.kg}</strong><span>kg${d?` · ${d>0?'+':''}${d} kg over ${log.length} weigh-in${log.length===1?'':'s'}`:''}</span></div>${chart}</div>`;
+}
+function openBodyweightLog(){
+  const log=Core.bodyweightTrend(state.bodyweight,90),latest=log.at(-1);
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">BODYWEIGHT</p><h2>Log weight</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WEIGHT (KG)</label><input id="bwInput" type="number" inputmode="decimal" min="0" step="0.1" value="${latest?esc(latest.kg):''}" placeholder="e.g. 82.5" onkeydown="if(event.key==='Enter')saveBodyweight()"></div><button class="primary-button full-button" onclick="saveBodyweight()">Save</button>`;
+  document.getElementById('sheet').showModal();
+  setTimeout(()=>document.getElementById('bwInput')?.focus(),60);
+}
+function saveBodyweight(){
+  const kg=Number(document.getElementById('bwInput').value);
+  if(!Number.isFinite(kg)||kg<=0)return showToast('Enter a weight in kg');
+  if(!Array.isArray(state.bodyweight))state.bodyweight=[];
+  state.bodyweight.push({t:Date.now(),kg:Math.round(kg*10)/10});
+  saveState();closeSheet();renderProgress();showToast('Weight logged');
+}
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
   document.getElementById('workoutTitle').textContent=session.name;
@@ -611,19 +739,87 @@ function renderWorkoutMetrics(){
   const ctx=document.getElementById('workoutContext');
   if(ctx)ctx.textContent=contextLine();
 }
+// Wave 1: the session's pain controller and per-exercise progression target — pure Core, surfaced here.
+function sessionPainGate(){return Core.painGate(state.history,state.activeSession?.checkin?.pre);}
+function targetFor(exerciseId,pg){return Core.nextTarget(state.history,exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!(pg&&pg.block),stepDown:!!(pg&&pg.stepDown)});}
+// Human phrasing for a target result (null = no confirmed basis yet).
+function formatTarget(t){
+  if(!t)return '';
+  if(t.rule==='blocked')return 'Train around it today';
+  return `${t.weight} kg × ${t.reps}`;
+}
+const RULE_WORD={'add-rep':'build reps','add-load':'load up','hold':'hold','repeat-no-rir':'repeat','step-down':'step-down','blocked':'blocked'};
 function workoutExerciseMarkup(exercise,index){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>`${s.weight||'—'} kg × ${s.reps}`).join(' · ')}`:'First time — set your benchmark';
   // Neutral facts only — the app never prescribes a dose (council 2026-07-18).
   const confirmed=Core.lastConfirmedExposure(state.history,exercise.exerciseId);
   const confirmedText=confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${confirmed.topReps} reps · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':'');
+  // Progression target line — a second line under "Last time", with a "why?" that opens the evidence sheet.
+  const pg=sessionPainGate(),target=targetFor(exercise.exerciseId,pg);
+  const blocked=target&&target.rule==='blocked';
+  const targetLine=target?`<span class="target-line${blocked?' blocked':''}"><b aria-hidden="true">→</b> <span class="target-lead">Today:</span> <strong>${esc(formatTarget(target))}</strong> <button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></span>`:'';
   const cue=state.exerciseCues?.[exercise.exerciseId];
   // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) —
   // otherwise finishing every intended set still reads as incomplete (Codex verify 2026-07-20).
   const sets=exercise.sets,last=sets[sets.length-1];
   const total=sets.length-((sets.length>1&&last&&!last.done&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
-  const doneCount=sets.filter(s=>s.done).length,doneFrac=total?Math.min(1,doneCount/total):0;
-  return `<article class="workout-exercise" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0])).join('');})()}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
+  // Blank done-ticks are not evidence — completion counts route through the same doneSets rule (Codex P1).
+  const doneCount=Core.doneSets(exercise).length,doneFrac=total?Math.min(1,doneCount/total):0;
+  // RIR capture — one optional tap once the last NON-DROP set is done. A drop set's RIR must never
+  // progress the heavy set, so drops neither trigger nor satisfy the ask (Codex P1).
+  // "Planned" mirrors the rail denominator: a not-done set that is prefilled-or-blank isn't intended yet.
+  const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
+  const rirDone=workingPlanned.length>0&&workingPlanned.every(s=>s.done);
+  const rirRow=rirRowMarkup(exercise,index,rirDone);
+  return `<article class="workout-exercise" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0])).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
+}
+// RIR (reps-in-reserve) capture on the finished exercise. One tap → stored on the session exercise,
+// chips collapse to a small confirmed note. 'skip' is an honest non-answer (keeps progression conservative).
+const RIR_CHIPS=[['0','0'],['1','1'],['2','2'],['3','3'],['4','4+'],['skip','skip']];
+function rirRowMarkup(exercise,index,show){
+  const has=exercise.rir!==undefined;
+  if(has){
+    const label=exercise.rir==='skip'?'RIR skipped':`RIR ${exercise.rir==='4'||exercise.rir===4?'4+':exercise.rir} ✓`;
+    return `<button class="rir-note" onclick="changeRir(${index})" aria-label="Reps in reserve: ${esc(String(exercise.rir))}. Tap to change">${esc(label)}<small>tap to change</small></button>`;
+  }
+  if(!show)return '';
+  const chips=RIR_CHIPS.map(([v,l])=>`<button class="rir-chip" onclick="setRir(${index},'${v}')" aria-label="${v==='skip'?'Skip':v+' reps'} left in tank">${l}</button>`).join('');
+  // Honest label: with drop sets present, the RIR refers to the last WORKING (non-drop) set.
+  const label=(exercise.sets||[]).some(s=>s.drop)?'Last working set — reps left in tank:':'Last set — reps left in tank:';
+  return `<div class="rir-row"><span class="rir-label">${label}</span><div class="rir-chips">${chips}</div></div>`;
+}
+function setRir(index,value){
+  const ex=state.activeSession?.exercises[index];if(!ex)return;
+  ex.rir=value==='skip'?'skip':Number(value);
+  saveState();renderWorkout();
+}
+function changeRir(index){const ex=state.activeSession?.exercises[index];if(!ex)return;delete ex.rir;saveState();renderWorkout();}
+// "Why this target" — the evidence and the rule, one honest sentence. Blocked shows the pain copy prominently.
+function openTargetWhy(index){
+  const ex=state.activeSession?.exercises[index];if(!ex)return;
+  const item=exerciseById(ex.exerciseId);
+  const pg=sessionPainGate(),target=Core.nextTarget(state.history,ex.exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!pg.block,stepDown:!!pg.stepDown});
+  const basis=Core.confirmedBasis(state.history,ex.exerciseId);
+  let body;
+  if(target&&target.rule==='blocked'){
+    body=`<div class="why-block" role="alert"><span class="why-block-glyph" aria-hidden="true">✕</span><p>${esc(pg.reason)}</p></div>`;
+  }else if(!target){
+    body=`<p class="why-sentence">No confirmed-tolerated set yet, so there's no target — find an easy working load and log it. A target appears once a session is confirmed pain-free next time.</p>`;
+  }else{
+    const rirTxt=basis?(basis.rir==null?'no RIR was logged':basis.rir==='skip'?'RIR was skipped':`you left ${basis.rir==='4'||basis.rir===4?'4+':basis.rir} in the tank`):'no basis';
+    const evidence=basis?`Last confirmed set: ${esc(basis.weight||'—')} kg × ${esc(basis.reps)}, and ${esc(rirTxt)}.`:'';
+    const RULE_SENTENCE={
+      'add-rep':'Reps are below the top of your range, so hold the load and add a rep.',
+      'add-load':'You hit the top of the range with reps to spare, so add one load step and reset reps.',
+      'hold':'Reps in reserve were low (0–1), so repeat the same load — no progression today.',
+      'repeat-no-rir':'No RIR evidence, so this stays conservative — repeat last, never guess up.',
+      'step-down':'Pain has been rising, so the load steps back about 10% today.'
+    };
+    body=`<p class="why-evidence">${evidence}</p><p class="why-sentence">${esc(RULE_SENTENCE[target.rule]||'')}</p>`;
+  }
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TODAY'S TARGET</p><h2>${esc(item?.name||'Exercise')}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>${body}<p class="why-foot">Targets come from your own logged evidence — never from a plan you didn't earn.</p>`;
+  document.getElementById('sheet').showModal();
 }
 // A cell input opens the numeric pad instead of the keyboard (readonly + role=button); the pad's
 // "Keyboard" button removes readonly for arbitrary entry. Prefilled (carry-forward) sets read muted
@@ -836,7 +1032,16 @@ function openReceipt(session){
     const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
     return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
   }).join('');
-  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p><div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
+  // NEXT SESSION prescription — the engagement anchor. Run against the just-finished history state.
+  const pg=Core.painGate(state.history,null),step=Number(state.preferences.weightStep)||2.5;
+  const nextRows=session.exercises.filter(ex=>ex.sets.some(s=>s.done)).map((ex,i)=>{
+    const item=exerciseById(ex.exerciseId),t=Core.nextTarget(state.history,ex.exerciseId,{step,block:!!pg.block,stepDown:!!pg.stepDown});
+    const val=t?(t.rule==='blocked'?'train around it':formatTarget(t)):'baseline building';
+    const word=t&&t.rule!=='add-rep'&&t.rule!=='add-load'&&t.rule!=='blocked'?RULE_WORD[t.rule]:'';
+    return `<div class="receipt-next-row" style="--i:${i}"><span>${esc(item?.name||'Exercise')}</span><strong>${esc(val)}${word?` <em>${esc(word)}</em>`:''}</strong></div>`;
+  }).join('');
+  const nextBlock=nextRows?`<div class="receipt-next"><p class="kicker">NEXT SESSION</p><div class="receipt-next-rows">${nextRows}</div></div>`:'';
+  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p><div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
   const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;overlay.style.display='grid';
   requestAnimationFrame(()=>overlay.classList.add('show'));
   document.getElementById('receiptCard').querySelector('.primary-button').focus();
@@ -917,7 +1122,7 @@ function saveCustomExercise(){const name=document.getElementById('customName').v
 
 function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;const summary=Core.summarizeSession(session);
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=ex.sets.filter(s=>s.done);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
 }
 function deleteHistory(id){state.history=state.history.filter(s=>s.id!==id);saveState();closeSheet();renderProgress();showToast('Workout deleted');}
 
@@ -935,7 +1140,7 @@ function saveRingGoals(){
 function openSettings(){
   // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
   if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only — iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down — buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only — iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down — buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
@@ -1002,7 +1207,26 @@ window.addEventListener('load',()=>{setTimeout(()=>{
 },600);});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstall=event;});
 window.addEventListener('beforeunload',event=>{if(state.activeSession){event.preventDefault();event.returnValue='';}});
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+// Release truth (Wave 0): register the SW, then watch for a waiting/installed worker and surface the
+// user-controlled "Update ready" pill. Tapping posts SKIP_WAITING; controllerchange → one reload.
+let waitingWorker=null;
+function showUpdatePill(worker){waitingWorker=worker;const pill=document.getElementById('updatePill');if(pill){pill.hidden=false;requestAnimationFrame(()=>pill.classList.add('show'));}}
+function applyUpdate(){if(!waitingWorker)return;swSwapExpected=true;waitingWorker.postMessage({type:'SKIP_WAITING'});const pill=document.getElementById('updatePill');if(pill)pill.textContent='Updating…';}
+let swSwapExpected=false;
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('./sw.js').then(reg=>{
+    if(reg.waiting&&navigator.serviceWorker.controller)showUpdatePill(reg.waiting);
+    reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)showUpdatePill(w);});});
+  }).catch(()=>{});
+  // Reload ONLY on a real update swap (a previous controller existed, or the pill asked for the swap).
+  // A fresh first install fires controllerchange via clients.claim() — that must never reload (Codex P2).
+  const hadController=!!navigator.serviceWorker.controller;
+  let reloadedForUpdate=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(reloadedForUpdate||!(hadController||swSwapExpected))return;
+    reloadedForUpdate=true;location.reload();
+  });
+}
 document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget&&!(pinContext&&pinContext.mandatory)&&!lockGate)closeSheet();});
 document.getElementById('filterSheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeFiltersSheet();});
 // Catalogue event delegation — one listener per surface; row/star/quick/muscle actions read data-id/data-muscle (no inline handlers).
