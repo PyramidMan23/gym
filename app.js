@@ -118,6 +118,8 @@ function animateNumbers(scope){
   });
 }
 
+// Material-only scroll response (council 2026-07-20): chrome deepens, geometry never moves.
+addEventListener('scroll',()=>document.body.classList.toggle('scrolled',scrollY>10),{passive:true});
 function navigate(view){
   if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
   // A fresh Library open always starts unfiltered — a stale filter must never silently hide exercises (council 2026-07-19).
@@ -487,7 +489,7 @@ function renderWeekChart(){
   const now=Date.now(),weeks=[];
   for(let i=7;i>=0;i--){const end=now-i*7*DAY,start=end-7*DAY,count=state.history.filter(s=>s.started>start&&s.started<=end).length;weeks.push({count,label:i?'−'+i:'Now'});}
   const max=Math.max(1,...weeks.map(w=>w.count));
-  document.getElementById('weekChart').innerHTML=weeks.map((week,index)=>`<span class="bar-col ${index===7?'active':''}"><i style="height:${Math.max(4,week.count/max*100)}%" title="${week.count} workouts"></i><small>${week.label}</small></span>`).join('');
+  document.getElementById('weekChart').innerHTML=weeks.map((week,index)=>`<span class="bar-col ${index===7?'active':''}"><b>${week.count||''}</b><i style="height:${Math.max(3,week.count/max*72)}%" title="${week.count} workouts"></i><small>${week.label}</small></span>`).join('');
 }
 
 function renderWorkout(){
