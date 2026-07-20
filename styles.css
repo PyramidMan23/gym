@@ -423,6 +423,24 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 .workout-exercise::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--hair)}
 .workout-exercise::after{content:'';position:absolute;left:0;top:0;width:3px;height:calc(var(--done,0)*100%);background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:0 0 8px rgba(var(--bloom-amber),.4);transition:height .4s var(--ease)}
 
+/* ---- Muscle volume board: two parallel tracks per muscle, NEVER one joined bar (council two-ledger model). */
+.mv-board{display:grid;gap:8px}
+.mv-row{display:grid;grid-template-columns:92px 1fr auto;gap:12px;align-items:center;text-align:left;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow);padding:13px 15px;color:var(--cream);min-height:56px;transition:transform .12s var(--ease)}
+button.mv-row:active{transform:scale(.985)}
+.mv-name{font-weight:800;font-size:14px;display:grid;gap:2px;min-width:0}
+.mv-range{font-weight:700;font-size:10px;color:var(--taupe);white-space:nowrap}
+.mv-range.in{color:var(--teal)}
+.mv-range.over{color:var(--danger)}
+.mv-tracks{display:grid;gap:4px;min-width:0;align-content:center}
+.mv-tracks i{display:block;height:9px;border-radius:5px;background:linear-gradient(90deg,var(--amber-soft),var(--amber));min-width:3px;transition:width .5s var(--ease)}
+.mv-tracks .mv-assist{height:4px;background:var(--hair-bright)}
+.mv-nums{font-size:11px;color:var(--taupe);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;text-align:right}
+.mv-nums strong{font-weight:800;font-size:17px;color:var(--cream)}
+.mv-note{margin:0 0 10px;color:var(--taupe);font-size:12px}
+.mv-count{color:var(--taupe);font-size:12px;font-variant-numeric:tabular-nums lining-nums;flex:none}
+.mv-static{box-shadow:none;background:var(--glass);border-color:var(--hair)}
+@media(max-width:390px){.mv-row{grid-template-columns:78px 1fr auto;padding:12px 13px}.mv-nums{font-size:10px}.mv-nums strong{font-size:15px}}
+
 /* Solid fallback: the tinted live surfaces keep their gradient (drop only blur, per @supports rule above). */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .routine-strip-card,.live-metrics{background:var(--card-solid)}

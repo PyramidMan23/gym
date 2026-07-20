@@ -312,7 +312,10 @@ function resumeWorkout(){ navigate('workout'); }
 function openPlan(id){
   const plan=plans.find(p=>p.id===id);if(!plan)return;
   const dayList=plan.days.map((d,i)=>`<div class="selected-row"><span><strong>${i+1}. ${esc(d.name)}</strong><small style="display:block;color:var(--muted)">${d.exerciseIds.map(x=>esc(exerciseById(x)?.name||x)).join(' · ')}</small></span></div>`).join('');
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routines</button></div>`;
+  const pv=Core.planVolume(plan.days,muscleLookup);
+  const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
+  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board — direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div>${planned}<div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routines</button></div>`;
   document.getElementById('sheet').showModal();
 }
 function applyPlan(id){
@@ -445,9 +448,60 @@ function renderProgress(){
   document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${Math.round(lifetimeVolume)}" data-fmt="compact">0</strong><span>LIFETIME KG</span></div>`;
   animateNumbers(document.getElementById('progressStats'));
   renderStrength();
+  renderMuscleVolume();
   renderWeekChart();
   renderPrFeed();
   document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="empty-card card"><strong>Your progress starts at one</strong>Finish a workout and it will appear here.</div>`;
+}
+// ---- Weekly muscle volume: two-ledger model (council 2026-07-20) ----
+// Direct = completed sets where the muscle is the primary mover; assisting = completed sets
+// where it helps (bench: chest direct, shoulders+arms assisting). Never summed into one number.
+const MUSCLE_GROUPS=['Chest','Back','Shoulders','Arms','Legs','Core'];
+function muscleLookup(id){
+  const e=exerciseById(id);if(!e)return null;
+  const all=(e.muscles||[e.muscle]).filter(m=>MUSCLE_GROUPS.includes(m));
+  const primary=MUSCLE_GROUPS.includes(e.muscle)?e.muscle:all[0];
+  return primary?{primary,all}:null;
+}
+function renderMuscleVolume(){
+  const el=document.getElementById('muscleVolume');if(!el)return;
+  const mv=Core.muscleVolume(state.history,muscleLookup);
+  const ranges=state.preferences.muscleRanges||{};
+  const rows=MUSCLE_GROUPS.map(m=>({m,d:mv[m]?.direct||0,a:mv[m]?.assisting||0})).sort((x,y)=>y.d-x.d||y.a-x.a);
+  if(rows.every(r=>!r.d&&!r.a)){el.innerHTML=`<div class="empty-card card"><strong>No sets this week yet</strong>Complete a set and your per-muscle count starts here.</div>`;return;}
+  const max=Math.max(1,...rows.map(r=>Math.max(r.d,r.a)));
+  el.innerHTML=rows.map(r=>{
+    const range=ranges[r.m];
+    const band=range?(r.d<range[0]?'under':r.d>range[1]?'over':'in'):'';
+    return `<button class="mv-row" onclick="openMuscleDetail('${r.m}')" aria-label="${r.m}: ${r.d} direct sets, ${r.a} assisting">
+      <span class="mv-name">${r.m}${range?`<small class="mv-range ${band}">${r.d} of ${range[0]}–${range[1]}${band==='under'?' · below':band==='over'?' · above':' · in range'}</small>`:''}</span>
+      <span class="mv-tracks"><i class="mv-direct" style="width:${r.d/max*100}%"></i><i class="mv-assist" style="width:${r.a/max*100}%"></i></span>
+      <span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></button>`;
+  }).join('');
+}
+function openMuscleDetail(muscle){
+  if(!MUSCLE_GROUPS.includes(muscle))return;
+  const slot=Core.muscleVolume(state.history,muscleLookup)[muscle]||{direct:0,assisting:0,by:{}};
+  const rows=key=>Object.entries(slot.by||{}).filter(([,v])=>v[key]).sort((a,b)=>b[1][key]-a[1][key]).map(([id,v])=>`<div class="selected-row"><span><strong>${esc(exerciseById(id)?.name||id)}</strong></span><span class="mv-count">${v[key]} set${v[key]===1?'':'s'}</span></div>`).join('')||'<div class="empty-card card">None this week.</div>';
+  const range=(state.preferences.muscleRanges||{})[muscle]||['',''];
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">THIS WEEK · ${muscle.toUpperCase()}</p><h2>${slot.direct} direct · ${slot.assisting} assisting</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
+  <p style="color:var(--taupe);margin-top:-6px;font-size:13px">Direct = completed sets where ${muscle.toLowerCase()} is the primary mover. Assisting = sets where it helps (bench press: chest direct; shoulders and arms assisting). The two are counted separately, never added.</p>
+  <div class="section-heading"><div><p class="kicker">DIRECT</p><h2>Working sets</h2></div></div><div class="selected-list">${rows('direct')}</div>
+  <div class="section-heading"><div><p class="kicker">ASSISTING</p><h2>Exposure</h2></div></div><div class="selected-list">${rows('assisting')}</div>
+  <div class="section-heading"><div><p class="kicker">OPTIONAL</p><h2>Weekly range — direct sets only</h2></div></div>
+  <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label>MIN</label><input id="mvMin" type="number" min="0" inputmode="numeric" value="${range[0]}"></div><div class="field" style="flex:1"><label>MAX</label><input id="mvMax" type="number" min="0" inputmode="numeric" value="${range[1]}"></div></div>
+  <div class="sheet-actions"><button class="secondary-button" onclick="clearMuscleRange('${muscle}')">Clear range</button><button class="primary-button" onclick="saveMuscleRange('${muscle}')">Save</button></div>`;
+  document.getElementById('sheet').showModal();
+}
+function saveMuscleRange(muscle){
+  const min=parseInt(document.getElementById('mvMin').value,10),max=parseInt(document.getElementById('mvMax').value,10);
+  if(!Number.isFinite(min)||!Number.isFinite(max)||min<0||max<min){showToast('Range needs 0 ≤ min ≤ max');return;}
+  state.preferences.muscleRanges={...(state.preferences.muscleRanges||{}),[muscle]:[min,max]};
+  saveState();closeSheet();renderProgress();
+}
+function clearMuscleRange(muscle){
+  const r={...(state.preferences.muscleRanges||{})};delete r[muscle];
+  state.preferences.muscleRanges=r;saveState();closeSheet();renderProgress();
 }
 // Strength trend — evidence-gated (council 2026-07-18): a lift unlocks its chart after 3 logged sessions.
 const TREND_UNLOCK=3;

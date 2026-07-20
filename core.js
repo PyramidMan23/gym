@@ -157,6 +157,45 @@
     };
   }
 
+  // Weekly per-muscle set ledgers (council 2026-07-20): a completed set counts 1 DIRECT set
+  // for the exercise's primary muscle and 1 ASSISTING exposure for each secondary muscle.
+  // The two ledgers are never summed — a blended total would imply false physiological precision.
+  function muscleVolume(history, getMuscles, now = Date.now()) {
+    const start = startOfLocalWeek(now);
+    const out = {};
+    const bump = (muscle, key, id, n) => {
+      if (!muscle) return;
+      const slot = out[muscle] || (out[muscle] = { direct: 0, assisting: 0, by: {} });
+      slot[key] += n;
+      const at = slot.by[id] || (slot.by[id] = { direct: 0, assisting: 0 });
+      at[key] += n;
+    };
+    for (const session of history || []) {
+      const t = num(session.started);
+      if (t < start || t > now) continue;
+      for (const ex of session.exercises || []) {
+        const done = (ex.sets || []).filter(s => s.done).length;
+        if (!done) continue;
+        const m = getMuscles(ex.exerciseId);
+        if (!m || !m.primary) continue;
+        bump(m.primary, 'direct', ex.exerciseId, done);
+        for (const sec of m.all || []) if (sec !== m.primary) bump(sec, 'assisting', ex.exerciseId, done);
+      }
+    }
+    return out;
+  }
+  // Planned weekly ledgers for a plan's days at a default set count — labelled "planned", same model.
+  function planVolume(days, getMuscles, setsPerExercise = 3) {
+    const out = {};
+    for (const day of days || []) for (const id of day.exerciseIds || []) {
+      const m = getMuscles(id);
+      if (!m || !m.primary) continue;
+      (out[m.primary] = out[m.primary] || { direct: 0, assisting: 0 }).direct += setsPerExercise;
+      for (const sec of m.all || []) if (sec !== m.primary) (out[sec] = out[sec] || { direct: 0, assisting: 0 }).assisting += setsPerExercise;
+    }
+    return out;
+  }
+
   function safeParse(value, fallback) {
     try { return JSON.parse(value) ?? fallback; } catch { return fallback; }
   }
@@ -363,5 +402,5 @@
     return !!hasVibrate && (preferences?.haptics !== false);
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz };
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume };
 });
