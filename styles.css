@@ -441,6 +441,32 @@ button.mv-row:active{transform:scale(.985)}
 .mv-static{box-shadow:none;background:var(--glass);border-color:var(--hair)}
 @media(max-width:390px){.mv-row{grid-template-columns:78px 1fr auto;padding:12px 13px}.mv-nums{font-size:10px}.mv-nums strong{font-size:15px}}
 
+/* ---- Set footer: add-set + drop-set side by side. */
+.set-footer{display:flex;gap:8px;margin:8px 14px 14px}
+.set-footer .add-set{flex:1;width:auto;margin:0}
+.add-drop{flex:none;min-width:84px;height:44px;border:1px solid rgba(var(--bloom-teal),.5);border-radius:var(--radius);background:rgba(var(--bloom-teal),.1);color:var(--teal);font-weight:800;font-size:13px}
+/* Drop-set rows: teal down-arrow number + tint; a shape+glyph cue, never colour-only. */
+.set-row.drop-set{background:rgba(var(--bloom-teal),.07)}
+.set-row.drop-set .set-number{color:var(--teal);font-size:15px}
+.set-row.drop-set.completed{background:rgba(var(--bloom-teal),.14);box-shadow:inset 4px 0 0 var(--teal)}
+.set-row.drop-set.completed .set-input{border-color:var(--teal)}
+/* Superset connector between paired exercise cards. */
+.ss-link{display:flex;justify-content:center;margin:-6px 0}
+.ss-link span{position:relative;z-index:2;padding:5px 12px;border-radius:999px;border:1px solid rgba(var(--bloom-teal),.5);background:var(--card-solid);color:var(--teal);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;box-shadow:var(--shadow)}
+/* 8-week muscle spark chart inside the detail sheet. */
+.mv-spark{height:128px;padding:14px 10px 10px}
+/* Plate math line under the pad numeral. */
+.pad-plates{margin:-8px 0 14px;text-align:center;color:var(--teal);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums;min-height:18px}
+/* Opt-in nav condense: height compresses on scroll, labels tuck, buttons never move sideways. */
+body.nav-condense .bottom-nav{transition:height .32s var(--ease),box-shadow .25s var(--ease)}
+body.nav-condense .bottom-nav button small{transition:opacity .2s var(--ease),transform .2s var(--ease)}
+body.nav-condense.scrolled .bottom-nav{height:54px}
+body.nav-condense.scrolled .bottom-nav button small{opacity:0;transform:translateY(8px);position:absolute;pointer-events:none}
+body.nav-condense.scrolled .nav-cursor{height:calc(54px - 16px)}
+/* Soul: a slow light sheen across the Train hero (killed by the global reduced-motion rule). */
+.train-hero::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.22) 46%,transparent 60%);background-size:260% 100%;background-position:180% 0;animation:sheen 7s var(--ease) 1.2s infinite}
+@keyframes sheen{0%,55%{background-position:180% 0}100%{background-position:-80% 0}}
+
 /* Solid fallback: the tinted live surfaces keep their gradient (drop only blur, per @supports rule above). */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .routine-strip-card,.live-metrics{background:var(--card-solid)}

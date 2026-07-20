@@ -196,6 +196,29 @@
     return out;
   }
 
+  // Per-side plate breakdown, greedy from the heaviest plate (exact for standard plate sets).
+  function plateBreakdown(target, bar = 20, plates = [25, 20, 15, 10, 5, 2.5, 1.25]) {
+    const t = num(target);
+    if (!(t > bar)) return { perSide: [], remainder: 0, exact: t === bar };
+    let side = (t - bar) / 2;
+    const perSide = [];
+    for (const p of [...plates].sort((a, b) => b - a)) {
+      while (side >= p - 1e-9) { perSide.push(p); side -= p; }
+    }
+    return { perSide, remainder: Math.round(side * 2 * 100) / 100, exact: side < 1e-9 };
+  }
+  // Per-muscle ledgers for each of the trailing N local weeks, oldest → newest (index N-1 = current).
+  // Walks week boundaries backwards via startOfLocalWeek so DST shifts can't skew the windows.
+  function muscleVolumeWeeks(history, getMuscles, weeks = 8, now = Date.now()) {
+    const out = [];
+    let end = now;
+    for (let i = 0; i < weeks; i++) {
+      out.unshift(muscleVolume(history, getMuscles, end));
+      end = startOfLocalWeek(end) - 1;
+    }
+    return out;
+  }
+
   function safeParse(value, fallback) {
     try { return JSON.parse(value) ?? fallback; } catch { return fallback; }
   }
@@ -402,5 +425,5 @@
     return !!hasVibrate && (preferences?.haptics !== false);
   }
 
-  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume };
+  return { calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks };
 });
