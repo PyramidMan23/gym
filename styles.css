@@ -613,8 +613,9 @@ body.workout-active .update-pill{bottom:calc(14px + env(safe-area-inset-bottom))
 
 /* ---- Tap hygiene: kill the 300ms delay / double-tap zoom on every control. ---- */
 button,[role="button"],.filter-chip,.facet-chip,.quick-chip,.rir-chip,.pin-key,input[type="checkbox"],label.beighton-toggle,select{touch-action:manipulation}
-/* Stop pull-to-refresh fighting the workout scroll; page still reloads from browser chrome. */
-body{overscroll-behavior-y:contain}
+/* NOTE: overscroll-behavior-y:contain on <body> locked touch scrolling on Android Chrome (body is a
+   nested scroll container via overflow-x, and contain on it froze finger-pans while taps still fired).
+   Removed 2026-07-20. Keep overscroll containment scoped to dialogs only, which scroll internally. */
 dialog{overscroll-behavior:contain}
 
 /* ---- Press role CONTROL — no scale; background highlight (inset veil) + opacity dip. ---- */
