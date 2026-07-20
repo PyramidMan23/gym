@@ -152,9 +152,9 @@ function renderToday(){
   renderCoach();
   renderActivityRings(weekly);
   renderWeekDots();
-  document.getElementById('resumeSlot').innerHTML=state.activeSession?`<div class="resume-card"><strong>Workout in progress</strong><p>${esc(state.activeSession.name)} · started ${formatElapsed(state.activeSession.started)} ago</p><button onclick="resumeWorkout()">Resume workout</button></div>`:'';
-  const routines=state.routines.slice(0,4);
-  document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(routineCard).join(''):`<div class="empty-card card"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
+  document.getElementById('resumeSlot').innerHTML=state.activeSession?`<div class="resume-card card-live"><strong><span class="live-dot" aria-hidden="true"></span>Workout in progress</strong><p>${esc(state.activeSession.name)} · started ${formatElapsed(state.activeSession.started)} ago</p><button onclick="resumeWorkout()">Resume workout</button></div>`:'';
+  const routines=state.routines.slice(0,6);
+  document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(routineStripCard).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
   document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="empty-card card"><strong>No sessions logged</strong>Your first completed workout will land here.</div>`;
 }
 function renderActivityRings(weekly){
@@ -169,11 +169,12 @@ function renderActivityRings(weekly){
   const message=Core.activityMessage(score/100);
   const card=document.querySelector('.activity-card');
   card.classList.toggle('complete',score>=100);
+  card.classList.toggle('card-live',score>0); // hero tinted card once the week is under way; quiet at zero-state
   document.getElementById('activityTitle').textContent=message.title;
   document.getElementById('activityDetail').textContent=message.detail;
   const fmt=ring=>ring.key==='volume'?compact(ring.value):ring.value;
   const fmtGoal=ring=>ring.key==='volume'?compact(ring.goal):ring.goal;
-  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" data-offset="${ARC*(1-ring.ratio)}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${REDUCED_MOTION?ARC*(1-ring.ratio):ARC}"></circle></g></svg><div class="arc-value"><strong data-count="${ring.value}" ${ring.key==='volume'?'data-fmt="compact"':''}>0</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
+  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" data-offset="${ARC*(1-ring.ratio)}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${REDUCED_MOTION?ARC*(1-ring.ratio):ARC}"></circle></g></svg><div class="arc-value"><strong class="hero-num" data-count="${ring.value}" ${ring.key==='volume'?'data-fmt="compact"':''}>0</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
   if(!REDUCED_MOTION)requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#activityRings .arc-fill').forEach(el=>{el.style.strokeDashoffset=el.dataset.offset;})));
   animateNumbers(document.getElementById('activityRings'));
   document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} of ${goals.weeklyWorkoutGoal} workouts, ${weekly.completedSets} of ${goals.weeklySetGoal} sets, ${Math.round(weekly.volume)} of ${goals.weeklyVolumeGoal} kilograms volume`);
@@ -187,6 +188,11 @@ function renderWeekDots(){
 function routineCard(routine){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
   return `<article class="routine-card"><div><h3>${esc(routine.name)}</h3><p>${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></div><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">Start</button></div></article>`;
+}
+// Today's horizontal quick-start strip — same onclick contracts as routineCard (start + options menu).
+function routineStripCard(routine){
+  const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
+  return `<article class="routine-strip-card"><div class="rs-top"><h3>${esc(routine.name)}</h3><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button></div><p>${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p><button class="rs-start" onclick="startRoutine('${routine.id}')">Start</button></article>`;
 }
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
@@ -250,7 +256,7 @@ function renderCoach(){
   const syncLine=sync.configured
     ?`${sync.connected?'Synced':'Sync pending'}${sync.lastSyncAt?' · '+formatDate(sync.lastSyncAt):''}${sync.queued?` · ${sync.queued} queued`:''}`
     :`Not connected${sync.queued?` · ${sync.queued} queued`:''}`;
-  slot.innerHTML=`<section class="coach-card card" aria-label="Training coach">
+  slot.innerHTML=`<section class="coach-card card card-live" aria-label="Training coach">
     <div class="coach-top"><p class="kicker">${ctx.source==='coach'?'COACH’S BLOCK':'LOCAL RAMP'}</p>${s.stepDown?'<span class="coach-flag notched">Step-down</span>':''}</div>
     <h2>${esc(s.title)}</h2>
     ${ctx.superseded?`<p class="coach-superseded">${esc(ctx.superseded)}</p>`:''}
@@ -364,15 +370,17 @@ function renderCatalogueList(ctx,animate){
   const key=(fs.query?'q:':'')+list.map(e=>e.id).join(',');
   if(host._catKey===key)return;
   host._catKey=key;
-  host.innerHTML=list.length?list.map(exerciseRow).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+  host.innerHTML=list.length?list.map(e=>exerciseRow(e,fs.muscle)).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
   if(animate&&!REDUCED_MOTION){host.style.animation='none';void host.offsetWidth;host.style.animation='catFade .18s var(--ease)';}
 }
 // Row markup carries the exact id in data-id (never interpolated into a handler string); a delegated listener does the work.
 // Whole name area taps to add; the ≥44px star toggles favourite (filled vs outline shape, not colour-only).
-function exerciseRow(exercise){
+function exerciseRow(exercise,activeMuscle){
   const fav=(state.favourites||[]).includes(exercise.id);
   const meta=`${esc(exercise.muscle||'')} · ${esc(exercise.equipment||'Custom equipment')}`,id=esc(exercise.id);
-  return `<article class="exercise-row"><button class="exercise-pick" data-id="${id}" aria-label="Add ${esc(exercise.name)}"><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
+  const plateLetter=esc((exercise.muscle||'?').trim().charAt(0)||'?');
+  const match=activeMuscle&&activeMuscle!=='All'; // a muscle filter is active → the plates light amber to show the cut
+  return `<article class="exercise-row"><button class="exercise-pick" data-id="${id}" aria-label="Add ${esc(exercise.name)}"><span class="ex-plate${match?' match':''}" aria-hidden="true">${plateLetter}</span><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
 }
 // One delegated click listener per catalogue surface — no per-row handlers, no id interpolation (injection-safe).
 function onCatalogueClick(ctx,e){
@@ -457,7 +465,12 @@ function renderStrength(){
   }
   if(!unlocked.some(e=>e.id===strengthPick))strengthPick=unlocked[0].id;
   pickerEl.innerHTML=unlocked.slice(0,12).map(e=>`<button class="filter-chip ${e.id===strengthPick?'active':''}" onclick="pickStrength('${e.id}')">${esc(e.item.name)}</button>`).join('');
-  trendEl.innerHTML=trendChart(Core.exerciseTrend(state.history,strengthPick),exerciseById(strengthPick)?.name||'');
+  const points=Core.exerciseTrend(state.history,strengthPick),name=exerciseById(strengthPick)?.name||'';
+  // Hero: current best est. 1RM as a giant numeral + a delta chip vs the first logged session.
+  let hero='';
+  if(points.length){const latest=points.at(-1).e1rm,delta=Math.round((latest-points[0].e1rm)*10)/10;
+    hero=`<div class="strength-hero"><strong class="sh-num hero-num">${latest}</strong><span class="sh-unit">kg est. 1RM</span><span class="sh-delta${delta<0?' down':''}">${delta>0?'+':''}${delta} kg</span></div>`;}
+  trendEl.innerHTML=hero+trendChart(points,name);
 }
 function pickStrength(id){strengthPick=id;renderStrength();}
 function trendChart(points,name){
@@ -545,7 +558,12 @@ function workoutExerciseMarkup(exercise,index){
   const confirmed=Core.lastConfirmedExposure(state.history,exercise.exerciseId);
   const confirmedText=confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${confirmed.topReps} reps · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':'');
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  return `<article class="workout-exercise"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0])).join('');})()}<button class="add-set" onclick="addSet(${index})">+ Add set</button></article>`;
+  // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) —
+  // otherwise finishing every intended set still reads as incomplete (Codex verify 2026-07-20).
+  const sets=exercise.sets,last=sets[sets.length-1];
+  const total=sets.length-((sets.length>1&&last&&!last.done&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
+  const doneCount=sets.filter(s=>s.done).length,doneFrac=total?Math.min(1,doneCount/total):0;
+  return `<article class="workout-exercise" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><div><h2>${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0])).join('');})()}<button class="add-set" onclick="addSet(${index})">+ Add set</button></article>`;
 }
 // A cell input opens the numeric pad instead of the keyboard (readonly + role=button); the pad's
 // "Keyboard" button removes readonly for arbitrary entry. Prefilled (carry-forward) sets read muted

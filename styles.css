@@ -326,3 +326,104 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .receipt-overlay{background:rgba(7,10,14,.78)}
 }
+
+/* ============================================================
+   COMPOSITION pass (council 2026-07-20) — per-screen identity.
+   Each tab gets its own first-fold hero + a quiet dashboard below.
+   Eyebrow system, live tinted cards, hero numerals, per-tab heroes.
+   Extends the FORGED layer; token-paired both schemes.
+   Rollback: delete everything below this banner.
+   ============================================================ */
+
+/* --- Eyebrow: quiet by default (taupe), amber reserved for the hero/active surface only. --- */
+.kicker{color:var(--taupe);font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+.kicker.accent{color:var(--amber-deep)}
+
+/* --- Hero numeral: giant + tight. Dark scheme earns an amber glow; light stays ink-clean. --- */
+.hero-num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.03em}
+@media(prefers-color-scheme:dark){.hero-num{text-shadow:0 0 18px rgba(var(--bloom-amber),.30)}}
+
+/* --- Premium tinted LIVE card: radial amber from top-right + amber border + inset amber top-light.
+   --card-bg is already token-paired, so this reads as soft cream-amber on white / amber ember on #1D2228. --- */
+.card-live{position:relative;overflow:hidden;border-color:rgba(var(--bloom-amber),.34);
+  background:radial-gradient(130% 90% at 100% 0,rgba(var(--bloom-amber),.16),transparent 55%),var(--card-bg);
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(var(--bloom-amber),.24)}
+
+/* Live dot — CSS-only pulse; covered by the global reduced-motion kill-switch. */
+.live-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:9px;vertical-align:baseline;box-shadow:0 0 0 0 rgba(var(--bloom-amber),.5);animation:livePulse 1.8s var(--ease) infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(var(--bloom-amber),.5)}70%{box-shadow:0 0 0 9px rgba(var(--bloom-amber),0)}100%{box-shadow:0 0 0 0 rgba(var(--bloom-amber),0)}}
+
+/* --- Below-fold wrapper: quiet dashboard with its own gentle stagger (not the pane rise, no double-animate). --- */
+.view.active>.fold-2{animation:none}
+.fold-2>*{animation:foldUp .5s var(--ease) both}
+.fold-2>:nth-child(2){animation-delay:.05s}
+.fold-2>:nth-child(3){animation-delay:.09s}
+.fold-2>:nth-child(4){animation-delay:.12s}
+.fold-2>:nth-child(n+5){animation-delay:.15s}
+@keyframes foldUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ---- TODAY ---- */
+/* Resume: top live card with a pulsing dot. */
+.resume-card.card-live strong{display:flex;align-items:center}
+/* Hero activity numerals. */
+.activity-card.card-live .arc-value strong{font-size:27px}
+/* Routines become a horizontal start strip. */
+.routine-strip{display:flex;gap:11px;overflow-x:auto;margin:0 -18px;padding:2px 18px 8px;scrollbar-width:none}
+.routine-strip::-webkit-scrollbar{display:none}
+.routine-strip-card{flex:none;width:204px;display:flex;flex-direction:column;gap:12px;min-height:126px;padding:16px 16px 15px;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow)}
+.routine-strip-card .rs-top{display:flex;align-items:start;justify-content:space-between;gap:8px}
+.routine-strip-card h3{margin:0;font-weight:800;font-size:16px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.routine-strip-card p{margin:0;color:var(--taupe);font-size:11px;flex:1}
+.routine-strip-card .routine-menu{min-width:44px;height:44px;flex:none}
+.routine-strip-card .rs-start{margin-top:auto;align-self:stretch;min-height:44px;border:0;border-radius:var(--r1);background:var(--amber);color:var(--on-amber);font-weight:800}
+
+/* ---- TRAIN ---- */
+.train-hero{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;width:100%;text-align:left;margin:2px 0 6px;padding:24px 22px;border:0;border-radius:var(--radius);color:var(--on-amber);
+  background:linear-gradient(135deg,var(--amber-soft),var(--amber) 72%);
+  box-shadow:0 16px 36px -16px rgba(var(--bloom-amber),.6),inset 0 1px 0 rgba(255,255,255,.32)}
+.train-hero>span{flex:none;width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:rgba(0,0,0,.14);color:var(--on-amber)}
+.train-hero>span svg{width:26px;height:26px}
+.train-hero strong{display:block;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.train-hero small{display:block;margin-top:4px;font-weight:600;font-size:13px;opacity:.85}
+/* Plans read as posters: radial tint + bolder title. */
+.plan-card{position:relative;overflow:hidden;background:radial-gradient(120% 80% at 100% 0,rgba(var(--bloom-amber),.12),transparent 55%),var(--card-bg)}
+.plan-card strong{font-size:20px}
+
+/* ---- LIBRARY: search-first cockpit ---- */
+#view-library .page-lead h1{font-size:28px}
+#view-library .search-wrap{height:56px}
+#view-library .search-wrap input{font-size:17px}
+#libraryQuickPicks{margin-top:12px}
+/* Leading muscle "plate" on each exercise row. */
+.ex-plate{flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:11px;background:var(--glass-2);color:var(--taupe);font-weight:800;font-size:15px;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.ex-plate.match{background:rgba(var(--bloom-amber),.16);color:var(--amber-deep)}
+.exercise-pick{padding-left:13px;gap:12px}
+
+/* ---- PROGRESS: strength hero first ---- */
+.strength-hero{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;margin:2px 0 14px;padding:0 2px}
+.strength-hero .sh-num{font-weight:800;font-size:clamp(46px,15vw,64px);line-height:.92;color:var(--amber-deep)}
+.strength-hero .sh-unit{font-weight:700;font-size:15px;color:var(--taupe)}
+.strength-hero .sh-delta{margin-left:auto;align-self:center;padding:6px 11px;border-radius:var(--r1);font-weight:800;font-size:13px;font-variant-numeric:tabular-nums lining-nums;background:rgba(var(--bloom-amber),.14);color:var(--amber-deep)}
+.strength-hero .sh-delta.down{background:var(--glass-2);color:var(--taupe)}
+/* PR feed: a connected timeline rail with amber node dots. */
+.pr-feed:has(.pr-row){position:relative;padding-left:20px}
+.pr-feed:has(.pr-row)::before{content:'';position:absolute;left:6px;top:16px;bottom:16px;width:2px;background:linear-gradient(180deg,var(--amber),rgba(var(--bloom-amber),.22))}
+.pr-feed:has(.pr-row) .pr-row::before{content:'';position:absolute;left:-15px;top:50%;transform:translateY(-50%);width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px var(--card-solid)}
+
+/* ---- WORKOUT: cockpit ---- */
+.workout-clock{font-size:44px}
+/* Live metrics = one instrument strip with dividers, not three boxes. */
+.live-metrics{grid-template-columns:repeat(3,1fr);gap:0;background:var(--card-bg);border:1px solid var(--card-hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow);overflow:hidden}
+.live-metric{background:transparent;border:0;box-shadow:none;border-radius:0;padding:14px 12px 13px}
+.live-metric::before,.live-metric::after{display:none}
+.live-metric+.live-metric{border-left:1px solid var(--hair)}
+.live-metric strong{font-size:22px}
+/* Thin amber progress rail on the exercise card's left edge (fraction of sets done via --done). */
+.workout-exercise{position:relative}
+.workout-exercise::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--hair)}
+.workout-exercise::after{content:'';position:absolute;left:0;top:0;width:3px;height:calc(var(--done,0)*100%);background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:0 0 8px rgba(var(--bloom-amber),.4);transition:height .4s var(--ease)}
+
+/* Solid fallback: the tinted live surfaces keep their gradient (drop only blur, per @supports rule above). */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .routine-strip-card,.live-metrics{background:var(--card-solid)}
+}

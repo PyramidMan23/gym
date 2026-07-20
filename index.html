@@ -32,7 +32,7 @@
     <main id="main" tabindex="-1">
       <section id="view-today" class="view active" aria-labelledby="todayTitle">
         <div class="page-lead compact-lead">
-          <p class="kicker" id="todayKicker">TODAY</p>
+          <p class="kicker accent" id="todayKicker">TODAY</p>
           <h1 id="todayTitle">Ready to train?</h1>
           <p id="todayPrompt">Pick up where you left off or start something new.</p>
         </div>
@@ -46,27 +46,31 @@
           </div>
           <div id="weekDots" class="week-dots week-dots-wide"></div>
         </section>
-        <div class="section-heading"><div><p class="kicker">QUICK START</p><h2>Your routines</h2></div><button class="text-button" onclick="navigate('train')">Manage</button></div>
-        <div id="todayRoutines" class="stack"></div>
-        <div class="section-heading"><div><p class="kicker">LAST SESSION</p><h2>Recent work</h2></div><button class="text-button" onclick="navigate('progress')">See all</button></div>
-        <div id="recentSession"></div>
+        <div class="fold-2">
+          <div class="section-heading"><div><p class="kicker">QUICK START</p><h2>Your routines</h2></div><button class="text-button" onclick="navigate('train')">Manage</button></div>
+          <div id="todayRoutines" class="routine-strip"></div>
+          <div class="section-heading"><div><p class="kicker">LAST SESSION</p><h2>Recent work</h2></div><button class="text-button" onclick="navigate('progress')">See all</button></div>
+          <div id="recentSession"></div>
+        </div>
       </section>
 
       <section id="view-train" class="view" aria-labelledby="trainTitle">
-        <div class="page-lead"><p class="kicker">TRAIN</p><h1 id="trainTitle">What are we hitting?</h1><p>Pick a plan built for your gym, start a quick session, or build your own.</p></div>
+        <div class="page-lead"><p class="kicker accent">TRAIN</p><h1 id="trainTitle">What are we hitting?</h1><p>Pick a plan built for your gym, start a quick session, or build your own.</p></div>
+        <button class="train-hero big-button" onclick="startQuickWorkout()"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><div><strong>Start training</strong><small>Empty session — add exercises as you go</small></div></button>
         <div class="section-heading"><div><p class="kicker">TRAINING PLANS</p><h2>Pick a plan</h2></div></div>
         <div id="planList" class="template-grid"></div>
-        <button class="primary-button big-button" onclick="startQuickWorkout()"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><div><strong>Start an empty workout</strong><small>Add exercises as you go</small></div></button>
-        <div class="section-heading"><div><p class="kicker">SAVED</p><h2>My routines</h2></div><button class="text-button" onclick="openRoutineEditor()">+ New</button></div>
-        <div id="routineList" class="stack"></div>
-        <div class="section-heading"><div><p class="kicker">STARTER IDEAS</p><h2>Templates</h2></div></div>
-        <div id="templateList" class="template-grid"></div>
+        <div class="fold-2">
+          <div class="section-heading"><div><p class="kicker">SAVED</p><h2>My routines</h2></div><button class="text-button" onclick="openRoutineEditor()">+ New</button></div>
+          <div id="routineList" class="stack"></div>
+          <div class="section-heading"><div><p class="kicker">STARTER IDEAS</p><h2>Templates</h2></div></div>
+          <div id="templateList" class="template-grid"></div>
+        </div>
       </section>
 
       <section id="view-library" class="view" aria-labelledby="libraryTitle">
-        <div class="page-lead"><p class="kicker">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1><p>Search the movements and equipment available on your gym floor.</p></div>
-        <div id="libraryQuickPicks" class="quick-picks"></div>
+        <div class="page-lead compact-lead"><p class="kicker accent">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1></div>
         <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('library',this.value)" aria-label="Search exercise library"></div>
+        <div id="libraryQuickPicks" class="quick-picks"></div>
         <div class="catalogue-controls">
           <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
           <button id="libraryFiltersBtn" class="filters-button" onclick="openFiltersSheet('library')" aria-label="More filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg><span>Filters</span><span class="filters-badge" hidden>0</span></button>
@@ -77,21 +81,23 @@
       </section>
 
       <section id="view-progress" class="view" aria-labelledby="progressTitle">
-        <div class="page-lead"><p class="kicker">PROGRESS</p><h1 id="progressTitle">Getting stronger.</h1><p>Strength, volume and consistency, built from every set you log.</p></div>
-        <div id="progressStats" class="metric-grid"></div>
-        <div class="section-heading"><div><p class="kicker">STRENGTH</p><h2>Estimated 1RM</h2></div></div>
+        <div class="page-lead compact-lead"><p class="kicker accent">STRENGTH</p><h1 id="progressTitle">Getting stronger.</h1></div>
         <div id="strengthPicker" class="trend-picker"></div>
         <div id="strengthTrend"></div>
-        <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
-        <div id="weekChart" class="chart-card"></div>
-        <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
-        <div id="prFeed" class="pr-feed"></div>
-        <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
-        <div id="historyList" class="stack"></div>
+        <div class="section-heading"><div><p class="kicker">THIS WEEK</p><h2>By the numbers</h2></div></div>
+        <div id="progressStats" class="metric-grid"></div>
+        <div class="fold-2">
+          <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
+          <div id="weekChart" class="chart-card"></div>
+          <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
+          <div id="prFeed" class="pr-feed"></div>
+          <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
+          <div id="historyList" class="stack"></div>
+        </div>
       </section>
 
       <section id="view-workout" class="view workout-view" aria-labelledby="workoutTitle">
-        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p id="workoutClock" class="workout-clock">00:00</p></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
+        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p id="workoutClock" class="workout-clock hero-num">00:00</p></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
         <p id="workoutContext" class="workout-context"></p>
         <div id="workoutMetrics" class="live-metrics"></div>
         <div id="workoutExercises" class="workout-exercises"></div>
