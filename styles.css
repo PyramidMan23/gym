@@ -587,3 +587,92 @@ body.workout-active .update-pill{bottom:calc(14px + env(safe-area-inset-bottom))
 
 /* ---- Wave 3: rep-range distribution line in the muscle detail sheet. ---- */
 .rep-dist{margin:8px 0 2px;color:var(--cream);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+
+/* ============================================================
+   POLISH pass (council 2026-07-20, build w4) — interaction physics,
+   sheet spring+drag, depth tokens, restrained PR moment.
+   ONE press-timing family (--press-ease/--press-ms); three press roles
+   (control / card / primary); depth as a token scale; token-paired both
+   schemes. All motion is auto-killed by the global prefers-reduced-motion
+   rule above (it wins via !important regardless of source order).
+   Rollback: delete everything below this banner + revert the app.js
+   "POLISH pass" block (dismissDialog / attachSheetDrag / celebratePR).
+   ============================================================ */
+:root{
+  --press-ease:cubic-bezier(.34,1.3,.5,1);--press-ms:140ms;
+  --press-veil:rgba(20,15,8,.07);
+  --top-light:inset 0 1px 0 rgba(255,255,255,.28);
+  --elev-1:var(--shadow);           /* standard raised card — == resting look, unchanged */
+  --elev-0:0 1px 2px rgba(60,45,25,.10); /* pressed: ambient only, key shadow compressed away */
+}
+@media(prefers-color-scheme:dark){:root{
+  --press-veil:rgba(255,255,255,.10);
+  --top-light:inset 0 1px 0 rgba(255,247,235,.16);
+  --elev-0:0 1px 2px rgba(0,0,0,.6);
+}}
+
+/* ---- Tap hygiene: kill the 300ms delay / double-tap zoom on every control. ---- */
+button,[role="button"],.filter-chip,.facet-chip,.quick-chip,.rir-chip,.pin-key,input[type="checkbox"],label.beighton-toggle,select{touch-action:manipulation}
+/* Stop pull-to-refresh fighting the workout scroll; page still reloads from browser chrome. */
+body{overscroll-behavior-y:contain}
+dialog{overscroll-behavior:contain}
+
+/* ---- Press role CONTROL — no scale; background highlight (inset veil) + opacity dip. ---- */
+.icon-button,.text-button,.close-button,.routine-menu,.activity-info,.exercise-more,.filters-button,.filter-chip,.facet-chip,.quick-chip,.rir-chip,.pad-step,.rest-act,.why-target,.exercise-star,.pin-key,.checkin-scale button,.checkin-row button,.bottom-nav button,.add-set,.add-drop,.adopt-last{transition:box-shadow var(--press-ms) var(--press-ease),opacity var(--press-ms) var(--press-ease),background var(--press-ms) var(--press-ease)}
+.icon-button:active,.text-button:active,.close-button:active,.routine-menu:active,.activity-info:active,.exercise-more:active,.filters-button:active,.filter-chip:active,.facet-chip:active,.quick-chip:active,.rir-chip:active,.pad-step:active,.rest-act:active,.why-target:active,.exercise-star:active,.pin-key:active,.checkin-scale button:active,.checkin-row button:active,.bottom-nav button:active,.add-set:active,.add-drop:active,.adopt-last:active{transform:none;opacity:.9;box-shadow:inset 0 0 0 99px var(--press-veil)}
+.exercise-star:active svg{transform:none} /* star keeps its own fill-toggle, no press-scale */
+
+/* ---- Press role CARD — scale(.985) + shadow compresses one step (drop the outer key shadow).
+   Scoped to elements that ARE the interactive control (buttons), never container wrappers —
+   a wrapper scaling while its child button presses reads as compound motion (Codex P2). ---- */
+button.history-card,button.template-card,button.plan-card,button.profile-row,button.mv-row,.exercise-row{transition:transform var(--press-ms) var(--press-ease),box-shadow var(--press-ms) var(--press-ease)}
+button.history-card:active,button.template-card:active,button.plan-card:active,button.profile-row:active,button.mv-row:active{transform:scale(.985);box-shadow:var(--glass-edge),var(--elev-0)}
+/* Container wrappers (article: exercise-row / routine-card / routine-strip-card) never press as a whole —
+   their child buttons carry their own role. Also overrides the legacy base .exercise-row:active scale. */
+.exercise-row:active,.routine-card:active,.routine-strip-card:active{transform:none;box-shadow:var(--glass-edge),var(--shadow)}
+/* Deliberate exception: the exercise row's MAIN tap surface (.exercise-pick spans the row) presses the
+   row card — the star toggle alongside it never drags the row with it. */
+.exercise-row:has(>.exercise-pick:active){transform:scale(.985);box-shadow:var(--glass-edge),var(--elev-0)}
+
+/* ---- Press role PRIMARY — scale(.97) + stronger compression + brightness(.98). ---- */
+.primary-button,.secondary-button,.finish-button,.routine-start,.rs-start,.big-button,.train-hero,.resume-card button{transition:transform var(--press-ms) var(--press-ease),box-shadow var(--press-ms) var(--press-ease),filter var(--press-ms) var(--press-ease)}
+.primary-button:active,.secondary-button:active,.finish-button:active,.routine-start:active,.rs-start:active,.big-button:active,.train-hero:active,.resume-card button:active{transform:scale(.97);filter:brightness(.98);box-shadow:var(--top-light),var(--elev-0)}
+
+/* ---- Depth: 3-layer light. Button CTAs were missing the inset top-light — add it (paired). ---- */
+.primary-button,.finish-button,.routine-start,.rs-start{box-shadow:var(--top-light),0 8px 20px -8px rgba(var(--bloom-amber),.5)}
+.secondary-button{box-shadow:var(--top-light),var(--elev-0)}
+/* train-hero + big-button already carry their own inset top-light — left untouched. */
+
+/* ---- Sheet spring-open (transform-only overshoot) + real exit animation. ---- */
+@keyframes sheetSpring{0%{transform:translateY(46px)}70%{transform:translateY(-5px)}100%{transform:translateY(0)}}
+.sheet[open]{animation:sheetSpring .34s var(--press-ease) both}
+@keyframes sheetDown{to{transform:translateY(102%)}}
+@keyframes backdropOut{to{opacity:0}}
+@keyframes dialogOut{to{opacity:0;transform:translateY(10px) scale(.98)}}
+.sheet.closing{animation:sheetDown .18s var(--ease) both}
+.sheet.closing::backdrop,.confirm-dialog.closing::backdrop{animation:backdropOut .18s var(--ease) both}
+.confirm-dialog.closing{animation:dialogOut .16s var(--ease) both}
+/* Drag-to-dismiss from the handle (JS drives --drag). Spring/transition off while dragging. */
+.sheet.dragging{animation:none;transition:none;transform:translateY(var(--drag,0))}
+.sheet.settle{transition:transform .28s var(--press-ease);transform:translateY(var(--drag,0))}
+/* Handle: 44px invisible hit zone (visually unchanged), owns its own gesture. */
+.sheet-handle{position:relative;touch-action:none;cursor:grab}
+.sheet-handle::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:140px;height:44px}
+/* visualViewport-aware height: JS sets --vvh ONLY while the keyboard is up (a real positive px),
+   so a focused field is never covered; otherwise the normal 88vh cap applies. Never collapses. */
+.sheet{max-height:var(--vvh,min(88vh,88dvh))}
+/* Desktop: sheet is centered (translateX) — keep centering through drag/close, fade instead of slide. */
+@media(min-width:650px){
+  .sheet[open]{animation:none}
+  .sheet.dragging,.sheet.settle{transform:translate(-50%,var(--drag,0))}
+  @keyframes fadeOut{to{opacity:0}}
+  .sheet.closing{animation:fadeOut .15s var(--ease) both}
+}
+
+/* ---- PR moment (restrained, spatially earned): row compress + value roll up +
+   a thin amber light sweep travelling UP the exercise card's left rail. No bursts. ---- */
+@keyframes prCompress{0%{transform:scaleY(1)}35%{transform:scaleY(.9)}100%{transform:scaleY(1)}}
+.set-row.pr-hit{animation:prCompress .42s var(--press-ease);transform-origin:center}
+.pr-roll{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:3;font-weight:800;font-size:20px;color:var(--amber-deep);font-variant-numeric:tabular-nums lining-nums}
+.pr-spark{position:absolute;left:0;bottom:0;width:3px;height:34%;border-radius:2px;pointer-events:none;z-index:4;background:linear-gradient(180deg,rgba(var(--bloom-amber),0),var(--amber-soft),var(--amber));box-shadow:0 0 10px 2px rgba(var(--bloom-amber),.6);animation:prRail .6s var(--ease)}
+@keyframes prRail{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(-300%);opacity:0}}

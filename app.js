@@ -61,8 +61,11 @@ function exerciseById(id){ return allExercises().find(exercise=>exercise.id===id
 function esc(value){ return String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function compact(number){ const n=Number(number)||0; return n>=1e6?(n/1e6).toFixed(1)+'m':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n)); }
 function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short'}).format(new Date(timestamp)); }
-function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?2600:1900); }
+function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?3200:1900); }
 const REDUCED_MOTION=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// PR moment (POLISH): celebrate a live PR at most once per exercise per session. Keyed on the
+// session object identity so a new session (or a boot-reloaded one) starts fresh. Transient — never persisted.
+let prCelebratedSession=null;const prCelebrated=new Set();
 // Haptics: a short buzz that announces a real event (set done / PR / rest end), never navigation.
 // Gated on the profile toggle + navigator.vibrate — iOS PWAs have no vibrate, so this no-ops silently.
 function buzz(pattern){ try{ if(Core.shouldBuzz(state.preferences,'vibrate' in navigator))navigator.vibrate(pattern); }catch{} }
@@ -450,7 +453,7 @@ function onFacetClick(e){
   updateFiltersControl(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);
 }
 function clearFacets(){const fs=catState(filterSheetCtx);fs.patterns=[];fs.equip=[];fs.families=[];renderFiltersSheet();updateFiltersControl(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);}
-function closeFiltersSheet(){document.getElementById('filterSheet').close();}
+function closeFiltersSheet(){dismissDialog(document.getElementById('filterSheet'));}
 // Keep the renderLibrary name — renderView, boot and saveCustomExercise all call it.
 function renderLibrary(){renderCatalogue('library');}
 function quickExercise(id){
@@ -850,6 +853,7 @@ function carryForwardExercise(exercise){
   if(pf&&sets[j].weight===''&&sets[j].reps===''){sets[j].weight=String(pf.weight);sets[j].reps=String(pf.reps);sets[j].prefilled=true;}
 }
 function toggleSet(exerciseIndex,setIndex){
+  if(state.activeSession&&prCelebratedSession!==state.activeSession){prCelebratedSession=state.activeSession;prCelebrated.clear();}
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
   if(set.done){delete set.prefilled;
     // Superset: completing a set of the FIRST exercise in a pair skips rest and hands straight to
@@ -869,10 +873,31 @@ function toggleSet(exerciseIndex,setIndex){
     carryForwardExercise(ex);
   }
   saveState();renderWorkout();
-  if(set.done&&!REDUCED_MOTION){
-    const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
-    if(row){row.classList.add('just-done');setTimeout(()=>row.classList.remove('just-done'),320);}
+  if(set.done){
+    // A completed set that beats this exercise's PRIOR best earns the (once-per-exercise) live PR moment;
+    // otherwise the ordinary settle animation. detectPRs is reused read-only against a single-exercise shadow.
+    // A first-ever exposure (no prior best to beat) is NOT a live moment — it still counts in the receipt.
+    const ex=state.activeSession.exercises[exerciseIndex];let isPr=false;
+    try{if(!prCelebrated.has(ex.exerciseId)&&Core.previousPerformance(state.history,ex.exerciseId).length){const recs=Core.detectPRs(state.history,{exercises:[ex]});if(recs&&recs.length){isPr=true;prCelebrated.add(ex.exerciseId);}}}catch{}
+    if(isPr)celebratePR(exerciseIndex,setIndex,String(set.weight||''));
+    else if(!REDUCED_MOTION){
+      const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
+      if(row){row.classList.add('just-done');setTimeout(()=>row.classList.remove('just-done'),320);}
+    }
   }
+}
+// PR moment (POLISH): completed row compresses, its value rolls up (reuse roll-mask), a thin amber
+// light sweeps UP the exercise card's left rail, then the upgraded ▲PR toast. Reduced-motion: toast only.
+function celebratePR(exerciseIndex,setIndex,val){
+  buzz([15,60,20]); // distinct double pulse for a PR
+  showToast('▲ PR — new best',true);
+  if(REDUCED_MOTION)return;
+  const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
+  if(!row)return;
+  row.classList.add('pr-hit');setTimeout(()=>row.classList.remove('pr-hit'),460);
+  if(val){const roll=document.createElement('div');roll.className='pr-roll';roll.innerHTML='<span class="roll-mask"><span class="roll-old">&nbsp;</span><span class="roll-new">'+esc(val)+' kg</span></span>';row.appendChild(roll);requestAnimationFrame(()=>{const m=roll.querySelector('.roll-mask');if(m)m.classList.add('go');});setTimeout(()=>roll.remove(),760);}
+  const card=row.closest('.workout-exercise');
+  if(card){const spark=document.createElement('i');spark.className='pr-spark';card.appendChild(spark);const drop=()=>spark.remove();spark.addEventListener('animationend',drop);setTimeout(drop,700);}
 }
 function addSet(exerciseIndex,silent=false){
   // Sets are born EMPTY; carry-forward (on completing the prior set) is the sole prefill path, so a
@@ -995,15 +1020,21 @@ function padAdjust(dir){
 function padHoldStart(dir){padAdjust(dir);let delay=380;const tick=()=>{padAdjust(dir);delay=Math.max(60,delay*0.82);padHold=setTimeout(tick,delay);};padHold=setTimeout(tick,380);}
 function padHoldStop(){clearTimeout(padHold);padHold=null;}
 function padKeyboard(){
-  const t=padTarget;closePad();
-  if(!t)return;
-  const inp=document.querySelector(`.set-input[data-ex="${t.exIdx}"][data-set="${t.setIdx}"][data-key="${t.key}"]`);
-  if(!inp)return;
-  inp.readOnly=false;inp.removeAttribute('role');inp.focus();inp.select&&inp.select();
-  const restore=()=>{inp.readOnly=true;inp.setAttribute('role','button');inp.removeEventListener('blur',restore);};
-  inp.addEventListener('blur',restore);
+  // Focus must happen AFTER the modal dialog has really closed (a modal makes the page inert) and
+  // AFTER closePad's renderWorkout has rebuilt the rows — so re-query the CURRENT DOM in the
+  // completion callback, never the pre-close node (Codex P1).
+  const t=padTarget;
+  closePad(()=>{
+    if(!t)return;
+    const inp=document.querySelector(`.set-input[data-ex="${t.exIdx}"][data-set="${t.setIdx}"][data-key="${t.key}"]`);
+    if(!inp)return;
+    inp.readOnly=false;inp.removeAttribute('role');inp.focus();inp.select&&inp.select();
+    const restore=()=>{inp.readOnly=true;inp.setAttribute('role','button');inp.removeEventListener('blur',restore);};
+    inp.addEventListener('blur',restore);
+  });
 }
-function closePad(){padHoldStop();document.getElementById('padSheet').close();padTarget=null;if(state.activeSession)renderWorkout();}
+// closePad(after): after runs once the dialog is fully closed AND the workout has re-rendered.
+function closePad(after){padHoldStop();dismissDialog(document.getElementById('padSheet'),()=>{padTarget=null;if(state.activeSession)renderWorkout();after&&after();});}
 
 function requestFinishWorkout(){
   const session=state.activeSession,summary=Core.summarizeSession({...session,finished:Date.now()});
@@ -1056,7 +1087,7 @@ function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
 }
 function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
-function closeConfirm(){document.getElementById('confirmDialog').close();}
+function closeConfirm(){dismissDialog(document.getElementById('confirmDialog'));}
 
 function openExercisePicker(target){
   pickerTarget=target;
@@ -1073,10 +1104,11 @@ function pickExercise(id){
   else if(pickerTarget==='routine'){if(!routineDraft.exerciseIds.includes(id))routineDraft.exerciseIds.push(id);renderRoutineEditor();}
 }
 function closeSheet(){
-  document.getElementById('sheet').close();
-  // While the boot PIN gate is active, any sheet dismissal (incl. the switcher's x) must land
-  // back ON the gate, never in the neutral shell (Codex: gate must be truly non-dismissible).
-  if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p&&p.pinHash)gateLockedProfile(p);}
+  dismissDialog(document.getElementById('sheet'),()=>{
+    // While the boot PIN gate is active, any sheet dismissal (incl. the switcher's x) must land
+    // back ON the gate, never in the neutral shell (Codex: gate must be truly non-dismissible).
+    if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p&&p.pinHash)gateLockedProfile(p);}
+  });
 }
 
 function openRoutineEditor(id){
@@ -1233,6 +1265,77 @@ document.getElementById('filterSheet').addEventListener('click',event=>{if(event
 document.getElementById('view-library').addEventListener('click',event=>onCatalogueClick('library',event));
 document.getElementById('sheetContent').addEventListener('click',event=>onCatalogueClick('picker',event));
 document.getElementById('filterSheetContent').addEventListener('click',onFacetClick);
+// ================= POLISH pass (council 2026-07-20) — sheet physics =================
+// Play a native <dialog>'s exit animation before .close(). Reduced-motion (and a closed dialog)
+// skip straight to the callback. A pending close is flushable so a "close→reopen same dialog"
+// sequence (e.g. PIN → back to Settings, both on #sheet) can't hit showModal's already-open throw.
+function dismissDialog(dlg,after){
+  if(!dlg||!dlg.open){after&&after();return;}
+  if(REDUCED_MOTION){if(dlg.open)dlg.close();after&&after();return;}
+  if(dlg._closeTimer)clearTimeout(dlg._closeTimer);
+  dlg._closing=true;dlg.classList.add('closing');
+  const finalize=()=>{clearTimeout(dlg._closeTimer);dlg._closeTimer=null;dlg._closing=false;dlg._flushClose=null;dlg.classList.remove('closing');dlg.classList.remove('dragging');dlg.style.removeProperty('--drag');if(dlg.open)dlg.close();};
+  dlg._flushClose=finalize;
+  dlg._closeTimer=setTimeout(()=>{finalize();after&&after();},190);
+}
+// Patch showModal ONCE: remember the opener for focus-return, flush any pending close, and never
+// re-invoke native showModal on an already-open dialog (that throws). Focus returns on the 'close' event.
+(function(){
+  const proto=HTMLDialogElement.prototype,nativeShow=proto.showModal;
+  proto.showModal=function(){
+    if(this._closing&&this._flushClose)this._flushClose();
+    if(this.open)return; // same-dialog navigation (e.g. Settings→PIN on #sheet): keep the FIRST opener
+    // Record the opener only when it is a real control OUTSIDE this dialog — an innerHTML swap often
+    // leaves focus on <body>, which must not clobber a good opener from the original open (Codex P2).
+    const ae=document.activeElement;
+    if(ae&&ae!==document.body&&!this.contains(ae))this._opener=ae;
+    return nativeShow.call(this);
+  };
+  document.querySelectorAll('dialog').forEach(d=>d.addEventListener('close',()=>{
+    const o=d._opener;if(o&&o.isConnected&&typeof o.focus==='function'){try{o.focus({preventScroll:true});}catch{try{o.focus();}catch{}}}
+  }));
+})();
+// Keyboard-safe sheet height: while the on-screen keyboard is up (visual viewport shrinks well below the
+// layout viewport) clamp the sheet to the visible height so a focused field is never covered. Otherwise
+// clear the override so the normal 88vh cap applies. Never sets 0 (a stray 0 would collapse the sheet).
+if(window.visualViewport){
+  const vv=window.visualViewport,root=document.documentElement;
+  const syncVVH=()=>{const keyboard=window.innerHeight-vv.height;if(vv.height>0&&keyboard>120)root.style.setProperty('--vvh',Math.round(vv.height-8)+'px');else root.style.removeProperty('--vvh');};
+  vv.addEventListener('resize',syncVVH);syncVVH();
+}
+// Drag-to-dismiss — ONLY from the handle's 44px grab zone (the sheet body scrolls untouched). Rubber-band
+// resistance above rest; release past 25% height OR downward velocity >0.5px/ms dismisses, else springs back.
+function attachSheetDrag(sheetId,dismissFn){
+  const dlg=document.getElementById(sheetId),handle=dlg&&dlg.querySelector('.sheet-handle');if(!handle)return;
+  let dragging=false,startY=0,lastY=0,lastT=0,vel=0,h=1;
+  const blocked=()=>sheetId==='sheet'&&((pinContext&&pinContext.mandatory)||lockGate); // non-dismissible gate states
+  handle.addEventListener('pointerdown',e=>{
+    if(!dlg.open)return;
+    dragging=true;startY=lastY=e.clientY;lastT=e.timeStamp;vel=0;h=dlg.getBoundingClientRect().height||1;
+    dlg.classList.add('dragging');dlg.classList.remove('settle');dlg.style.setProperty('--drag','0px');
+    try{handle.setPointerCapture(e.pointerId);}catch{}
+  });
+  handle.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    let d=e.clientY-startY;if(d<0)d*=.5; // rubber-band when dragged above the resting position
+    dlg.style.setProperty('--drag',d+'px');
+    const dt=e.timeStamp-lastT;if(dt>0)vel=(e.clientY-lastY)/dt;
+    lastY=e.clientY;lastT=e.timeStamp;
+  });
+  const end=e=>{
+    if(!dragging)return;dragging=false;
+    try{handle.releasePointerCapture(e.pointerId);}catch{}
+    const d=Math.max(0,lastY-startY);
+    if(!blocked()&&(d>h*.25||vel>0.5)){dlg.classList.remove('dragging');dlg.style.removeProperty('--drag');dismissFn();}
+    else{dlg.style.setProperty('--drag','0px');dlg.classList.remove('dragging');dlg.classList.add('settle');setTimeout(()=>{dlg.classList.remove('settle');dlg.style.removeProperty('--drag');},300);}
+  };
+  handle.addEventListener('pointerup',end);
+  handle.addEventListener('pointercancel',end);
+  handle.addEventListener('lostpointercapture',end);
+}
+attachSheetDrag('sheet',closeSheet);
+attachSheetDrag('padSheet',closePad);
+attachSheetDrag('filterSheet',closeFiltersSheet);
 // ================= Track B — local profiles UI =================
 function renderProfileChip(){
   const chip=document.getElementById('profileChip');if(!chip)return;
