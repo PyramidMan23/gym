@@ -51,6 +51,16 @@
     if (at >= 0) list[at] = payload; else list.push(payload);
     return list;
   }
+  // Deleting a workout must also drop it from the pending queue AND its uploaded-file mapping —
+  // otherwise the next flush re-uploads a session the user deleted, and it reappears in the Drive
+  // backup (audit 2026-07-22). Also stops uploadedFiles growing forever on deleted ids.
+  function forget(sessionId) {
+    if (!sessionId) return;
+    updateConfig(c => {
+      c.queue = removeFromQueue(c.queue, sessionId);
+      if (c.uploadedFiles) delete c.uploadedFiles[sessionId];
+    });
+  }
   function removeFromQueue(queue, sessionId) {
     return (Array.isArray(queue) ? queue : []).filter(item => !(item && item.sessionId === sessionId));
   }
@@ -313,7 +323,7 @@
 
   return {
     // pure
-    sessionToPayload, enqueue, removeFromQueue, loadConfig, saveConfig, updateConfig,
+    sessionToPayload, enqueue, removeFromQueue, forget, loadConfig, saveConfig, updateConfig,
     // browser
     configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession, setUser,

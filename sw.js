@@ -1,4 +1,4 @@
-const CACHE='gym-w5-20260722';
+const CACHE='gym-w6-20260722';
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(self.clients.matchAll({type:'window'}).then(list=>list[0]?list[0].focus():self.clients.openWindow('./')));});
 // Update is user-controlled (release truth): no auto-skipWaiting on install — the waiting worker sits
 // until the app's "Update ready" pill posts SKIP_WAITING, so a refresh is never yanked mid-set.
@@ -10,4 +10,6 @@ self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return;
   // Only handle our OWN origin. Cross-origin requests (Google Identity script, Drive API) must go
   // straight to the network — intercepting them broke the OAuth sign-in and Drive calls (v10 bug).
   if(new URL(event.request.url).origin!==self.location.origin)return;
-  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));return response;}).catch(()=>caches.match('./index.html'))));});
+  // Cache only real successes: a transient 404/500 for an un-precached asset would otherwise be
+  // frozen into this cache version and served until the next build id (audit 2026-07-22).
+  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{if(response.ok&&response.type==='basic'){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy));}return response;}).catch(()=>caches.match('./index.html'))));});

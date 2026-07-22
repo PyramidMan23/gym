@@ -10,9 +10,22 @@
   // volume, exposures, or tolerated baselines) — Codex adversarial finding, council data-honesty rule.
   const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && !(String(set.weight ?? '') === '' && String(set.reps ?? '') === ''));
 
+  // Hold-type exercises (catalogue flag `timed:true`) store SECONDS in the `reps` field. The app
+  // registers those ids once at boot from the catalogue — the single source of truth — so every
+  // formula below agrees. A registry rather than a threaded predicate means no future caller can
+  // silently forget it. Empty default = every exercise is rep-based, i.e. the behaviour before
+  // holds existed (audit 2026-07-22: seconds were being maths'd as reps everywhere).
+  let TIMED_IDS = new Set();
+  const setTimedExercises = ids => { TIMED_IDS = new Set(Array.isArray(ids) ? ids : []); };
+  const isTimed = exerciseId => TIMED_IDS.has(exerciseId);
+  const bestSecondsOf = sets => sets.reduce((best, set) => Math.max(best, num(set.reps)), 0);
+
+  // kg × seconds is not volume. A hold's work is time under tension, carried on its own axis, so
+  // timed exercises add zero to the kg ledger rather than a fabricated number.
   function calculateVolume(session) {
     return (session?.exercises || []).reduce((total, exercise) =>
-      total + doneSets(exercise).reduce((sum, set) => sum + num(set.weight) * num(set.reps), 0), 0);
+      total + (isTimed(exercise?.exerciseId) ? 0
+        : doneSets(exercise).reduce((sum, set) => sum + num(set.weight) * num(set.reps), 0)), 0);
   }
 
   function createSession(routine, now = Date.now()) {
@@ -44,16 +57,20 @@
     return w > 0 && r > 0 ? w * (1 + r / 30) : 0;
   }
 
+  // e1RM is meaningless for a hold (a 60-second hang is not a 3× bodyweight single), so timed
+  // exercises carry a `seconds` best instead and leave e1rm at 0.
   function exerciseBest(history, exerciseId) {
-    let weight = 0, e1rm = 0;
+    const timed = isTimed(exerciseId);
+    let weight = 0, e1rm = 0, seconds = 0;
     for (const session of history || []) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
       for (const set of exercise ? doneSets(exercise) : []) {
         weight = Math.max(weight, num(set.weight));
-        e1rm = Math.max(e1rm, estimatedOneRepMax(set.weight, set.reps));
+        if (timed) seconds = Math.max(seconds, num(set.reps));
+        else e1rm = Math.max(e1rm, estimatedOneRepMax(set.weight, set.reps));
       }
     }
-    return { weight, e1rm };
+    return { weight, e1rm, seconds };
   }
 
   function detectPRs(history, session) {
@@ -63,6 +80,15 @@
       if (!completed.length) continue;
       const prior = exerciseBest(history, exercise.exerciseId);
       const bestWeight = Math.max(...completed.map(set => num(set.weight)), 0);
+      // A hold's record is TIME (or a heavier hold for the same style) — without this a bodyweight
+      // hang could never PR at all, since its weight and e1RM are permanently 0.
+      if (isTimed(exercise.exerciseId)) {
+        const bestSeconds = bestSecondsOf(completed);
+        if (bestSeconds > prior.seconds || bestWeight > prior.weight) {
+          records.push({ exerciseId: exercise.exerciseId, weight: bestWeight, seconds: bestSeconds });
+        }
+        continue;
+      }
       const bestE1rm = Math.max(...completed.map(set => estimatedOneRepMax(set.weight, set.reps)), 0);
       if (bestWeight > prior.weight || bestE1rm > prior.e1rm) {
         records.push({ exerciseId: exercise.exerciseId, weight: bestWeight, estimated1RM: Math.round(bestE1rm * 10) / 10 });
@@ -81,7 +107,9 @@
       if (!sets.length) continue;
       points.push({
         started: num(session.started),
-        e1rm: Math.round(Math.max(...sets.map(set => estimatedOneRepMax(set.weight, set.reps))) * 10) / 10,
+        // Timed exercises trend on best hold seconds; e1rm stays 0 so no caller plots a phantom 1RM.
+        e1rm: isTimed(exerciseId) ? 0 : Math.round(Math.max(...sets.map(set => estimatedOneRepMax(set.weight, set.reps))) * 10) / 10,
+        seconds: isTimed(exerciseId) ? bestSecondsOf(sets) : 0,
         topWeight: Math.max(...sets.map(set => num(set.weight)))
       });
     }
@@ -355,7 +383,10 @@
 
   function validateBackup(data, reservedIds) {
     const validObject = data && typeof data === 'object' && !Array.isArray(data);
-    const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession));
+    // An activeSession without an exercises ARRAY passes every later `.exercises[i]` deref straight
+    // into a TypeError — and importBackup persists before it renders, so a malformed one would brick
+    // the next boot. Shape-check it here, where the import can still be rejected cleanly.
+    const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession) && Array.isArray(data.activeSession.exercises));
     if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession) {
       throw new Error('Invalid Duck Gym backup');
     }
@@ -436,14 +467,20 @@
   // this exercise (same double-confirmation gate as lastConfirmedExposure — post !== 'worse' AND the
   // next-session flare check came back 'no'). Returns {weight, reps, rir} or null. rir is that session
   // exercise's stored last-set RIR (number, 'skip', or undefined when never captured).
-  function confirmedBasis(history, exerciseId) {
+  // opts.requireConfirmation=false (a lifter not training around an injury) drops the flare/post gate:
+  // with no injury to confirm tolerance against, any completed session is valid evidence. The gate is
+  // unchanged — and still the default — for anyone in injury mode.
+  function confirmedBasis(history, exerciseId, opts) {
+    const requireConfirmation = !(opts && opts.requireConfirmation === false);
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
       const sets = exercise ? doneSets(exercise) : [];
       if (!sets.length) continue;
       const checkin = session.checkin;
-      if (!checkin || checkin.post === 'worse' || checkin.flare !== false) continue;
+      if (requireConfirmation && (!checkin || checkin.post === 'worse' || checkin.flare !== false)) continue;
+      // Even off the injury gate, a session the lifter marked "worse" is never a progression basis.
+      if (!requireConfirmation && checkin && checkin.post === 'worse') continue;
       // Drop sets are deliberate back-off work — never the progression basis, and RIR evidence only
       // earns progression when it belongs to the basis (top NON-DROP) set (Codex P1: a drop's RIR 3
       // must not progress the heavy set). RIR is captured on the last non-drop set (app side), so on
@@ -460,18 +497,29 @@
   }
 
   // Conservative double progression. Never progresses without RIR evidence (council non-negotiable #3).
-  // opts: {repRange:[lo,hi]=[8,12], step=2.5, stepDown, block, lastRir}. Returns {weight,reps,rule} —
-  // or null when there is no prior confirmed data to build a target from.
+  // opts: {repRange:[lo,hi]=[8,12], step=2.5, secondsStep=5, stepDown, block, lastRir,
+  // requireConfirmation}. Returns {weight,reps,rule,timed} — or null when there is no prior confirmed
+  // data to build a target from. For a timed exercise `reps` is SECONDS and progression runs on that
+  // axis: telling someone to hang 8 seconds with +2.5 kg because 60 > 12 is not progression.
   function nextTarget(history, exerciseId, opts) {
     const o = opts || {};
     const range = Array.isArray(o.repRange) && o.repRange.length === 2 ? o.repRange : [8, 12];
     const [lo, hi] = [num(range[0]) || 8, num(range[1]) || 12];
     const step = num(o.step) || 2.5;
     if (o.block) return { weight: null, reps: null, rule: 'blocked' };
-    const basis = confirmedBasis(history, exerciseId);
+    const basis = confirmedBasis(history, exerciseId, o);
     if (!basis) return null;
-    if (o.stepDown) return { weight: clean(roundToStep(basis.weight * 0.9, step)), reps: basis.reps, rule: 'step-down' };
+    const timed = isTimed(exerciseId);
     const rir = o.lastRir !== undefined ? o.lastRir : basis.rir;
+    if (timed) {
+      const secondsStep = num(o.secondsStep) || 5;
+      // Step-down on a hold shortens the hold — scaling a bodyweight hang's load by 0.9 is 0 × 0.9.
+      if (o.stepDown) return { weight: basis.weight, reps: Math.max(1, Math.round(basis.reps * 0.9)), rule: 'step-down', timed: true };
+      if (rir == null || rir === 'skip') return { weight: basis.weight, reps: basis.reps, rule: 'repeat-no-rir', timed: true };
+      if (num(rir) <= 1) return { weight: basis.weight, reps: basis.reps, rule: 'hold', timed: true };
+      return { weight: basis.weight, reps: basis.reps + secondsStep, rule: 'add-time', timed: true };
+    }
+    if (o.stepDown) return { weight: clean(roundToStep(basis.weight * 0.9, step)), reps: basis.reps, rule: 'step-down' };
     // No RIR evidence (never captured or explicitly skipped) → repeat last, never progress.
     if (rir == null || rir === 'skip') return { weight: basis.weight, reps: basis.reps, rule: 'repeat-no-rir' };
     if (num(rir) <= 1) return { weight: basis.weight, reps: basis.reps, rule: 'hold' };
@@ -495,6 +543,11 @@
     const last3 = pres.slice(0, 3).reverse(); // oldest → newest
     if (last3.length === 3 && last3[0] < last3[1] && last3[1] < last3[2]) {
       return { block: false, stepDown: true, reason: 'Pain has risen three sessions running — stepping the load back today.' };
+    }
+    // Sustained pain never "rises", so the strictly-increasing test alone left a steady 6,6,6 with no
+    // protection at all — chronic mid-range pain is exactly when loading should back off (audit 2026-07-22).
+    if (last3.length === 3 && last3.every(p => p >= 5)) {
+      return { block: false, stepDown: true, reason: 'Pain has stayed at 5+ for three sessions — stepping the load back today.' };
     }
     return { block: false, stepDown: false, reason: '' };
   }
@@ -579,6 +632,7 @@
 
   // Rep records: heaviest completed weight at each rep count 1..10 across history (Wave 2). Only rows that exist.
   function repRecords(history, exerciseId) {
+    if (isTimed(exerciseId)) return []; // "heaviest at 8 reps" is not a thing for a hold — seconds aren't reps
     const best = {};
     for (const session of history || []) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
@@ -610,5 +664,5 @@
     return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
   }
 
-  return { doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
+  return { setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
 });

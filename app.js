@@ -1,6 +1,9 @@
 'use strict';
 
 const Core = DuckGymCore;
+// Hold-type exercises store SECONDS in the `reps` field. Register them with Core once, here, so
+// volume/e1RM/PR/progression all agree — exercises.js loads before app.js (see index.html).
+Core.setTimedExercises((typeof DUCK_EXERCISES !== 'undefined' ? DUCK_EXERCISES : []).filter(e => e.timed).map(e => e.id));
 const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
 const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
 const Profiles = (typeof DuckGymProfiles !== 'undefined') ? DuckGymProfiles : null;
@@ -41,6 +44,10 @@ function readState(){
     const saved=JSON.parse(localStorage.getItem(stateKey));
     if(saved?.version===2){
       const preferences={...emptyState().preferences,...saved.preferences,...Core.normalizeActivityGoals(saved.preferences)};
+      // Injury mode is new (2026-07-22). A profile that already has training history was using the
+      // pain check-in and its tolerance gate, so it keeps them; a brand-new profile starts without.
+      // Never silently disable someone's existing safety net.
+      if(preferences.injuryMode===undefined)preferences.injuryMode=Array.isArray(saved.history)&&saved.history.length>0;
       return {...emptyState(),...saved,preferences};
     }
   }catch{}
@@ -127,6 +134,8 @@ function animateNumbers(scope){
 addEventListener('scroll',()=>document.body.classList.toggle('scrolled',scrollY>10),{passive:true});
 function toggleNavCondense(on){state.preferences.navCondense=!!on;saveState();document.body.classList.toggle('nav-condense',!!on);}
 function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
+// Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
+function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on — pain check-ins added':'Injury mode off');}
 try{if(state.preferences.navCondense===true)document.body.classList.add('nav-condense');}catch{}
 function navigate(view){
   if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
@@ -141,7 +150,12 @@ function navigate(view){
     document.body.classList.toggle('workout-active',view==='workout');
     renderView(view);
   };
-  if(!REDUCED_MOTION&&document.startViewTransition){document.startViewTransition(swap);}else swap();
+  // Navigating again before a transition settles SKIPS it, rejecting these promises. Nothing awaits
+  // them, so an unhandled rejection lands in the console on any fast nav tap (audit 2026-07-22).
+  if(!REDUCED_MOTION&&document.startViewTransition){
+    const vt=document.startViewTransition(swap);
+    vt.finished?.catch(()=>{});vt.ready?.catch(()=>{});vt.updateCallbackDone?.catch(()=>{});
+  }else swap();
   const navIdx={today:0,train:1,library:2,progress:3}[view];
   const navCursor=document.getElementById('navCursor');
   if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
@@ -209,7 +223,7 @@ function routineStripCard(routine){
 }
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
-  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} sets</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
+  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} set${summary.completedSets===1?'':'s'}</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
 }
 
 // Coach surface (Today): one active source only — remote "Coach's block" when a plan validates,
@@ -521,21 +535,22 @@ function openMuscleDetail(muscle){
 // Opened from Library rows and the workout exercise head — one lean screen, no tabs.
 function openExerciseDetail(id){
   const item=exerciseById(id);if(!item)return;
+  const timed=!!item.timed; // a hold trends on best TIME; an estimated 1RM from a hang is meaningless
   const trend=Core.exerciseTrend(state.history,id);
-  const chart=trend.length>=2?chartSvg(trend.map(p=>({t:p.started,v:p.e1rm})),`Estimated one rep max trend for ${item.name}`):`<div class="locked-card card"><strong>Trend builds with data</strong>Log this lift across a few sessions and its estimated-1RM line appears here.</div>`;
+  const chart=trend.length>=2?chartSvg(trend.map(p=>({t:p.started,v:timed?p.seconds:p.e1rm})),`${timed?'Best hold time':'Estimated one rep max'} trend for ${item.name}`):`<div class="locked-card card"><strong>Trend builds with data</strong>Log this ${timed?'hold':'lift'} across a few sessions and its ${timed?'best-time':'estimated-1RM'} line appears here.</div>`;
   const look=muscleLookup(id),mv=look?Core.muscleVolume(state.history,muscleLookup):{};
   const weekDirect=look&&mv[look.primary]?.by?.[id]?.direct||0;
   const records=Core.repRecords(state.history,id);
   const recordRows=records.length?records.map(r=>`<div class="rr-cell"><strong>${r.weight}</strong><small>${r.reps} rep${r.reps===1?'':'s'}</small></div>`).join(''):'<div class="empty-card card">No completed sets yet.</div>';
   const recent=Core.recentSessionsFor(state.history,id,3);
-  const recentRows=recent.length?recent.map(s=>`<div class="selected-row"><span><strong>${formatDate(s.started)}</strong><small style="display:block;color:var(--muted)">${s.sets.map(x=>`${x.weight||0} kg × ${x.reps||0}`).join(' · ')}</small></span></div>`).join(''):'<div class="empty-card card">No sessions logged yet.</div>';
+  const recentRows=recent.length?recent.map(s=>`<div class="selected-row"><span><strong>${formatDate(s.started)}</strong><small style="display:block;color:var(--muted)">${s.sets.map(x=>timed?`${x.weight?`${x.weight} kg × `:''}${x.reps||0} s`:`${x.weight||0} kg × ${x.reps||0}`).join(' · ')}</small></span></div>`).join(''):'<div class="empty-card card">No sessions logged yet.</div>';
   const cue=state.exerciseCues?.[id];
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">EXERCISE</p><h2>${esc(item.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
   <p class="detail-equip">${esc(item.equipment||'')}${item.muscle?` · ${esc(item.muscle)}`:''}</p>
   ${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}
   <div class="detail-stat"><strong class="hero-num">${weekDirect}</strong><span>DIRECT SET${weekDirect===1?'':'S'} THIS WEEK</span></div>
-  <div class="section-heading"><div><p class="kicker">EST. 1RM</p><h2>Strength trend</h2></div></div>${chart}
-  <div class="section-heading"><div><p class="kicker">REP RECORDS</p><h2>Heaviest at each rep</h2></div></div><div class="rr-grid">${recordRows}</div>
+  <div class="section-heading"><div><p class="kicker">${timed?'BEST HOLD':'EST. 1-REP MAX'}</p><h2>${timed?'Hold-time trend':'Strength trend'}</h2></div></div>${chart}
+  ${timed?'':`<div class="section-heading"><div><p class="kicker">REP RECORDS</p><h2>Heaviest at each rep</h2></div></div><div class="rr-grid">${recordRows}</div>`}
   <div class="section-heading"><div><p class="kicker">RECENT</p><h2>Last sessions</h2></div></div><div class="selected-list">${recentRows}</div>`;
   document.getElementById('sheet').showModal();
 }
@@ -600,7 +615,7 @@ function renderPrFeed(){
   const feed=Core.prFeed(state.history,8);
   document.getElementById('prFeed').innerHTML=feed.length?feed.map(pr=>{
     const item=exerciseById(pr.exerciseId);
-    const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
+    const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
     return `<div class="pr-row"><span class="pr-mark notched">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
   }).join(''):`<div class="empty-card card"><strong>No records yet</strong>Beat a previous best and it lands here automatically.</div>`;
 }
@@ -705,15 +720,18 @@ function renderWorkout(){
 }
 // Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable — friction kills habits.
 function checkinMarkup(session){
+  // The whole loop is rehab machinery. Someone with no injury has no "problem area" to rate, and
+  // being asked on session one reads like a medical form, not a training app (audit 2026-07-22).
+  if(!injuryMode())return '';
   if(!session.checkin||session.checkin.dismissed)return '';
   const last=state.history[0],askFlare=Boolean(last?.checkin&&last.checkin.flare==null);
   const askPre=session.checkin.pre==null;
   if(!askPre&&!askFlare)return '';
-  const scale=askPre?`<p>How is the problem area today?<small>0 = nothing, 10 = worst. Optional.</small></p><div class="checkin-scale">${Array.from({length:11},(_,n)=>`<button onclick="setPreCheckin(${n})" aria-label="Rate ${n} out of 10">${n}</button>`).join('')}</div>`:'';
+  const scale=askPre?`<p>Any aches or niggles today?<small>0 = feel great, 10 = don't train today. Optional — skip if all good.</small></p><div class="checkin-scale">${Array.from({length:11},(_,n)=>`<button onclick="setPreCheckin(${n})" aria-label="Rate ${n} out of 10">${n}</button>`).join('')}</div>`:'';
   const flare=askFlare?`<div class="checkin-row" style="margin-top:${askPre?'12px':'0'}"><button onclick="setFlare(false)">No flare since last session</button><button onclick="setFlare(true)">Had a flare</button></div>`:'';
   return `<div class="checkin-card" id="checkinCard">${scale}${flare}<button class="checkin-skip" onclick="dismissCheckin()">Skip</button></div>`;
 }
-function setPreCheckin(n){state.activeSession.checkin.pre=n;saveState();renderWorkout();if(n>=7)showToast('Noted. Keep loads easy today.');}
+function setPreCheckin(n){if(!state.activeSession?.checkin)return;state.activeSession.checkin.pre=n;saveState();renderWorkout();if(n>=7)showToast('Noted. Keep loads easy today.');}
 function setFlare(had){
   const last=state.history[0];if(last?.checkin)last.checkin.flare=had;
   saveState();renderWorkout();
@@ -744,21 +762,28 @@ function renderWorkoutMetrics(){
 }
 // Wave 1: the session's pain controller and per-exercise progression target — pure Core, surfaced here.
 function sessionPainGate(){return Core.painGate(state.history,state.activeSession?.checkin?.pre);}
-function targetFor(exerciseId,pg){return Core.nextTarget(state.history,exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!(pg&&pg.block),stepDown:!!(pg&&pg.stepDown)});}
-// Human phrasing for a target result (null = no confirmed basis yet).
+// Injury mode carries the whole rehab layer: the pain check-in, the flare question, and the
+// tolerance gate that only lets a confirmed pain-free session become a progression basis. Someone
+// not training around an injury has nothing to confirm tolerance against, so their completed
+// sessions are evidence on their own — otherwise they'd never see a target at all (audit 2026-07-22).
+function injuryMode(){return state.preferences.injuryMode===true;}
+function targetFor(exerciseId,pg){return Core.nextTarget(state.history,exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!(pg&&pg.block),stepDown:!!(pg&&pg.stepDown),requireConfirmation:injuryMode()});}
+// Human phrasing for a target result (null = no confirmed basis yet). Timed holds read in seconds.
 function formatTarget(t){
   if(!t)return '';
   if(t.rule==='blocked')return 'Train around it today';
+  if(t.timed)return `${t.weight?`${t.weight} kg × `:''}${t.reps} s`;
   return `${t.weight} kg × ${t.reps}`;
 }
-const RULE_WORD={'add-rep':'build reps','add-load':'load up','hold':'hold','repeat-no-rir':'repeat','step-down':'step-down','blocked':'blocked'};
+const RULE_WORD={'add-rep':'build reps','add-load':'load up','add-time':'add time','hold':'hold','repeat-no-rir':'repeat','step-down':'step-down','blocked':'blocked'};
 function workoutExerciseMarkup(exercise,index){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const timed=!!item?.timed; // hold-type exercise: the "reps" field stores seconds
   const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>timed?`${s.weight?`${s.weight} kg × `:''}${s.reps} s`:`${s.weight||'—'} kg × ${s.reps}`).join(' · ')}`:'First time — set your benchmark';
   // Neutral facts only — the app never prescribes a dose (council 2026-07-18).
-  const confirmed=Core.lastConfirmedExposure(state.history,exercise.exerciseId);
-  const confirmedText=confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${confirmed.topReps} reps · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':'');
+  // "Confirmed tolerated" is rehab language about an injury — only meaningful in injury mode.
+  const confirmed=injuryMode()?Core.lastConfirmedExposure(state.history,exercise.exerciseId):null;
+  const confirmedText=!injuryMode()?'':(confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${timed?`${confirmed.topReps} s`:`${confirmed.topReps} reps`} · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':''));
   // Progression target line — a second line under "Last time", with a "why?" that opens the evidence sheet.
   const pg=sessionPainGate(),target=targetFor(exercise.exerciseId,pg);
   const blocked=target&&target.rule==='blocked';
@@ -791,7 +816,8 @@ function rirRowMarkup(exercise,index,show){
   const chips=RIR_CHIPS.map(([v,l])=>`<button class="rir-chip" onclick="setRir(${index},'${v}')" aria-label="${v==='skip'?'Skip':v+' reps'} left in tank">${l}</button>`).join('');
   // Honest label: with drop sets present, the RIR refers to the last WORKING (non-drop) set.
   const label=(exercise.sets||[]).some(s=>s.drop)?'Last working set — reps left in tank:':'Last set — reps left in tank:';
-  return `<div class="rir-row"><span class="rir-label">${label}</span><div class="rir-chips">${chips}</div></div>`;
+  // "Reps in reserve" is lifting jargon; the app asks a plain question instead of assuming it.
+  return `<div class="rir-row"><span class="rir-label">${label}<small class="rir-help">How many more could you have done? 0 = nothing left, 4+ = easy</small></span><div class="rir-chips">${chips}</div></div>`;
 }
 function setRir(index,value){
   const ex=state.activeSession?.exercises[index];if(!ex)return;
@@ -803,22 +829,25 @@ function changeRir(index){const ex=state.activeSession?.exercises[index];if(!ex)
 function openTargetWhy(index){
   const ex=state.activeSession?.exercises[index];if(!ex)return;
   const item=exerciseById(ex.exerciseId);
-  const pg=sessionPainGate(),target=Core.nextTarget(state.history,ex.exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!pg.block,stepDown:!!pg.stepDown});
-  const basis=Core.confirmedBasis(state.history,ex.exerciseId);
+  const timed=!!item?.timed;
+  const pg=sessionPainGate(),target=Core.nextTarget(state.history,ex.exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!pg.block,stepDown:!!pg.stepDown,requireConfirmation:injuryMode()});
+  const basis=Core.confirmedBasis(state.history,ex.exerciseId,{requireConfirmation:injuryMode()});
   let body;
   if(target&&target.rule==='blocked'){
     body=`<div class="why-block" role="alert"><span class="why-block-glyph" aria-hidden="true">✕</span><p>${esc(pg.reason)}</p></div>`;
   }else if(!target){
-    body=`<p class="why-sentence">No confirmed-tolerated set yet, so there's no target — find an easy working load and log it. A target appears once a session is confirmed pain-free next time.</p>`;
+    body=`<p class="why-sentence">${injuryMode()?'No confirmed-tolerated set yet, so there\'s no target — find an easy working load and log it. A target appears once a session is confirmed pain-free next time.':'No logged set yet, so there\'s no target — find an easy working load and log it. A target appears from your own numbers next time.'}</p>`;
   }else{
     const rirTxt=basis?(basis.rir==null?'no RIR was logged':basis.rir==='skip'?'RIR was skipped':`you left ${basis.rir==='4'||basis.rir===4?'4+':basis.rir} in the tank`):'no basis';
-    const evidence=basis?`Last confirmed set: ${esc(basis.weight||'—')} kg × ${esc(basis.reps)}, and ${esc(rirTxt)}.`:'';
+    const basisTxt=basis?(timed?`${basis.weight?`${basis.weight} kg × `:''}${basis.reps} s`:`${basis.weight||'—'} kg × ${basis.reps}`):'';
+    const evidence=basis?`Last ${injuryMode()?'confirmed ':''}set: ${esc(basisTxt)}, and ${esc(rirTxt)}.`:'';
     const RULE_SENTENCE={
       'add-rep':'Reps are below the top of your range, so hold the load and add a rep.',
       'add-load':'You hit the top of the range with reps to spare, so add one load step and reset reps.',
+      'add-time':'You had time left in the tank, so hold the same load and add 5 seconds.',
       'hold':'Reps in reserve were low (0–1), so repeat the same load — no progression today.',
       'repeat-no-rir':'No RIR evidence, so this stays conservative — repeat last, never guess up.',
-      'step-down':'Pain has been rising, so the load steps back about 10% today.'
+      'step-down':'Pain has been elevated, so the load steps back about 10% today.'
     };
     body=`<p class="why-evidence">${evidence}</p><p class="why-sentence">${esc(RULE_SENTENCE[target.rule]||'')}</p>`;
   }
@@ -839,11 +868,13 @@ function adoptLast(exerciseIndex){
 }
 // ponytail: side-tagging = tap the set number, cycling both→L→R. Zero extra columns; feeds the future L/R balance view.
 function cycleSide(exerciseIndex,setIndex){
-  const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];
+  const set=state.activeSession?.exercises[exerciseIndex]?.sets[setIndex];if(!set)return;
   set.side=set.side==='L'?'R':set.side==='R'?undefined:'L';
   saveState();renderWorkout();
 }
-function updateSet(exerciseIndex,setIndex,key,value){const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set[key]=value;delete set.prefilled;saveState();renderWorkoutMetrics();}
+// Guarded: a keyboard-mode cell fires onchange on BLUR, which can land after the workout was
+// finished or cancelled and activeSession is already null (audit 2026-07-22).
+function updateSet(exerciseIndex,setIndex,key,value){const set=state.activeSession?.exercises[exerciseIndex]?.sets[setIndex];if(!set)return;set[key]=value;delete set.prefilled;saveState();renderWorkoutMetrics();}
 // Completing a set writes its real numbers, then pre-fills the NEXT still-empty incomplete set with
 // those numbers (Core.carryForward) so an unchanged set becomes a genuine one-tap. Prefill only lands
 // in a set the lifter hasn't touched (both fields empty) — never overwrites entered data.
@@ -854,6 +885,7 @@ function carryForwardExercise(exercise){
   if(pf&&sets[j].weight===''&&sets[j].reps===''){sets[j].weight=String(pf.weight);sets[j].reps=String(pf.reps);sets[j].prefilled=true;}
 }
 function toggleSet(exerciseIndex,setIndex){
+  if(!state.activeSession?.exercises[exerciseIndex]?.sets[setIndex])return;
   if(state.activeSession&&prCelebratedSession!==state.activeSession){prCelebratedSession=state.activeSession;prCelebrated.clear();}
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
   if(set.done){delete set.prefilled;
@@ -903,7 +935,7 @@ function celebratePR(exerciseIndex,setIndex,val){
 function addSet(exerciseIndex,silent=false){
   // Sets are born EMPTY; carry-forward (on completing the prior set) is the sole prefill path, so a
   // prefilled value is always the flagged/muted kind — never a silent copy the lifter didn't choose.
-  const ex=state.activeSession.exercises[exerciseIndex];
+  const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
   ex.sets.push({weight:'',reps:'',done:false});
   if(!silent){carryForwardExercise(ex);saveState();renderWorkout();} // manual add prefills if the prior set is already done
   else saveState();
@@ -911,7 +943,7 @@ function addSet(exerciseIndex,silent=false){
 // Drop set: appended after the last completed set, prefilled at −20% (rounded to 0.5) and flagged.
 // Counts as a normal hard set everywhere (volume, PRs, muscle ledgers) — the flag is presentation only.
 function addDropSet(exerciseIndex){
-  const ex=state.activeSession.exercises[exerciseIndex];
+  const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
   const lastDone=[...ex.sets].reverse().find(s=>s.done);
   if(!lastDone){showToast('Complete a set first — a drop set follows it');return;}
   const w=Number(lastDone.weight);
@@ -1062,7 +1094,7 @@ function openReceipt(session){
   const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',`${compact(summary.volume)} kg`],['PRs',prs.length]];
   const prBlocks=prs.map(pr=>{
     const item=exerciseById(pr.exerciseId);
-    const parts=[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1RM`:''].filter(Boolean).join(' · ')||'New best';
+    const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
     return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
   }).join('');
   // NEXT SESSION prescription — the engagement anchor. Run against the just-finished history state.
@@ -1134,12 +1166,13 @@ function openRoutineMenu(id){
 function duplicateRoutine(id){const routine=state.routines.find(r=>r.id===id);state.routines.unshift({...routine,id:`r${Date.now()}`,name:`${routine.name} copy`,exerciseIds:[...routine.exerciseIds]});saveState();closeSheet();renderTrain();showToast('Routine duplicated');}
 function deleteRoutine(id){state.routines=state.routines.filter(r=>r.id!==id);saveState();closeSheet();renderTrain();showToast('Routine deleted');}
 function openWorkoutExerciseMenu(index){
+  if(!state.activeSession?.exercises[index])return;
   const exercise=state.activeSession.exercises[index],name=exerciseById(exercise.exerciseId)?.name||'Exercise';
   const cue=state.exerciseCues?.[exercise.exerciseId];
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square — right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule — clear it when it stops earning its place.</small></div>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below — no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
 }
 function saveExerciseNote(index){
-  const exercise=state.activeSession.exercises[index];
+  const exercise=state.activeSession?.exercises[index];if(!exercise)return;
   exercise.notes=document.getElementById('exerciseNote').value.trim();
   const cueText=document.getElementById('exerciseCue').value.trim();
   if(!state.exerciseCues)state.exerciseCues={};
@@ -1147,13 +1180,24 @@ function saveExerciseNote(index){
   else delete state.exerciseCues[exercise.exerciseId];
   saveState();closeSheet();renderWorkout();showToast('Saved');
 }
-function removeWorkoutExercise(index){state.activeSession.exercises.splice(index,1);saveState();closeSheet();renderWorkout();}
+function removeWorkoutExercise(index){
+  if(!state.activeSession)return;
+  state.activeSession.exercises.splice(index,1);
+  // A running rest belongs to an exercise by INDEX — after a splice that index points at a different
+  // exercise (or past the end), so rest-end would highlight the wrong row. Re-anchor it.
+  if(restExerciseIndex===index)restExerciseIndex=Math.min(index,state.activeSession.exercises.length-1);
+  else if(restExerciseIndex>index)restExerciseIndex--;
+  saveState();closeSheet();renderWorkout();
+}
 // Reorder: swap with the neighbour. supersetWithNext travels with its exercise, so a moved pair-first
 // simply pairs with its new neighbour — visible immediately, one more tap fixes it if unwanted.
 function moveWorkoutExercise(index,delta){
   const exs=state.activeSession?.exercises;if(!exs)return;
   const j=index+delta;if(j<0||j>=exs.length)return;
   [exs[index],exs[j]]=[exs[j],exs[index]];
+  // Follow the moved exercise so a rest timer started before the move still lands on it.
+  if(restExerciseIndex===index)restExerciseIndex=j;
+  else if(restExerciseIndex===j)restExerciseIndex=index;
   saveState();closeSheet();renderWorkout();
 }
 
@@ -1166,7 +1210,11 @@ function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;const summary=Core.summarizeSession(session);
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
 }
-function deleteHistory(id){state.history=state.history.filter(s=>s.id!==id);saveState();closeSheet();renderProgress();showToast('Workout deleted');}
+function deleteHistory(id){
+  state.history=state.history.filter(s=>s.id!==id);
+  if(Sync&&Sync.forget)try{Sync.forget(id);}catch{} // never let a deleted session re-upload later
+  saveState();closeSheet();renderProgress();showToast('Workout deleted');
+}
 
 function openRingGoals(){
   const p=state.preferences;
@@ -1182,7 +1230,7 @@ function saveRingGoals(){
 function openSettings(){
   // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
   if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only — iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down — buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only — iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down — buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
@@ -1191,13 +1239,13 @@ function syncSettingsMarkup(){
   const st=Sync.status(),cfg=Sync.loadConfig(),beighton=Sync.getBeighton();
   const conn=st.configured?(st.connected?'Connected':'Configured — not connected'):'Not connected';
   return `<div class="section-heading"><div><p class="kicker">SYNC & COACH</p><h2>Google Drive</h2></div></div>
-    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional. Syncs sessions to a private <strong>Gym-Sync</strong> folder and reads your coach's plan back. Scope is limited to files this app creates.</p>
-    <div class="field"><label>OAUTH CLIENT ID</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"></div>
+    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional and advanced — it needs a Google Cloud client ID from whoever set this app up. <strong>Your training is saved on this phone either way</strong>; for your own copy use <em>Download backup</em> above. Syncs to a private <strong>Gym-Sync</strong> folder; scope is limited to files this app creates.</p>
+    <div class="field"><label>OAUTH CLIENT ID (FROM THE APP OWNER)</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"></div>
     <div class="stack">
       ${st.connected?`<button class="secondary-button full-button" onclick="disconnectSync()">Disconnect</button>`:`<button class="secondary-button full-button" ${st.configured?'':'disabled style="opacity:.5"'} onclick="connectSync()">Connect Google Drive</button>`}
     </div>
     <p style="color:var(--taupe);font-size:11px;margin:8px 2px 0">Status: ${esc(conn)}${st.queued?` · ${st.queued} session${st.queued===1?'':'s'} queued`:''}</p>
-    <label class="beighton-toggle"><span><strong>Beighton features</strong><small>Off until your Beighton hypermobility filming is done. Unlocking accepts coach plans that use those extra capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`;
+    ${injuryMode()?`<label class="beighton-toggle"><span><strong>Hypermobility features</strong><small>For lifters with a Beighton hypermobility assessment — unlocking accepts coach plans that use those extra joint-safety capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`:''}`;
 }
 function saveSyncClientId(value){if(Sync)Sync.setClientId(value);}
 function connectSync(){
