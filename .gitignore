@@ -12,3 +12,6 @@ Thumbs.db
 # Editor and dependency folders
 .vscode/
 node_modules/
+
+# Regenerable design-review captures (node tests/surface-shots.mjs)
+artifacts/design-qa/surfaces/
