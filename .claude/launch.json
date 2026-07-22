@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gym",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "4180", "C:/Users/markh/Claude-Workspace/gym"],
+      "port": 4180
+    }
+  ]
+}
