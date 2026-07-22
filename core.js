@@ -313,6 +313,18 @@
   // Everything a search query can hit: name + muscle(s) + equipment string + family + pattern/equip tags.
   const searchText = e => [e?.name, ...exMuscles(e), e?.equipment, e?.family, ...exPatterns(e), ...exEquip(e)]
     .filter(Boolean).join(' ').toLowerCase();
+  // Search is punctuation-insensitive. The catalogue spells things "Pull-Up", but people type
+  // "pull up" or "pullup" — and a raw substring match returned NOTHING for the three most common
+  // searches in the app (found 2026-07-22, after a friend of Mark's couldn't find an exercise).
+  // `loose` collapses punctuation to spaces; `tight` removes separators entirely.
+  const loose = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const tight = s => loose(s).replace(/ /g, '');
+  const queryHits = (exercise, query) => {
+    const lq = loose(query);
+    if (!lq) return true;
+    const hay = searchText(exercise);
+    return loose(hay).includes(lq) || tight(hay).includes(tight(query));
+  };
 
   // One exercise vs one criteria set — muscle (single) + patterns/equip/families (multi) + query, all AND-combined.
   function matchesExercise(exercise, criteria) {
@@ -324,20 +336,20 @@
     if (eqs.length) { const ee = exEquip(exercise); if (!eqs.some(q => ee.includes(q))) return false; }
     const fams = c.families || [];
     if (fams.length && (!exercise.family || !fams.includes(exercise.family))) return false;
-    const q = (c.query || '').trim().toLowerCase();
-    if (q && !searchText(exercise).includes(q)) return false;
+    if ((c.query || '').trim() && !queryHits(exercise, c.query)) return false;
     return true;
   }
 
-  // Relevance for query-time ranking: name-prefix > name-substring > any-tag match.
+  // Relevance for query-time ranking: name-prefix > name-substring > any-tag match. Ranking uses the
+  // same punctuation-insensitive forms as matching, so "pull up" ranks Pull-Up like "pull-up" does.
   function searchScore(exercise, query) {
-    const q = (query || '').trim().toLowerCase();
-    if (!q) return 0;
-    const name = (exercise?.name || '').toLowerCase();
-    if (name.startsWith(q)) return 3;
-    if (name.includes(q)) return 2;
-    if (searchText(exercise).includes(q)) return 1;
-    return 0;
+    const lq = loose(query);
+    if (!lq) return 0;
+    const name = loose(exercise?.name);
+    if (name.startsWith(lq) || tight(exercise?.name).startsWith(tight(query))) return 3;
+    if (name.includes(lq)) return 2;
+    if (tight(exercise?.name).includes(tight(query))) return 2;
+    return queryHits(exercise, query) ? 1 : 0;
   }
 
   // Filter + order the catalogue: relevance-ranked while a query is present, otherwise deterministic alphabetical.

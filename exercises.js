@@ -244,6 +244,9 @@ const DUCK_EXERCISES = [
   {id:'cs31',name:'Jump Squat',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight squat with a jump (power)'},
   {id:'cs33',name:'Crow Pose',muscle:'Calisthenics',muscles:['Calisthenics','Core','Shoulders'],patterns:['Mobility'],family:'Balance',equip:['Bodyweight'],equipment:'Balancing on the hands, knees on the elbows'},
   {id:'cs34',name:'Wall Walk',muscle:'Calisthenics',muscles:['Calisthenics','Shoulders','Core'],patterns:['Vertical Push'],family:'Handstand',equip:['Bodyweight'],equipment:'Feet up the wall, walking to a handstand'},
+  // Parallettes aren't in the fixed equip vocab, so the kit lives in the human-readable string —
+  // search covers it (same shape as ch19 Bar Dip). timed: an L-sit is a hold, logged in seconds.
+  {id:'cs35',timed:true,name:'Parallette L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Arms','Legs'],patterns:['Isolation'],family:'L-Sit',equip:['Bodyweight'],equipment:'Parallettes / dip bars / floor — support hold, legs straight out (advanced)'},
   // ---- Stretches (neutral — no corrective claims; see council 2026-07-18) ----
   {id:'st1',name:'Standing Hamstring Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
   {id:'st2',name:'Pigeon Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
