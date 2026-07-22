@@ -190,6 +190,31 @@ test('sync payload carries the timed flag so the brain ingest cannot misread sec
   } finally { delete global.DUCK_EXERCISES; }
 });
 
+test('cloud backup ships usable but stays OFF until the user opts in', () => {
+  const Sync = require('../sync.js');
+  const store = {};
+  global.localStorage = {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: k => { delete store[k]; }
+  };
+  try {
+    const fresh = Sync.loadConfig();
+    assert.ok(fresh.clientId, 'a built-in client id ships so Connect needs no setup');
+    assert.equal(fresh.enabled, false, 'but nothing is enabled until consent');
+    assert.equal(Sync.status().configured, false, 'so no background sync can run');
+    assert.equal(Sync.status().available, true, 'while Connect is still offerable');
+    // An empty stored id must fall back to the built-in one, not disable backup.
+    Sync.updateConfig(c => { c.clientId = ''; });
+    assert.equal(Sync.loadConfig().clientId, Sync.DEFAULT_CLIENT_ID);
+    // A profile that connected before this flag existed is recognised by its folderId.
+    store['gymSyncV1'] = JSON.stringify({ clientId: 'x', folderId: 'fold-1' });
+    assert.equal(Sync.loadConfig().enabled, true, 'an existing connected profile keeps working');
+    store['gymSyncV1'] = JSON.stringify({ clientId: 'x' });
+    assert.equal(Sync.loadConfig().enabled, false, 'one that never connected stays off');
+  } finally { delete global.localStorage; }
+});
+
 // ---- sync: deleting a workout must not leave it queued ----
 test('Sync.forget drops a deleted session from the queue and its file map', () => {
   const Sync = require('../sync.js');

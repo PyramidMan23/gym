@@ -61,7 +61,9 @@ test('flush resuming after setUser never uploads or records into the new profile
 test('delayed ensureFolder (via connect path) never writes a folderId into the new profile', async () => {
   store.clear();
   Sync.setUser('gym:user:p_aaa:sync');
-  localStorage.setItem('gym:user:p_aaa:sync', JSON.stringify({ clientId: 'x', queue: [{ sessionId: 's9' }] }));
+  // enabled:true = a profile that has opted into cloud backup, which is what makes flush run at all
+  // (sync is opt-in since 2026-07-22; a built-in client id alone must never trigger network work).
+  localStorage.setItem('gym:user:p_aaa:sync', JSON.stringify({ clientId: 'x', enabled: true, queue: [{ sessionId: 's9' }] }));
   Sync._test.grantToken('tok-a', 3600000);
   let release;
   global.fetch = () => new Promise(resolve => { release = () => resolve({ ok: true, json: async () => ({ id: 'folder-new' }) }); });

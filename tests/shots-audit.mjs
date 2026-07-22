@@ -57,6 +57,23 @@ try {
     await evaluate(`closeReceipt(); true`);
     await sleep(400);
     made.push(await shot(`progress-${scheme}`));
+    // Goals: the headline new feature — board, achieved state, and the Today strip.
+    await evaluate(`(()=>{const now=Date.now();
+      state.bodyweight=[{t:now-86400000,kg:90}];
+      state.goals=[
+        {id:'gA',type:'strength',exerciseId:'ch1',target:120,startValue:60,created:now,achievedAt:null},
+        {id:'gB',type:'consistency',target:3,startValue:null,created:now,achievedAt:null},
+        {id:'gC',type:'bodyweight',target:80,startValue:90,created:now,achievedAt:now}];
+      saveState();navigate('progress');renderProgress();return true})()`);
+    await sleep(300);
+    made.push(await shot(`goals-${scheme}`));
+    await evaluate(`(()=>{navigate('today');renderToday();return true})()`);
+    await sleep(300);
+    made.push(await shot(`today-goal-${scheme}`));
+    await evaluate(`openGoalSheet(); true`);
+    await waitFor(`document.getElementById('sheet').open`);
+    made.push(await shot(`goal-sheet-${scheme}`));
+    await evaluate(`closeSheet(); true`); await sleep(200);
     // Settings: injury toggle + reworded sync copy.
     await evaluate(`openSettings(); true`);
     await waitFor(`document.getElementById('sheet').open`);

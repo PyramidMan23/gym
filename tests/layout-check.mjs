@@ -214,7 +214,7 @@ try {
   // rules as every other sheet, and it MUST be display:none when closed (dialog [open] scoping).
   for (const w of [320, 360, 390]) {
     await setWidth(w);
-    await evaluate(`(()=>{if(state.activeSession){state.activeSession=null;saveState();} navigate('today'); startQuickWorkout(); addExerciseToWorkout('b0'); openPad(0,0,'weight');})(); true`);
+    await evaluate(`(()=>{if(state.activeSession){state.activeSession=null;saveState();} navigate('today'); startQuickWorkout(); addExerciseToWorkout('ch1'); openPad(0,0,'weight');})(); true`);
     await waitFor(`document.getElementById('padSheet').open && !!document.getElementById('padDisplay')`);
     await evaluate(PAGE_HELPERS);
     await auditSheet(`pad-sheet@${w}`, '#padSheet', '#padSheet .sheet-scroll');
@@ -227,7 +227,7 @@ try {
   // 5) Finish-workout confirm dialog + session receipt.
   for (const w of [360, 390]) {
     await setWidth(w);
-    await evaluate(`(()=>{navigate('today'); startQuickWorkout(); addExerciseToWorkout('b0');
+    await evaluate(`(()=>{navigate('today'); startQuickWorkout(); addExerciseToWorkout('ch1');
       const inp=document.querySelectorAll('.set-row .set-input'); inp[0].value='60'; inp[0].dispatchEvent(new Event('change',{bubbles:true}));
       inp[1].value='10'; inp[1].dispatchEvent(new Event('change',{bubbles:true})); document.querySelector('.set-done').click();})(); true`);
     await waitFor(`document.querySelector('.set-row.completed')`);

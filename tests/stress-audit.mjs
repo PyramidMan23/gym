@@ -84,14 +84,14 @@ try {
 
   // ---------- 1. Reorder: integrity under repeated moves ----------
   await freshWorkout();
-  await evaluate(`['b0','lg22','gr3','co2'].forEach(addExerciseToWorkout); true`);
+  await evaluate(`['ch1','lg22','gr3','co2'].forEach(addExerciseToWorkout); true`);
   await waitFor(`state.activeSession.exercises.length === 4`);
   const order0 = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).join(',')`);
-  ok('reorder: initial order', order0 === 'b0,lg22,gr3,co2', order0);
+  ok('reorder: initial order', order0 === 'ch1,lg22,gr3,co2', order0);
   // Walk the last exercise to the top one step at a time (the glute-bridge case).
   await evaluate(`moveWorkoutExercise(3,-1);moveWorkoutExercise(2,-1);moveWorkoutExercise(1,-1); true`);
   const order1 = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).join(',')`);
-  ok('reorder: walked last to first', order1 === 'co2,b0,lg22,gr3', order1);
+  ok('reorder: walked last to first', order1 === 'co2,ch1,lg22,gr3', order1);
   // Out-of-range moves must be no-ops, not corruption.
   await evaluate(`moveWorkoutExercise(0,-1);moveWorkoutExercise(3,1);moveWorkoutExercise(99,1);moveWorkoutExercise(-5,-1); true`);
   const order2 = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).join(',')`);
@@ -100,7 +100,7 @@ try {
   // 200 random moves — order must stay a permutation of the same 4 ids.
   await evaluate(`for(let i=0;i<200;i++){const n=state.activeSession.exercises.length;moveWorkoutExercise(Math.floor(Math.random()*n),Math.random()<.5?-1:1);} true`);
   const bag = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).sort().join(',')`);
-  ok('reorder: 200 random moves preserve the exercise set', bag === 'b0,co2,gr3,lg22', bag);
+  ok('reorder: 200 random moves preserve the exercise set', bag === 'ch1,co2,gr3,lg22', bag);
 
   // ---------- 2. Disabled state on the boundary buttons ----------
   await evaluate(`openWorkoutExerciseMenu(0); true`);
@@ -123,7 +123,7 @@ try {
 
   // ---------- 4. Blur-after-finish: the stale-handler crash ----------
   await freshWorkout();
-  await evaluate(`addExerciseToWorkout('b0'); updateSet(0,0,'weight','60'); updateSet(0,0,'reps','5'); toggleSet(0,0); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); updateSet(0,0,'weight','60'); updateSet(0,0,'reps','5'); toggleSet(0,0); true`);
   await waitFor(`state.activeSession.exercises[0].sets[0].done === true`);
   await evaluate(`finishWorkout(); true`);
   await waitFor(`state.activeSession === null`);
@@ -171,7 +171,7 @@ try {
 
   // ---------- 6. Rep-based exercises still behave ----------
   await freshWorkout();
-  await evaluate(`addExerciseToWorkout('b0'); updateSet(0,0,'weight','80'); updateSet(0,0,'reps','8'); toggleSet(0,0); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); updateSet(0,0,'weight','80'); updateSet(0,0,'reps','8'); toggleSet(0,0); true`);
   const rHeader = await evaluate(`document.querySelector('.workout-exercise .set-grid.header').textContent`);
   ok('rep-based: header still reads Reps', /Reps/.test(rHeader) && !/Sec/.test(rHeader), rHeader);
   const vol = await evaluate(`Core.summarizeSession({...state.activeSession,finished:Date.now()}).volume`);
@@ -184,9 +184,9 @@ try {
   ok('injury off: no hypermobility jargon in Settings', !/Beighton/i.test(settingsNoInjury));
   ok('injury off: injury toggle is offered', /Training around an injury/.test(settingsNoInjury));
   // A healthy lifter must still earn a progression target with no flare answer at all.
-  await evaluate(`addExerciseToWorkout('b0'); updateSet(0,0,'weight','80'); updateSet(0,0,'reps','8'); toggleSet(0,0); setRir(0,3); finishWorkout(); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); updateSet(0,0,'weight','80'); updateSet(0,0,'reps','8'); toggleSet(0,0); setRir(0,3); finishWorkout(); true`);
   await waitFor(`state.history.length === 1`);
-  await evaluate(`startQuickWorkout(); addExerciseToWorkout('b0'); true`);
+  await evaluate(`startQuickWorkout(); addExerciseToWorkout('ch1'); true`);
   const healthyTarget = await evaluate(`document.querySelector('.target-line')?.textContent || ''`);
   ok('injury off: progression target appears without check-ins', /80 kg × 9/.test(healthyTarget), healthyTarget);
   await freshWorkout({ injury: true });
@@ -197,7 +197,7 @@ try {
 
   // ---------- 8. Malformed backup import must not brick the app ----------
   await freshWorkout();
-  await evaluate(`addExerciseToWorkout('b0'); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); true`);
   const bad = JSON.stringify({ version: 2, routines: [], history: [], activeSession: {}, preferences: {} });
   const importResult = await evaluate(`(()=>{ try{ Core.validateBackup(${JSON.stringify(bad)} && JSON.parse(${JSON.stringify(bad)}), []); return 'ACCEPTED'; }catch(e){ return 'REJECTED'; } })()`);
   ok('import: activeSession without exercises is rejected', importResult === 'REJECTED', importResult);
@@ -208,7 +208,7 @@ try {
 
   // ---------- 9. Deleting a workout dequeues it from sync ----------
   await freshWorkout();
-  await evaluate(`addExerciseToWorkout('b0'); updateSet(0,0,'weight','50'); updateSet(0,0,'reps','5'); toggleSet(0,0); finishWorkout(); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); updateSet(0,0,'weight','50'); updateSet(0,0,'reps','5'); toggleSet(0,0); finishWorkout(); true`);
   await waitFor(`state.history.length === 1`);
   const dequeued = await evaluate(`(()=>{
     const id=state.history[0].id;
@@ -221,11 +221,101 @@ try {
   ok('delete: uploaded-file mapping cleaned up', dequeued.mapped === 0, JSON.stringify(dequeued));
   ok('delete: history actually shrank', dequeued.history === 0);
 
+  // ---------- 9b. Declared goals, end to end ----------
+  await freshWorkout();
+  await evaluate(`(()=>{state.activeSession=null;state.goals=[];state.history=[];state.bodyweight=[];saveState();navigate('progress');renderProgress();return true})()`);
+  const emptyGoals = await evaluate(`document.getElementById('goalBoard').textContent`);
+  ok('goals: empty state invites a first goal', /No goals yet/.test(emptyGoals), emptyGoals.slice(0, 60));
+  // Strength goal via the real sheet flow (type picker -> exercise picker -> target -> save).
+  await evaluate(`openGoalSheet(); true`);
+  await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.goal-types')`);
+  await evaluate(`(()=>{pickGoalExercise();pickExercise('ch1');return true})()`);
+  await waitFor(`!!document.getElementById('goalTarget')`);
+  await evaluate(`(()=>{document.getElementById('goalTarget').value='100';saveGoal();return true})()`);
+  await waitFor(`state.goals.length === 1`);
+  const g1 = await evaluate(`state.goals[0]`);
+  ok('goals: strength goal saved against the chosen exercise', g1.type === 'strength' && g1.exerciseId === 'ch1' && g1.target === 100, JSON.stringify(g1));
+  ok('goals: start line frozen at creation', g1.startValue === null || typeof g1.startValue === 'number', JSON.stringify(g1.startValue));
+  // Log work below the target: progress moves, goal does NOT complete.
+  await evaluate(`(()=>{startQuickWorkout();addExerciseToWorkout('ch1');updateSet(0,0,'weight','80');updateSet(0,0,'reps','5');toggleSet(0,0);finishWorkout();return true})()`);
+  await waitFor(`state.history.length === 1`);
+  await evaluate(`(()=>{closeReceipt();renderProgress();return true})()`);
+  const mid = await evaluate(`(()=>{const p=Core.goalProgress(state.goals[0],goalCtx());return {pct:p.pct,done:p.done,current:p.current}})()`);
+  ok('goals: progress tracks real logged evidence', mid.current === 80 && !mid.done, JSON.stringify(mid));
+  ok('goals: not marked achieved before the target is hit', (await evaluate(`state.goals[0].achievedAt`)) === null);
+  const cardText = await evaluate(`document.getElementById('goalBoard').textContent`);
+  ok('goals: card states the gap in words as well as a bar', /to go/.test(cardText), cardText.slice(0, 90));
+  ok('goals: card states a percentage (not colour alone)', /%/.test(cardText));
+  // Today surfaces the nearest goal.
+  await evaluate(`(()=>{navigate('today');renderToday();return true})()`);
+  const strip = await evaluate(`document.getElementById('todayGoal').textContent`);
+  ok('goals: today shows the nearest goal', /GOAL/.test(strip) && /to go/.test(strip), strip.slice(0, 80));
+  // Hit the target — achievement stamps exactly once.
+  await evaluate(`(()=>{startQuickWorkout();addExerciseToWorkout('ch1');updateSet(0,0,'weight','100');updateSet(0,0,'reps','3');toggleSet(0,0);finishWorkout();return true})()`);
+  await waitFor(`state.goals[0].achievedAt !== null`);
+  const stamp = await evaluate(`state.goals[0].achievedAt`);
+  await evaluate(`(()=>{closeReceipt();checkGoalAchievements();checkGoalAchievements();return true})()`);
+  ok('goals: achievement stamped once and never re-stamped', (await evaluate(`state.goals[0].achievedAt`)) === stamp);
+  await evaluate(`(()=>{navigate('progress');renderProgress();return true})()`);
+  ok('goals: achieved goals move out of the active list', /achieved/i.test(await evaluate(`document.getElementById('goalBoard').textContent`)));
+  // Bodyweight goal, both directions, driven by the bodyweight log.
+  await evaluate(`(()=>{state.bodyweight=[{t:Date.now()-86400000,kg:90}];saveState();
+    goalDraft={type:'bodyweight',exerciseId:'',target:'',perWeek:'3'};renderGoalSheet();return true})()`);
+  await evaluate(`(()=>{document.getElementById('goalTarget').value='80';saveGoal();return true})()`);
+  const bw = await evaluate(`(()=>{const g=state.goals.find(g=>g.type==='bodyweight');const p=Core.goalProgress(g,goalCtx());return {start:g.startValue,pct:p.pct,remaining:p.remaining}})()`);
+  ok('goals: bodyweight goal starts from today\'s weight', bw.start === 90, JSON.stringify(bw));
+  ok('goals: losing-weight goal reports the gap', bw.remaining === 10 && bw.pct === 0, JSON.stringify(bw));
+  // Consistency goal + streak wording.
+  await evaluate(`(()=>{goalDraft={type:'consistency',exerciseId:'',target:'',perWeek:'3'};renderGoalSheet();
+    document.getElementById('goalTarget').value='3';saveGoal();renderProgress();return true})()`);
+  const consistency = await evaluate(`(()=>{const g=state.goals.find(g=>g.type==='consistency');const p=Core.goalProgress(g,goalCtx());return {current:p.current,target:p.target,streak:p.streak}})()`);
+  ok('goals: consistency counts this week\'s sessions', consistency.current === 2 && consistency.target === 3, JSON.stringify(consistency));
+  // Deleting is clean.
+  const before = await evaluate(`state.goals.length`);
+  await evaluate(`(()=>{deleteGoal(state.goals[0].id);return true})()`);
+  ok('goals: delete removes exactly one', (await evaluate(`state.goals.length`)) === before - 1);
+  // Malformed stored goals must not break a render or a boot.
+  const survived = await evaluate(`(()=>{
+    const raw=JSON.parse(localStorage.getItem(stateKey));
+    raw.goals=[{type:'strength',target:100},{type:'junk'},null,'x',{id:'ok',type:'consistency',target:3,created:1}];
+    localStorage.setItem(stateKey,JSON.stringify(raw));
+    state=readState();renderProgress();
+    return state.goals.length;
+  })()`);
+  ok('goals: malformed rows are dropped, render survives', survived === 1, `kept ${survived}`);
+
+  // ---------- 9c. Bodyweight sessions read honestly (no proud "0 kg") ----------
+  await freshWorkout();
+  await evaluate(`(()=>{state.history=[];saveState();addExerciseToWorkout('cs15');updateSet(0,0,'reps','12');toggleSet(0,0);return true})()`);
+  const finishCopy = await evaluate(`(()=>{requestFinishWorkout();const t=document.getElementById('confirmContent').textContent;closeConfirm();return t})()`);
+  ok('bodyweight: finish dialog does not claim 0 kg moved', !/0 kg/.test(finishCopy), finishCopy.slice(0, 80));
+  await evaluate(`finishWorkout(); true`);
+  await waitFor(`state.history.length === 1`);
+  const receiptText = await evaluate(`document.getElementById('receiptCard').textContent`);
+  ok('bodyweight: receipt names the work instead of 0 kg', /bodyweight/i.test(receiptText) && !/0 kg/.test(receiptText), receiptText.slice(0, 120));
+  await evaluate(`closeReceipt(); true`);
+  await evaluate(`(()=>{navigate('progress');renderProgress();return true})()`);
+  const stats = await evaluate(`document.getElementById('progressStats').textContent`);
+  ok('bodyweight: lifetime metric switches to sets when there are no kilos', /LIFETIME SETS/.test(stats), stats.slice(0, 90));
+  const histText = await evaluate(`document.getElementById('historyList').textContent`);
+  ok('bodyweight: history card drops the empty kg chip', !/0 kg/.test(histText), histText.slice(0, 90));
+
+  // ---------- 9d. Cloud backup is self-serve ----------
+  const sync = await evaluate(`(()=>{const c=Sync.loadConfig();const s=Sync.status();return {clientId:c.clientId,enabled:c.enabled,available:s.available,configured:s.configured,def:Sync.DEFAULT_CLIENT_ID}})()`);
+  ok('sync: a built-in client id ships, so Connect works with no setup', !!sync.clientId && sync.clientId === sync.def, JSON.stringify(sync.clientId));
+  ok('sync: Connect is offered without any setup', sync.available === true);
+  ok('sync: but nothing syncs until the user opts in', sync.configured === false && sync.enabled === false, JSON.stringify(sync));
+  const clearedFallback = await evaluate(`(()=>{Sync.updateConfig(c=>{c.clientId='';});return Sync.loadConfig().clientId})()`);
+  ok('sync: clearing a custom id falls back to the built-in one', clearedFallback === sync.def, clearedFallback);
+  const settingsText = await evaluate(`(()=>{openSettings();const t=document.getElementById('sheetContent').textContent;closeSheet();return t})()`);
+  ok('sync: settings lead with plain language, not an OAuth field', /your own.{0,4} Google Drive/i.test(settingsText), settingsText.slice(0, 60));
+  ok('sync: the raw client id is tucked under Advanced', /Advanced/.test(settingsText));
+
   // ---------- 10. Monkey run: random valid actions, no uncaught errors ----------
   await freshWorkout();
   const errsBeforeMonkey = pageErrors.length;
   await evaluate(`(()=>{
-    const ids=['b0','lg22','gr3','co2','cs19'];
+    const ids=['ch1','lg22','gr3','co2','cs19'];
     for(let i=0;i<400;i++){
       const n=()=>state.activeSession?state.activeSession.exercises.length:0;
       const pick=Math.floor(Math.random()*Math.max(1,n()));

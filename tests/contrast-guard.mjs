@@ -157,7 +157,7 @@ try {
       state.preferences.injuryMode=true; saveState();
       if(state.activeSession) state.activeSession=null;
       startQuickWorkout();
-      addExerciseToWorkout('gr3'); addExerciseToWorkout('b0');
+      addExerciseToWorkout('gr3'); addExerciseToWorkout('ch1');
       updateSet(0,0,'reps','60'); toggleSet(0,0);
       updateSet(1,0,'weight','80'); updateSet(1,0,'reps','8'); toggleSet(1,0);
       showToast('Contrast probe toast');
@@ -185,7 +185,7 @@ try {
     // --- State C: the "why this target" sheet (.why-foot — the token that was failing) ---
     await evaluate(`(()=>{ state.history.unshift({id:'sX',name:'Prior',started:Date.now()-86400000,finished:Date.now()-82800000,
       checkin:{pre:2,post:'same',flare:false},prs:[],
-      exercises:[{exerciseId:'b0',notes:'',rir:3,sets:[{weight:'80',reps:'8',done:true}]}]});
+      exercises:[{exerciseId:'ch1',notes:'',rir:3,sets:[{weight:'80',reps:'8',done:true}]}]});
       saveState(); renderWorkout(); openTargetWhy(1); return true; })()`);
     await waitFor(`document.getElementById('sheet').open`);
     await settle();
@@ -205,9 +205,33 @@ try {
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'receipt', ...r }); });
     await evaluate(`closeReceipt(); true`); // the app's own close path — never tear its nodes out
+    // Seed goals so the goal board, the achieved state and the Today strip are all measured.
+    await evaluate(`(()=>{
+      const now=Date.now();
+      state.bodyweight=[{t:now-86400000,kg:90}];
+      state.goals=[
+        {id:'gA',type:'strength',exerciseId:'ch1',target:120,startValue:60,created:now,achievedAt:null},
+        {id:'gB',type:'consistency',target:3,startValue:null,created:now,achievedAt:null},
+        {id:'gC',type:'bodyweight',target:80,startValue:90,created:now,achievedAt:now}
+      ];
+      saveState();renderProgress();return true})()`);
     await settle();
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'progress', ...r }); });
+
+    // --- State D2: the new-goal sheet (type picker + fields) ---
+    await evaluate(`openGoalSheet(); true`);
+    await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.goal-types')`);
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'goal-sheet', ...r }); });
+    await evaluate(`closeSheet(); true`);
+    await sleep(150);
+    // --- State D3: Today, where the nearest goal is surfaced ---
+    await evaluate(`(()=>{navigate('today');renderToday();return true})()`);
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'today-goal-strip', ...r }); });
 
     // --- State E: settings sheet (injury toggle, sync copy) ---
     await evaluate(`openSettings(); true`);

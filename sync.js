@@ -71,8 +71,18 @@
 
   // ---------- config store (browser-only, defensive) ----------
   const hasLS = () => typeof localStorage !== 'undefined';
+  // An OAuth client id identifies the APP, not the user — it is public by design and visible in the
+  // source of every Google-sign-in page on the web. Shipping it as the default is what makes backup
+  // self-serve: each person signs in with THEIR OWN Google account and gets their own private
+  // Gym-Sync folder, instead of needing a Google Cloud console to produce an id (audit 2026-07-22).
+  // Scope stays drive.file, so this app can only ever see files it created itself.
+  const DEFAULT_CLIENT_ID = '288192306167-il6bmbvl81v53dd4fncriso6tgl870r1.apps.googleusercontent.com';
+  // `enabled` is the user's opt-in, kept SEPARATE from "an id exists". Now that a client id always
+  // ships, gating network work on the id alone would have every finished workout fire a silent
+  // OAuth request for people who never asked for cloud backup. Nothing touches the network until
+  // a connect() succeeds.
   function defaults() {
-    return { clientId: '', folderId: null, planFileId: null, queue: [], uploadedFiles: {}, beightonUnlocked: false, lastSyncAt: null, plan: null };
+    return { clientId: DEFAULT_CLIENT_ID, enabled: false, folderId: null, planFileId: null, queue: [], uploadedFiles: {}, beightonUnlocked: false, lastSyncAt: null, plan: null };
   }
   // Stale-snapshot rule: a config object held across an await may be outdated (a workout can
   // finish and enqueue meanwhile). After every await: re-loadConfig(), mutate ONLY the fields
@@ -80,7 +90,16 @@
   function updateConfig(mutate) { const fresh = loadConfig(); mutate(fresh); return saveConfig(fresh); }
   function loadConfig() {
     if (!hasLS()) return defaults();
-    try { const c = JSON.parse(localStorage.getItem(activeSyncKey)); return { ...defaults(), ...(c || {}) }; }
+    try {
+      const c = JSON.parse(localStorage.getItem(activeSyncKey));
+      const merged = { ...defaults(), ...(c || {}) };
+      // A profile saved before the default existed carries clientId:'' and would otherwise spread
+      // the default away, leaving backup unreachable for exactly the people it was added for.
+      if (!merged.clientId) merged.clientId = DEFAULT_CLIENT_ID;
+      // Anyone who connected before this flag existed has a folderId to prove it — keep them on.
+      if (c && c.enabled === undefined) merged.enabled = !!c.folderId;
+      return merged;
+    }
     catch { return defaults(); }
   }
   function saveConfig(config) {
@@ -145,8 +164,11 @@
   // Preload the GIS library and pre-build the client so a later Connect tap can open the popup
   // SYNCHRONOUSLY. Loading the library inside the click handler (the old bug) drops the browser's
   // transient user activation, so the popup is blocked ('popup_failed_to_open') on every device.
-  function preload() {
+  // Only warms Google's script for people who actually use sync, or when the Settings sheet is open
+  // and a Connect tap is plausibly next (force) — never a third-party fetch on every cold boot.
+  function preload(force) {
     if (typeof document === 'undefined' || !loadConfig().clientId) return Promise.resolve(false);
+    if (!force && !configured()) return Promise.resolve(false);
     return loadGsi().then(() => !!buildTokenClient()).catch(() => false);
   }
 
@@ -215,10 +237,11 @@
   }
 
   // ---------- public browser API ----------
-  const configured = () => !!loadConfig().clientId;
+  // "configured" = the user opted in. `available` = a client id exists, so Connect can be offered.
+  const configured = () => { const c = loadConfig(); return !!c.clientId && c.enabled === true; };
   function status() {
     const c = loadConfig();
-    return { configured: !!c.clientId, connected: tokenValid(), queued: (c.queue || []).length, lastSyncAt: c.lastSyncAt, planActive: !!c.plan };
+    return { configured: configured(), available: !!c.clientId, connected: configured() && tokenValid(), queued: (c.queue || []).length, lastSyncAt: c.lastSyncAt, planActive: !!c.plan };
   }
   function getBeighton() { return !!loadConfig().beightonUnlocked; }
   function setBeighton(on) { const c = loadConfig(); c.beightonUnlocked = !!on; return saveConfig(c).beightonUnlocked; }
@@ -237,7 +260,7 @@
   let flushInFlight = null;
   function flush() {
     if (flushInFlight) return flushInFlight;
-    if (!loadConfig().clientId || !(loadConfig().queue || []).length) return Promise.resolve(status());
+    if (!configured() || !(loadConfig().queue || []).length) return Promise.resolve(status());
     const g = gen;
     flushInFlight = ensureToken(false)
       .then(() => ensureFolder(g))
@@ -280,6 +303,7 @@
   function connect() {
     const g = gen;
     return ensureToken(true)
+      .then(() => { updateConfig(c => { c.enabled = true; }); }) // consent granted — sync may now run
       .then(() => ensureFolder(g))
       .then(folderId => ensurePlanFile(folderId, g))
       .then(() => { guard(g); return flush(); })
@@ -288,7 +312,7 @@
   }
   function disconnect() {
     accessToken = null; tokenExpiry = 0;
-    updateConfig(c => { c.plan = null; }); // keep folderId/planFileId so the loop survives reconnect
+    updateConfig(c => { c.plan = null; c.enabled = false; }); // keep folderId/planFileId so the loop survives reconnect
     return status();
   }
 
@@ -331,7 +355,7 @@
     // browser
     configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession, setUser,
-    SYNC_KEY, FOLDER_NAME,
+    SYNC_KEY, FOLDER_NAME, DEFAULT_CLIENT_ID,
     // Test-only hook: lets the node suite plant a valid token to exercise the generation guard
     // without real GIS. Never called by the app.
     _test: { grantToken(token, ms) { accessToken = token; tokenExpiry = Date.now() + (ms || 3600000); }, gen: () => gen }

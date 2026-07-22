@@ -104,7 +104,7 @@ try {
   await evaluate(`navigate('train'); document.querySelector('#view-train .big-button').click(); true`);
   await waitFor(`document.body.classList.contains('workout-active') && !!JSON.parse(localStorage.getItem(stateKey)).activeSession`);
 
-  await evaluate(`addExerciseToWorkout('b0'); true`);
+  await evaluate(`addExerciseToWorkout('ch1'); true`);
   await waitFor(`document.querySelectorAll('.set-row').length === 1`);
   await evaluate(`(() => {
     const inputs=document.querySelectorAll('.set-row .set-input');

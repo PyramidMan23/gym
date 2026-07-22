@@ -659,10 +659,95 @@
   }
 
   // Bodyweight trend, last N days, oldest → newest (Wave 3).
+  // ---- Declared goals (2026-07-22). The app measured process and emergent PRs but nothing the
+  // lifter actually DECLARED, so it could never say "you are 60% of the way to the thing you came
+  // for". A goal is {id, type, target, created, startValue, exerciseId?, achievedAt?}.
+  // Progress is measured from startValue — the distance the lifter has actually travelled — never
+  // from zero, which would credit work done before the goal existed.
+  const GOAL_TYPES = ['strength', 'bodyweight', 'consistency'];
+  // Consecutive weeks meeting a per-week session target. The CURRENT week only counts once it is
+  // already met — an unfinished week must never read as a broken streak.
+  function weekStreak(history, perWeek, now = Date.now()) {
+    const target = Math.max(1, num(perWeek));
+    const thisStart = startOfLocalWeek(now), WEEK = 7 * 86400000;
+    const sessionsIn = (start, end) => (history || []).filter(s => num(s.started) >= start && num(s.started) < end).length;
+    let streak = 0;
+    if (sessionsIn(thisStart, thisStart + WEEK) >= target) streak++;
+    for (let i = 1; i <= 104; i++) {
+      const start = thisStart - i * WEEK;
+      if (sessionsIn(start, start + WEEK) >= target) streak++; else break;
+    }
+    return streak;
+  }
+  // Latest logged bodyweight (null when nothing logged).
+  function latestBodyweight(entries) {
+    const sorted = (entries || []).filter(e => e && num(e.kg) > 0).sort((a, b) => num(a.t) - num(b.t));
+    return sorted.length ? num(sorted[sorted.length - 1].kg) : null;
+  }
+  // Current value for a goal, in its own unit. null = no evidence yet.
+  function goalCurrent(goal, ctx) {
+    const c = ctx || {};
+    if (!goal) return null;
+    if (goal.type === 'strength') {
+      const best = exerciseBest(c.history, goal.exerciseId);
+      const value = isTimed(goal.exerciseId) ? best.seconds : best.weight;
+      return value > 0 ? value : null;
+    }
+    if (goal.type === 'bodyweight') return latestBodyweight(c.bodyweight);
+    if (goal.type === 'consistency') {
+      const start = startOfLocalWeek(c.now || Date.now());
+      return (c.history || []).filter(s => num(s.started) >= start).length;
+    }
+    return null;
+  }
+  function goalProgress(goal, ctx) {
+    const c = ctx || {}, now = c.now || Date.now();
+    if (!goal || !GOAL_TYPES.includes(goal.type)) return null;
+    const target = num(goal.target);
+    const current = goalCurrent(goal, { ...c, now });
+    const unit = goal.type === 'consistency' ? 'per week' : (goal.type === 'strength' && isTimed(goal.exerciseId)) ? 's' : 'kg';
+    if (goal.type === 'consistency') {
+      const done = current >= target && target > 0;
+      return { type: goal.type, current, target, unit, pct: target ? Math.min(1, current / target) : 0,
+        done, remaining: Math.max(0, target - current), streak: weekStreak(c.history, target, now) };
+    }
+    if (current == null) return { type: goal.type, current: null, target, unit, pct: 0, done: false, remaining: target, noEvidence: true };
+    // A bodyweight goal can run in either direction; a strength goal only ever runs up.
+    const start = goal.startValue == null ? current : num(goal.startValue);
+    const losing = goal.type === 'bodyweight' && target < start;
+    const done = losing ? current <= target : current >= target;
+    const span = Math.abs(target - start);
+    const moved = losing ? start - current : current - start;
+    const pct = done ? 1 : span > 0 ? Math.max(0, Math.min(1, moved / span)) : (done ? 1 : 0);
+    return { type: goal.type, current, target, unit, pct, done, start,
+      remaining: Math.max(0, Math.round((losing ? current - target : target - current) * 10) / 10) };
+  }
+  // Defensive read of stored goals — the same fail-closed posture as validateBackup. Anything
+  // malformed is dropped rather than allowed to throw inside a render.
+  function normalizeGoals(list) {
+    return (Array.isArray(list) ? list : []).filter(g => g && typeof g === 'object'
+      && GOAL_TYPES.includes(g.type) && num(g.target) > 0
+      && (g.type !== 'strength' || (typeof g.exerciseId === 'string' && g.exerciseId)))
+      .map(g => ({
+        id: String(g.id || `g${num(g.created) || 0}`),
+        type: g.type,
+        exerciseId: g.type === 'strength' ? String(g.exerciseId) : null,
+        target: num(g.target),
+        startValue: g.startValue == null ? null : num(g.startValue),
+        created: num(g.created) || 0,
+        achievedAt: g.achievedAt == null ? null : num(g.achievedAt)
+      }));
+  }
+  // Goals newly met this moment — the app stamps achievedAt and celebrates once.
+  function newlyAchieved(goals, ctx) {
+    return (goals || []).filter(g => !g.achievedAt).filter(g => { const p = goalProgress(g, ctx); return p && p.done; });
+  }
+
   function bodyweightTrend(entries, days = 90, now = Date.now()) {
     const cutoff = now - days * 86400000;
     return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
   }
 
-  return { setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
+  return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
 });

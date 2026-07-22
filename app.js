@@ -36,7 +36,7 @@ let deferredInstall = null;
 const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 
-function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
+function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],goals:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
 // Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
 // so a brand-new profile's missing key correctly yields an empty state (never another profile's data).
 function readState(){
@@ -48,7 +48,8 @@ function readState(){
       // pain check-in and its tolerance gate, so it keeps them; a brand-new profile starts without.
       // Never silently disable someone's existing safety net.
       if(preferences.injuryMode===undefined)preferences.injuryMode=Array.isArray(saved.history)&&saved.history.length>0;
-      return {...emptyState(),...saved,preferences};
+      // Goals are sanitised on read: a malformed row must never throw inside a render.
+      return {...emptyState(),...saved,goals:Core.normalizeGoals(saved.goals),preferences};
     }
   }catch{}
   return emptyState();
@@ -177,6 +178,7 @@ function renderToday(){
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
   renderCoach();
+  renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
   document.getElementById('resumeSlot').innerHTML=state.activeSession?`<div class="resume-card card-live"><strong><span class="live-dot" aria-hidden="true"></span>Workout in progress</strong><p>${esc(state.activeSession.name)} · started ${formatElapsed(state.activeSession.started)} ago</p><button onclick="resumeWorkout()">Resume workout</button></div>`:'';
@@ -223,7 +225,7 @@ function routineStripCard(routine){
 }
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
-  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} set${summary.completedSets===1?'':'s'}</span><span>${compact(summary.volume)} kg</span>${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
+  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} set${summary.completedSets===1?'':'s'}</span>${summary.volume>0?`<span>${compact(summary.volume)} kg</span>`:''}${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
 }
 
 // Coach surface (Today): one active source only — remote "Coach's block" when a plan validates,
@@ -477,8 +479,13 @@ function quickExercise(id){
 
 function renderProgress(){
   const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0);
-  document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${Math.round(lifetimeVolume)}" data-fmt="compact">0</strong><span>LIFETIME KG</span></div>`;
+  // A lifter who only trains bodyweight has a real lifetime of work and zero kilos — count their
+  // sets rather than showing them a proud "0".
+  const lifetimeSets=state.history.reduce((sum,s)=>sum+Core.summarizeSession(s).completedSets,0);
+  const third=lifetimeVolume>0?{n:Math.round(lifetimeVolume),fmt:' data-fmt="compact"',label:'LIFETIME KG'}:{n:lifetimeSets,fmt:'',label:'LIFETIME SETS'};
+  document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${third.n}"${third.fmt}>0</strong><span>${third.label}</span></div>`;
   animateNumbers(document.getElementById('progressStats'));
+  renderGoals();
   renderWeeklyRecap();
   renderPainTrend();
   renderStrength();
@@ -489,6 +496,125 @@ function renderProgress(){
   renderPrFeed();
   document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="empty-card card"><strong>Your progress starts at one</strong>Finish a workout and it will appear here.</div>`;
 }
+// ---- Declared goals (2026-07-22) ----------------------------------------------------------
+// The app measured process (weekly rings) and emergent PRs, but nothing the lifter actually said
+// they wanted. A goal is stated once and then answered by their own logged evidence — the same
+// rule as everything else here: the app never claims progress the numbers don't show.
+function goalCtx(){return {history:state.history,bodyweight:state.bodyweight,now:Date.now()};}
+// Bodyweight and hold work moves no barbell, so a calisthenics session used to report "0 kg moved"
+// — which reads as "nothing happened" for a session that was anything but. Sets are the honest unit
+// for that work; kilos lead only when there are kilos to report (audit 2026-07-22).
+function workLine(summary){
+  return summary.volume>0?`${compact(summary.volume)} kg moved`:`${summary.completedSets} working set${summary.completedSets===1?'':'s'}`;
+}
+function goalName(goal){
+  if(goal.type==='strength')return exerciseById(goal.exerciseId)?.name||'Exercise';
+  if(goal.type==='bodyweight')return 'Bodyweight';
+  return 'Train every week';
+}
+const GOAL_KICKER={strength:'STRENGTH',bodyweight:'BODY',consistency:'CONSISTENCY'};
+function goalCardMarkup(goal){
+  const p=Core.goalProgress(goal,goalCtx());if(!p)return '';
+  const pct=Math.round(p.pct*100);
+  const achieved=!!goal.achievedAt;
+  // Progress reads three ways — bar, number and sentence — so it never depends on colour alone.
+  const value=p.current==null?'—':p.type==='consistency'?`${p.current}`:`${p.current}`;
+  const foot=achieved?`Achieved ${formatDate(goal.achievedAt)}`
+    :p.noEvidence?`Log a set of ${esc(goalName(goal))} to start tracking`
+    :p.type==='consistency'?(p.done?`Done this week${p.streak>1?` · ${p.streak}-week streak`:''}`:`${p.remaining} more session${p.remaining===1?'':'s'} this week${p.streak?` · ${p.streak}-week streak`:''}`)
+    :p.done?'Target reached':`${p.remaining} ${p.unit} to go`;
+  return `<article class="goal-card card${achieved?' achieved':''}${p.done&&!achieved?' met':''}">
+    <header class="goal-head"><p class="kicker">${GOAL_KICKER[p.type]}</p><button class="goal-more" onclick="openGoalMenu('${esc(goal.id)}')" aria-label="Goal options">•••</button></header>
+    <h3>${esc(goalName(goal))}</h3>
+    <p class="goal-nums"><strong>${esc(value)}</strong><span>/ ${esc(String(p.target))} ${esc(p.unit)}</span>${achieved?'<span class="goal-tick" aria-label="Achieved">✓</span>':''}</p>
+    <div class="goal-bar" role="img" aria-label="${pct}% of the way there"><i style="--p:${(p.pct||0).toFixed(3)}"></i></div>
+    <p class="goal-foot">${esc(foot)}<span class="goal-pct">${pct}%</span></p>
+  </article>`;
+}
+function renderGoals(){
+  const board=document.getElementById('goalBoard');if(!board)return;
+  const active=state.goals.filter(g=>!g.achievedAt),done=state.goals.filter(g=>g.achievedAt);
+  board.innerHTML=(active.length||done.length)
+    ?active.map(goalCardMarkup).join('')+(done.length?`<details class="goal-done"><summary>${done.length} achieved</summary>${done.map(goalCardMarkup).join('')}</details>`:'')
+    :`<div class="empty-card card"><strong>No goals yet</strong>Name one thing you're chasing — a lift, a bodyweight, or a number of sessions a week — and every workout is measured against it.</div>`;
+  renderTodayGoal();
+}
+// Today shows the single nearest-to-done active goal: a reminder of why you're here, not a list.
+function renderTodayGoal(){
+  const slot=document.getElementById('todayGoal');if(!slot)return;
+  const ranked=state.goals.filter(g=>!g.achievedAt)
+    .map(g=>({g,p:Core.goalProgress(g,goalCtx())})).filter(x=>x.p&&!x.p.noEvidence)
+    .sort((a,b)=>b.p.pct-a.p.pct);
+  if(!ranked.length){slot.innerHTML='';return;}
+  const {g,p}=ranked[0],pct=Math.round(p.pct*100);
+  const line=p.type==='consistency'?(p.done?'Done this week':`${p.remaining} more this week`):p.done?'Target reached':`${p.remaining} ${p.unit} to go`;
+  slot.innerHTML=`<button class="goal-strip card-live" onclick="navigate('progress')"><span class="goal-strip-top"><span class="kicker">GOAL · ${GOAL_KICKER[p.type]}</span><span class="goal-pct">${pct}%</span></span><strong>${esc(goalName(g))}</strong><span class="goal-bar"><i style="--p:${p.pct.toFixed(3)}"></i></span><small>${esc(line)}</small></button>`;
+}
+// Stamp + celebrate goals the latest evidence just completed. Called after a session is finished
+// and after a bodyweight entry — the only two moments new evidence can arrive.
+function checkGoalAchievements(){
+  const hit=Core.newlyAchieved(state.goals,goalCtx());
+  if(!hit.length)return;
+  const now=Date.now();
+  hit.forEach(g=>{const target=state.goals.find(x=>x.id===g.id);if(target)target.achievedAt=now;});
+  saveState();
+  buzz([20,60,20,60,20]);
+  showToast(hit.length===1?`★ Goal reached — ${goalName(hit[0])}`:`★ ${hit.length} goals reached`,true);
+}
+function openGoalSheet(){
+  goalDraft={type:'strength',exerciseId:'',target:'',perWeek:String(state.preferences.weeklyWorkoutGoal||3)};
+  renderGoalSheet();document.getElementById('sheet').showModal();
+}
+let goalDraft=null;
+function setGoalType(type){goalDraft.type=type;renderGoalSheet();}
+function pickGoalExercise(){openExercisePicker('goal');}
+function renderGoalSheet(){
+  const d=goalDraft;if(!d)return;
+  const item=d.exerciseId?exerciseById(d.exerciseId):null;
+  const timed=!!item?.timed;
+  const types=[['strength','A lift'],['bodyweight','Bodyweight'],['consistency','Consistency']];
+  let body;
+  if(d.type==='strength'){
+    body=`<button class="secondary-button full-button" onclick="pickGoalExercise()">${item?esc(item.name):'Choose an exercise'}</button>
+      <div class="field" style="margin-top:12px"><label>TARGET ${timed?'HOLD (SECONDS)':'WEIGHT (KG)'}</label><input id="goalTarget" type="number" inputmode="decimal" min="1" step="${timed?'5':'2.5'}" value="${esc(d.target)}" placeholder="${timed?'e.g. 60':'e.g. 100'}"></div>
+      <p class="goal-help">Measured against your best ${timed?'hold':'completed set'} of that exercise. Progress counts from where you are today.</p>`;
+  }else if(d.type==='bodyweight'){
+    const latest=Core.latestBodyweight(state.bodyweight);
+    body=`<div class="field"><label>TARGET BODYWEIGHT (KG)</label><input id="goalTarget" type="number" inputmode="decimal" min="1" step="0.5" value="${esc(d.target)}" placeholder="e.g. 80"></div>
+      <p class="goal-help">${latest?`You're at ${latest} kg today — up or down both work.`:'Log your weight on the Progress tab and this starts tracking.'}</p>`;
+  }else{
+    body=`<div class="field"><label>SESSIONS PER WEEK</label><input id="goalTarget" type="number" inputmode="numeric" min="1" max="14" step="1" value="${esc(d.perWeek)}"></div>
+      <p class="goal-help">Counts completed workouts each week and tracks your streak. An unfinished week never breaks it.</p>`;
+  }
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">NEW GOAL</p><h2>What are you chasing?</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
+    <div class="goal-types">${types.map(([v,l])=>`<button class="goal-type${d.type===v?' on':''}" onclick="setGoalType('${v}')" aria-pressed="${d.type===v}">${l}</button>`).join('')}</div>
+    ${body}
+    <div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="saveGoal()">Save goal</button></div>`;
+}
+function saveGoal(){
+  const d=goalDraft;if(!d)return;
+  const raw=Number(document.getElementById('goalTarget')?.value);
+  if(!Number.isFinite(raw)||raw<=0){showToast('Give the goal a number to aim at');return;}
+  if(d.type==='strength'&&!d.exerciseId){showToast('Choose an exercise first');return;}
+  const now=Date.now();
+  const goal={id:`g${now}`,type:d.type,exerciseId:d.type==='strength'?d.exerciseId:null,target:raw,created:now,achievedAt:null,startValue:null};
+  // Freeze today's value as the start line so the bar shows the distance THIS goal covers.
+  goal.startValue=d.type==='consistency'?null:Core.goalCurrent(goal,goalCtx());
+  state.goals.push(goal);saveState();closeSheet();
+  renderGoals();renderToday();
+  showToast('Goal set');
+  checkGoalAchievements(); // a goal already met by existing evidence resolves immediately
+}
+function openGoalMenu(id){
+  const goal=state.goals.find(g=>g.id===id);if(!goal)return;
+  const p=Core.goalProgress(goal,goalCtx());
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${GOAL_KICKER[goal.type]}</p><h2>${esc(goalName(goal))}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
+    <p class="goal-help">Target ${esc(String(goal.target))} ${esc(p?p.unit:'')}${p&&p.current!=null?` · now ${esc(String(p.current))}`:''}${goal.achievedAt?` · achieved ${formatDate(goal.achievedAt)}`:''}</p>
+    <div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="deleteGoal('${esc(id)}')">Delete goal</button><button class="primary-button" onclick="closeSheet()">Done</button></div>`;
+  document.getElementById('sheet').showModal();
+}
+function deleteGoal(id){state.goals=state.goals.filter(g=>g.id!==id);saveState();closeSheet();renderGoals();renderToday();showToast('Goal removed');}
+
 // ---- Weekly muscle volume: two-ledger model (council 2026-07-20) ----
 // Direct = completed sets where the muscle is the primary mover; assisting = completed sets
 // where it helps (bench: chest direct, shoulders+arms assisting). Never summed into one number.
@@ -710,6 +836,7 @@ function saveBodyweight(){
   if(!Array.isArray(state.bodyweight))state.bodyweight=[];
   state.bodyweight.push({t:Date.now(),kg:Math.round(kg*10)/10});
   saveState();closeSheet();renderProgress();showToast('Weight logged');
+  checkGoalAchievements(); // new evidence — a bodyweight goal may have just landed
 }
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
@@ -1072,7 +1199,7 @@ function closePad(after){padHoldStop();dismissDialog(document.getElementById('pa
 
 function requestFinishWorkout(){
   const session=state.activeSession,summary=Core.summarizeSession({...session,finished:Date.now()});
-  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.completedSets} completed sets · ${compact(summary.volume)} kg moved.</p><div class="confirm-feel"><p>HOW DID THE BODY FEEL?</p><div class="checkin-row" id="feelRow"><button onclick="setPostCheckin(this,'better')">Better</button><button onclick="setPostCheckin(this,'same')">Same</button><button onclick="setPostCheckin(this,'worse')">Worse</button></div></div><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
+  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.completedSets} completed set${summary.completedSets===1?'':'s'}${summary.volume>0?` · ${compact(summary.volume)} kg moved`:''}.</p><div class="confirm-feel"><p>HOW DID THE BODY FEEL?</p><div class="checkin-row" id="feelRow"><button onclick="setPostCheckin(this,'better')">Better</button><button onclick="setPostCheckin(this,'same')">Same</button><button onclick="setPostCheckin(this,'worse')">Worse</button></div></div><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
   document.getElementById('confirmDialog').showModal();
 }
 function setPostCheckin(button,value){
@@ -1087,11 +1214,13 @@ function finishWorkout(){
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
+  checkGoalAchievements(); // the session just finished is new evidence against every declared goal
   openReceipt(session);
 }
 function openReceipt(session){
   const summary=Core.summarizeSession(session),prs=session.prs||[];
-  const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',`${compact(summary.volume)} kg`],['PRs',prs.length]];
+  // "Volume 0 kg" tells a calisthenics session it did nothing — name the work honestly instead.
+  const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
   const prBlocks=prs.map(pr=>{
     const item=exerciseById(pr.exerciseId);
     const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
@@ -1136,6 +1265,8 @@ function openExercisePicker(target){
 function pickExercise(id){
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
   else if(pickerTarget==='routine'){if(!routineDraft.exerciseIds.includes(id))routineDraft.exerciseIds.push(id);renderRoutineEditor();}
+  // Picking for a goal returns to the goal sheet with the choice made — the draft is never lost.
+  else if(pickerTarget==='goal'&&goalDraft){goalDraft.exerciseId=id;renderGoalSheet();}
 }
 function closeSheet(){
   dismissDialog(document.getElementById('sheet'),()=>{
@@ -1169,7 +1300,7 @@ function openWorkoutExerciseMenu(index){
   if(!state.activeSession?.exercises[index])return;
   const exercise=state.activeSession.exercises[index],name=exerciseById(exercise.exerciseId)?.name||'Exercise';
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square — right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule — clear it when it stops earning its place.</small></div>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below — no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square — right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule — clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right — that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below — no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
 }
 function saveExerciseNote(index){
   const exercise=state.activeSession?.exercises[index];if(!exercise)return;
@@ -1237,12 +1368,13 @@ function openSettings(){
 function syncSettingsMarkup(){
   if(!Sync)return '';
   const st=Sync.status(),cfg=Sync.loadConfig(),beighton=Sync.getBeighton();
-  const conn=st.configured?(st.connected?'Connected':'Configured — not connected'):'Not connected';
+  const conn=st.configured?(st.connected?'Connected':'Connected — signing in again on next sync'):'Not connected';
+  if(Sync.preload)try{Sync.preload(true);}catch{} // sheet is open; warm GIS so the Connect tap is in-gesture
   return `<div class="section-heading"><div><p class="kicker">SYNC & COACH</p><h2>Google Drive</h2></div></div>
-    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional and advanced — it needs a Google Cloud client ID from whoever set this app up. <strong>Your training is saved on this phone either way</strong>; for your own copy use <em>Download backup</em> above. Syncs to a private <strong>Gym-Sync</strong> folder; scope is limited to files this app creates.</p>
-    <div class="field"><label>OAUTH CLIENT ID (FROM THE APP OWNER)</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"></div>
+    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional. Backs your workouts up to <strong>your own</strong> Google Drive, in a private <strong>Gym-Sync</strong> folder. This app can only ever see files it created itself — never the rest of your Drive.</p>
+    <details class="sync-advanced"><summary>Advanced</summary><div class="field" style="margin-top:10px"><label>OAUTH CLIENT ID</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"><small style="color:var(--taupe);font-size:11px">Only change this if you run your own Google Cloud project. Clear it to go back to the built-in one.</small></div></details>
     <div class="stack">
-      ${st.connected?`<button class="secondary-button full-button" onclick="disconnectSync()">Disconnect</button>`:`<button class="secondary-button full-button" ${st.configured?'':'disabled style="opacity:.5"'} onclick="connectSync()">Connect Google Drive</button>`}
+      ${st.configured?`<button class="secondary-button full-button" onclick="disconnectSync()">Disconnect</button>`:`<button class="secondary-button full-button" ${st.available?'':'disabled'} onclick="connectSync()">Connect Google Drive</button>`}
     </div>
     <p style="color:var(--taupe);font-size:11px;margin:8px 2px 0">Status: ${esc(conn)}${st.queued?` · ${st.queued} session${st.queued===1?'':'s'} queued`:''}</p>
     ${injuryMode()?`<label class="beighton-toggle"><span><strong>Hypermobility features</strong><small>For lifters with a Beighton hypermobility assessment — unlocking accepts coach plans that use those extra joint-safety capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`:''}`;
@@ -1468,7 +1600,7 @@ function submitAddPerson(){
 // First-run / post-migration welcome — names the profile bootstrap already created. One screen, no friction.
 function openFirstRunSheet(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training on this phone?</h2></div>
-    <p class="first-run-sub">Your workouts stay in a private space on this device. You can add other people later from the profile menu.</p>
+    <p class="first-run-sub"><strong>Log your lifts, see what's actually working, get stronger.</strong> Your workouts stay in a private space on this device. You can add other people later from the profile menu.</p>
     <div class="field"><label>YOUR NAME</label><input id="firstRunName" placeholder="Your name" onkeydown="if(event.key==='Enter')submitFirstRun()"></div>
     <button class="primary-button full-button" onclick="submitFirstRun()">Continue</button>`;
   document.getElementById('sheet').showModal();

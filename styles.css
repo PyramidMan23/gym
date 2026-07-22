@@ -176,7 +176,7 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
   .sheet,.confirm-dialog,.toast{background:var(--glass-solid)}
 }
 @media(min-width:650px){.app-shell{padding-left:28px;padding-right:28px}.template-grid{grid-template-columns:repeat(3,1fr)}.sheet{left:50%;transform:translateX(-50%);border-radius:10px 10px 0 0}.sheet[open]{animation:none}.metric-grid{gap:12px}}
-@media(max-width:390px){.page-lead h1{font-size:31px}.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:28px 1fr 1fr 48px;padding-left:9px;padding-right:9px}.arc-value strong{font-size:19px}}
+@media(max-width:390px){.page-lead h1{font-size:31px}.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:36px 1fr 1fr 48px;padding-left:7px;padding-right:7px}.arc-value strong{font-size:19px}}
 /* ---- Exercise catalogue picker (council 2026-07-19): Quick Picks + one muscle row + Filters control + stable list ---- */
 .quick-picks:not(:empty){margin:6px 0 4px}
 .quick-kicker{margin:0 2px 8px;color:var(--amber-deep)}
@@ -686,3 +686,41 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .pr-roll{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:3;font-weight:800;font-size:20px;color:var(--amber-deep);font-variant-numeric:tabular-nums lining-nums}
 .pr-spark{position:absolute;left:0;bottom:0;width:3px;height:34%;border-radius:2px;pointer-events:none;z-index:4;background:linear-gradient(180deg,rgba(var(--bloom-amber),0),var(--amber-soft),var(--amber));box-shadow:0 0 10px 2px rgba(var(--bloom-amber),.6);animation:prRail .6s var(--ease)}
 @keyframes prRail{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(-300%);opacity:0}}
+
+/* ---- Declared goals (2026-07-22) -----------------------------------------------------------
+   Same sculpted-card language as the rest of the app: solid surface, hairline top rule, amber
+   accent tick. Progress is stated three ways — filled bar, percentage, and a sentence — so it
+   never relies on colour alone. The achieved state adds a glyph and a glow, not just a hue. */
+.goal-card{padding:16px 18px 14px;position:relative;overflow:hidden}
+.goal-card::before{content:'';position:absolute;top:0;left:18px;right:18px;height:1px;background:var(--hair)}
+.goal-card::after{content:'';position:absolute;top:0;left:18px;width:14px;height:2px;background:var(--amber)}
+.goal-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.goal-more{border:0;background:transparent;color:var(--cream);min-width:44px;height:44px;margin:-10px -12px -10px 0;font-weight:800}
+.goal-card h3{margin:2px 0 0;font-weight:800;font-size:19px;letter-spacing:-.02em}
+.goal-nums{display:flex;align-items:baseline;gap:6px;margin:8px 0 10px}
+.goal-nums strong{font-weight:800;font-size:30px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}
+.goal-nums span{color:var(--taupe);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+.goal-tick{margin-left:auto;color:var(--amber-deep);font-weight:800;font-size:18px}
+.goal-bar{position:relative;height:8px;border-radius:4px;background:var(--glass-2);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
+.goal-bar i{display:block;height:100%;width:calc(var(--p,0)*100%);border-radius:4px;
+  background:linear-gradient(90deg,var(--amber-deep),var(--amber),var(--amber-soft));
+  box-shadow:0 0 12px 1px rgba(var(--bloom-amber),.45);transition:width .5s var(--ease)}
+.goal-foot{display:flex;justify-content:space-between;gap:10px;margin:8px 0 0;color:var(--taupe);font-size:12px}
+.goal-pct{color:var(--amber-deep);font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.goal-card.achieved{border-color:rgba(var(--bloom-amber),.5)}
+.goal-card.achieved .goal-bar i,.goal-card.met .goal-bar i{background:linear-gradient(90deg,var(--amber),var(--amber-soft))}
+.goal-done{margin-top:4px}
+.goal-done summary{cursor:pointer;color:var(--taupe);font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:10px 2px;min-height:44px;display:flex;align-items:center}
+.goal-done .goal-card{margin-top:8px}
+.goal-help{margin:10px 0 0;color:var(--taupe);font-size:12px;line-height:1.45}
+/* Goal type picker in the new-goal sheet */
+.goal-types{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.goal-type{min-height:44px;padding:0 8px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);font-weight:700;font-size:13px}
+.goal-type.on{background:var(--amber);border-color:var(--amber);color:var(--on-amber);font-weight:800}
+/* Today's single nearest goal — a reminder of why you're here, not a list */
+.goal-strip{display:block;width:100%;text-align:left;padding:14px 16px;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow);color:var(--cream)}
+.goal-strip-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.goal-strip strong{display:block;font-weight:800;font-size:17px;letter-spacing:-.02em;margin:4px 0 8px}
+.goal-strip .goal-bar{display:block;margin-bottom:7px}
+.goal-strip small{color:var(--taupe);font-size:12px}
+.sync-advanced summary{cursor:pointer;color:var(--taupe);font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;min-height:44px;display:flex;align-items:center}
