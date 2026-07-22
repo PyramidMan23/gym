@@ -72,11 +72,11 @@
         <div class="page-lead compact-lead"><p class="kicker accent">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1></div>
         <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('library',this.value)" aria-label="Search exercise library"></div>
         <div id="libraryQuickPicks" class="quick-picks"></div>
-        <div class="catalogue-controls">
-          <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
+        <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
+        <div class="count-row">
+          <div id="libraryCount" class="result-count"></div>
           <button id="libraryFiltersBtn" class="filters-button" onclick="openFiltersSheet('library')" aria-label="More filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg><span>Filters</span><span class="filters-badge" hidden>0</span></button>
         </div>
-        <div id="libraryCount" class="result-count"></div>
         <div id="exerciseLibrary" class="exercise-list"></div>
         <button class="secondary-button full-button" onclick="openCustomExercise()">+ Add custom exercise</button>
       </section>

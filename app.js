@@ -391,7 +391,7 @@ function renderCatalogueChips(ctx){
 // Reflect the active facet count on the Filters button (badge + accent) and the open dialog's Clear button — in place, no rebuild.
 function updateFiltersControl(ctx){
   const fs=catState(ctx),n=fs.patterns.length+fs.equip.length+fs.families.length,btn=catEl(ctx,'filtersBtn');
-  if(btn){btn.classList.toggle('has-active',n>0);const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
+  if(btn){btn.classList.toggle('has-active',n>0);btn.setAttribute('aria-label',n?`More filters, ${n} active`:'More filters');const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
   if(ctx===filterSheetCtx){const clear=document.getElementById('filterClearBtn');if(clear)clear.disabled=n===0;}
 }
 function renderCatalogueList(ctx,animate){
@@ -1258,8 +1258,9 @@ function openExercisePicker(target){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
     +`<div id="pk_quick" class="quick-picks"></div>`
     +`<div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pk_search" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('picker',this.value)" aria-label="Search exercises"></div>`
-    +`<div class="catalogue-controls"><div id="pk_chips" class="filter-row" aria-label="Filter by muscle group"></div><button id="pk_filtersBtn" class="filters-button" onclick="openFiltersSheet('picker')" aria-label="More filters">${FILTERS_ICON}<span>Filters</span><span class="filters-badge" hidden>0</span></button></div>`
-    +`<div id="pk_count" class="result-count"></div><div id="pk_list" class="exercise-list"></div>`;
+    +`<div id="pk_chips" class="filter-row" aria-label="Filter by muscle group"></div>`
+    +`<div class="count-row"><div id="pk_count" class="result-count"></div><button id="pk_filtersBtn" class="filters-button" onclick="openFiltersSheet('picker')" aria-label="More filters">${FILTERS_ICON}<span>Filters</span><span class="filters-badge" hidden>0</span></button></div>`
+    +`<div id="pk_list" class="exercise-list"></div>`;
   renderCatalogue('picker');document.getElementById('sheet').showModal();
 }
 function pickExercise(id){
