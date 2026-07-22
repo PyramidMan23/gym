@@ -1440,6 +1440,10 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
   navigator.serviceWorker.register('./sw.js').then(reg=>{
     if(reg.waiting&&navigator.serviceWorker.controller)showUpdatePill(reg.waiting);
     reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)showUpdatePill(w);});});
+    // An installed PWA resumed from the background never reloads the page, so register()'s update
+    // check never re-runs and the app can sit on a stale version for days (hit 2026-07-23).
+    // Re-check whenever it comes back to the foreground; the pill still gates the actual swap.
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
   }).catch(()=>{});
   // Reload ONLY on a real update swap (a previous controller existed, or the pill asked for the swap).
   // A fresh first install fires controllerchange via clients.claim() — that must never reload (Codex P2).
