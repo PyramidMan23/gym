@@ -1098,10 +1098,17 @@ function startRest(seconds,exerciseIndex=0){
   clearInterval(restTimer);document.getElementById('restPill').classList.add('show');
   tickRest();restTimer=setInterval(tickRest,1000);
 }
+// Council 2026-07-23: rest is RECOVERY (teal) until the last 10s, when it becomes an ACTION (amber).
+// The label changes with the hue — never hue alone, Mark is colour-blind.
+const REST_ENDING_SECONDS=10;
 function tickRest(){
   restRemaining=Math.max(0,Math.round((restDeadline-Date.now())/1000));
   updateRest();
-  if(restRemaining<=0){clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');buzz(40);showToast('Rest done — next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
+  const pill=document.getElementById('restPill'),ending=restRemaining>0&&restRemaining<=REST_ENDING_SECONDS;
+  pill.classList.toggle('ending',ending);
+  const label=pill.querySelector('.rest-info span');
+  if(label)label.textContent=ending?'Get ready':'Rest';
+  if(restRemaining<=0){clearInterval(restTimer);pill.classList.remove('show','ending');if(label)label.textContent='Rest';buzz(40);showToast('Rest done — next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&document.getElementById('restPill').classList.contains('show'))tickRest();});
 // Rest-end notification (opt-in). ponytail: fires while the page is alive (incl. a backgrounded tab);

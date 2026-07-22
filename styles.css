@@ -730,3 +730,85 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .goal-strip .goal-bar{display:block;margin-bottom:7px}
 .goal-strip small{color:var(--taupe);font-size:12px}
 .sync-advanced summary{cursor:pointer;color:var(--taupe);font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;min-height:44px;display:flex;align-items:center}
+
+/* ================================================================================================
+   APPLE PASS — council 2026-07-23 (brain/decisions/2026-07-23-council-gym-apple-design-language.md)
+   Verdict in one line: colour communicates STATE and MEANING; material, type, geometry and motion
+   carry IDENTITY. Amber was doing nine jobs at once (eyebrows, rules, borders, timer, buttons,
+   completion, all chart ink, links, badges) — when everything is accent, nothing is.
+
+   Semantic families:  amber = training/effort · teal = recovery/secondary · neutral = structure+nav
+   Rollback: delete from this banner to EOF.
+   ============================================================================================== */
+
+/* --- 1. Concentric radius scale (Codex: nested children must be TIGHTER than their parent, so
+   corners read as machined rather than merely rounded). The FORGED pass had drifted to an
+   arbitrary 9/13/16/10 — which is exactly why the radius guard was already failing on a 16px
+   sheet before this session. One scale now, chosen to KEEP the 16px card look Mark already
+   signed off rather than tightening it:   control 8 → row 12 → card 16 → sheet 20.
+   Enforced end-to-end by tests/layout-check.mjs (allowed values AND parent > child nesting). --- */
+:root{--r1:8px;--r2:12px;--radius:16px;--radius-sm:8px;--r-card:16px;--r-sheet:20px}
+.card,.routine-card,.history-card,.week-card,.chart-card,.activity-card,.resume-card,.template-card,
+.exercise-row,.metric,.workout-exercise,.trend-card,.checkin-card,.coach-card,.recap-card,.goal-card,
+.mv-card,.mv-row,.bal-card,.pr-row,.empty-card,.locked-card,.goal-strip,.receipt-card{border-radius:var(--r-card)}
+.sheet{border-radius:var(--r-sheet) var(--r-sheet) 0 0}
+.confirm-dialog{border-radius:var(--r-sheet)}
+@media(min-width:650px){.sheet{border-radius:var(--r-sheet) var(--r-sheet) 0 0}}
+
+/* --- 2. STRUCTURE GOES NEUTRAL. Eyebrows, section rules and decorative ticks carried accent for
+   no informational reason — they only raised the noise floor. Identity now comes from the
+   material and the type, so the real amber signals can rise above it. --- */
+.kicker,.kicker.accent,.activity-heading .kicker,.coach-top .kicker,.quick-kicker,
+.filter-group .kicker,.receipt-next .kicker,.recap-card .kicker{color:var(--taupe)}
+.section-heading::after,.metric::after,.live-metric::after,.goal-card::after{background:var(--hair-bright)}
+.coach-list li::before{background:var(--taupe)}
+/* Decorative amber card borders → neutral. The recap card is a REPORT, not a live control. */
+.recap-card.card-live{border-color:var(--card-hair)}
+
+/* --- 3. COMPLETION COLLAPSES INTO CALM (Codex). One state, one mark: a filled tick plus a faint
+   tint. The inset amber bar and amber-outlined cells were four extra shouts for the same fact,
+   and they left the pending row looking as "done" as the finished one. --- */
+.set-row.completed{background:rgba(var(--bloom-amber),.10);box-shadow:none}
+.set-row.completed .set-input{background:var(--card-solid);border-color:var(--hair)}
+.set-row.completed .set-number{color:var(--taupe)}
+/* Tick flashes on completion, then settles so Finish stays the dominant amber on screen. */
+.set-done.done{transform:none;background:var(--amber-soft);border-color:var(--amber-soft)}
+.set-done.done{animation:tickSettle .5s var(--ease) both}
+@keyframes tickSettle{0%{transform:scale(1)}35%{transform:scale(1.14);background:var(--amber)}100%{transform:scale(1)}}
+/* "Next up" is guidance, not effort — neutral marker, never a second amber row. */
+.set-row.notched{box-shadow:inset 3px 0 0 var(--hair-bright);border:1px solid var(--hair)}
+
+/* --- 4. One accent per intent inside the workout. "+ Add set" is the action; "+ Drop" is a
+   variant of it, so it stops competing as a second coloured button. --- */
+.add-drop{border-color:var(--hair)!important;color:var(--taupe)!important;background:transparent!important}
+
+/* --- 5. Section heading must never wrap into its action (real collision: "What you're working
+   toward" + "New goal" both wrapped and overlapped on Progress). Heading may shrink; the action
+   holds its line, always. --- */
+.section-heading>div:first-child{min-width:0;flex:1}
+.section-heading .text-button{flex:none;white-space:nowrap}
+
+/* --- 6. Empty and locked states join the same left axis as every other card. Centred text was
+   the only thing on these screens not aligned to the page's spine. --- */
+.empty-card,.locked-card,.recap-locked{text-align:left}
+.locked-card .lock-progress,.recap-locked .lock-progress{justify-content:flex-start}
+
+/* --- 7. Charts: history stays ALIVE in low-chroma amber (Codex — neutralising it made past work
+   feel inert); today carries full chroma plus its label. Gridlines/axis stay structural. --- */
+.bar-col i{background:rgba(var(--bloom-amber),.28)}
+.bar-col.active i{background:var(--amber)}
+
+/* --- 8. Rest is RECOVERY (teal), and becomes an action (amber) for the last 10 seconds. The pill
+   changes hue AND wording weight, never hue alone — Mark is colour-blind. --- */
+.rest-pill span,.rest-pill small{color:var(--teal)}
+.rest-pill strong{color:var(--cream)}
+.rest-pill.ending{border-color:var(--amber)}
+.rest-pill.ending span,.rest-pill.ending small,.rest-pill.ending strong{color:var(--amber-deep)}
+.rest-act{color:var(--cream)}
+
+/* --- 9. Richness re-spent on MATERIAL, not pigment (the council's named risk, mitigated).
+   A live card already announces itself with a radial amber wash and an inner amber top-light —
+   the amber OUTLINE on top of that was a third statement of the same fact, and with two live
+   cards stacked on Today it stopped distinguishing anything. Border goes structural; the wash
+   and the light (the expensive-looking part) stay. --- */
+.card-live{border-color:var(--card-hair)}

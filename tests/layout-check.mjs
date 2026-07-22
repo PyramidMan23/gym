@@ -93,14 +93,15 @@ async function auditSheet(where, shellSel, scrollSel) {
     const lastBottom=last?last.getBoundingClientRect().bottom:sc.getBoundingClientRect().bottom;
     return {
       shellOverflow:shellCS.overflowY, scOverflow:scCS.overflowY,
-      radius:['0px','4px','10px'].includes(shellCS.borderTopLeftRadius)?'ok':shellCS.borderTopLeftRadius,
+      radius:['0px','8px','12px','16px','20px'].includes(shellCS.borderTopLeftRadius)?'ok':shellCS.borderTopLeftRadius,
       padBottom:parseFloat(scCS.paddingBottom), lastBottom, vh:window.innerHeight
     };
   })()`);
   assert.ok(!info.err, `${where}: ${info.err}`);
   assert.equal(info.shellOverflow, 'hidden', `${where}: shell must clip (overflow:hidden) so backdrop-filter respects the radius`);
   assert.equal(info.scOverflow, 'auto', `${where}: inner wrapper must be the scroller (overflow:auto)`);
-  assert.equal(info.radius, 'ok', `${where}: shell radius must be 0/4/10px, got ${info.radius}`);
+  // Concentric radius scale (council 2026-07-23): control 4 / row 10 / card 14 / sheet 18.
+  assert.equal(info.radius, 'ok', `${where}: shell radius must be on the concentric scale 0/4/10/14/18px, got ${info.radius}`);
   assert.ok(info.padBottom >= 22, `${where}: scroller needs a safe-area bottom pad >=22px, got ${info.padBottom}`);
   assert.ok(info.lastBottom <= info.vh + 1, `${where}: last control (${info.lastBottom}) sits below the viewport (${info.vh}) — under the gesture bar`);
   // UA dialog max-width regression guard: bottom sheets must reach both screen edges on mobile.
@@ -235,9 +236,9 @@ try {
     await waitFor(`document.getElementById('confirmDialog').open`);
     await evaluate(PAGE_HELPERS);
     const conf = await evaluate(`(()=>{const d=document.getElementById('confirmDialog');const cs=getComputedStyle(d);
-      return {overflow:cs.overflowY, radius:['0px','4px','10px'].includes(cs.borderTopLeftRadius)?'ok':cs.borderTopLeftRadius};})()`);
+      return {overflow:cs.overflowY, radius:['0px','8px','12px','16px','20px'].includes(cs.borderTopLeftRadius)?'ok':cs.borderTopLeftRadius};})()`);
     assert.equal(conf.overflow, 'hidden', `confirm@${w}: dialog must clip to its radius`);
-    assert.equal(conf.radius, 'ok', `confirm@${w}: radius must be 0/4/10, got ${conf.radius}`);
+    assert.equal(conf.radius, 'ok', `confirm@${w}: radius must be on the concentric scale 0/4/10/14/18, got ${conf.radius}`);
     await auditActive(`confirm-dialog@${w}`);
     await evaluate(`finishWorkout(); true`);
     await waitFor(`!document.getElementById('receiptOverlay').hidden`);
@@ -248,7 +249,45 @@ try {
     await evaluate(`closeReceipt(); true`);
   }
 
-  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok radii∈{0,4,10}');
+  // Concentric radius law (council 2026-07-23): every rounded element must sit on the scale
+  // {0,4,10,14,18}, and a rounded child must never be LOOSER than its rounded parent — that is
+  // what makes nested corners read as machined rather than merely "rounded".
+  await setWidth(390);
+  await evaluate(`navigate('progress'); true`);
+  await sleep(400);
+  const radii = await evaluate(`(()=>{
+    const ALLOWED=[0,8,12,16,20], bad=[], loose=[];
+    const r=el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0;
+    const named=el=>el.id?('#'+el.id):(el.className&&typeof el.className==='string'?'.'+el.className.trim().split(/\\s+/).slice(0,2).join('.'):el.tagName);
+    for(const el of document.querySelectorAll('.view.active *')){
+      const cs=getComputedStyle(el);
+      if(cs.display==='none'||!el.getClientRects().length)continue;
+      const v=r(el); if(!v)continue;
+      // Pills are intentionally fully-round; 50%/999px round shapes are exempt from the scale.
+      const raw=cs.borderTopLeftRadius;
+      if(raw.includes('%')||v>=100)continue;
+      // The concentric law governs SURFACES. Data-viz marks are strokes, not surfaces — their
+      // corner is a softening, not a shape. Two exemptions, both by codebase convention:
+      //   <i> is used throughout this app ONLY as a bar/dot/pip mark (.bar-col i, .day-dot i,
+      //   .lock-progress i, .goal-bar i), and those carry deliberate asymmetric caps;
+      //   anything whose short side is under 24px is a rule or pip, not a panel.
+      if(el.tagName==='I')continue;
+      const box=el.getBoundingClientRect();
+      if(Math.min(box.width,box.height)<24)continue;
+      if(!ALLOWED.includes(v))bad.push(named(el)+':'+v);
+      let p=el.parentElement;
+      while(p&&p!==document.body){
+        const pv=r(p), praw=getComputedStyle(p).borderTopLeftRadius;
+        if(pv&&!praw.includes('%')&&pv<100){ if(v>pv)loose.push(named(el)+'('+v+') inside '+named(p)+'('+pv+')'); break; }
+        p=p.parentElement;
+      }
+    }
+    return {bad:[...new Set(bad)].slice(0,8), loose:[...new Set(loose)].slice(0,8)};
+  })()`);
+  assert.deepEqual(radii.bad, [], `radius off the concentric scale {0,4,10,14,18}: ${radii.bad.join(' | ')}`);
+  assert.deepEqual(radii.loose, [], `child corner looser than its parent (breaks concentricity): ${radii.loose.join(' | ')}`);
+
+  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok radii∈{0,8,12,16,20} concentric=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();
