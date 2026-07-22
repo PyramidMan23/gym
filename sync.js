@@ -36,6 +36,10 @@
       exercises: (s.exercises || []).map(ex => ({
         exerciseId: ex.exerciseId,
         exerciseName: (typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).name) || '',
+        // Hold-type exercises put SECONDS in `reps`. The flag has to travel WITH the data — anything
+        // downstream (the MarkOS brain ingest) has no access to the catalogue and would otherwise
+        // record a 60-second hang as 60 reps forever (audit 2026-07-22).
+        timed: !!(typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).timed),
         notes: ex.notes || '',
         sets: (ex.sets || []).map(set => ({
           weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null

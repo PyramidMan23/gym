@@ -176,6 +176,20 @@ test('backup import rejects an activeSession with no exercises array', () => {
   assert.doesNotThrow(() => Core.validateBackup(noSession, []));
 });
 
+test('sync payload carries the timed flag so the brain ingest cannot misread seconds as reps', () => {
+  const Sync = require('../sync.js');
+  global.DUCK_EXERCISES = [{ id: HANG, name: 'Dead Hang', timed: true }, { id: SQUAT, name: 'Belt Squat' }];
+  try {
+    const payload = Sync.sessionToPayload({ id: 's1', exercises: [
+      { exerciseId: HANG, sets: [set('', 60)] },
+      { exerciseId: SQUAT, sets: [set(100, 5)] }
+    ] });
+    assert.equal(payload.exercises[0].timed, true);
+    assert.equal(payload.exercises[0].exerciseName, 'Dead Hang');
+    assert.equal(payload.exercises[1].timed, false);
+  } finally { delete global.DUCK_EXERCISES; }
+});
+
 // ---- sync: deleting a workout must not leave it queued ----
 test('Sync.forget drops a deleted session from the queue and its file map', () => {
   const Sync = require('../sync.js');
