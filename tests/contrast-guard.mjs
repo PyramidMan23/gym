@@ -167,6 +167,14 @@ try {
     let rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout+toast+rir', ...r }); });
 
+    // --- State A2: the SAME workout, paused — reveals the PAUSED flag and dims the clock.
+    // Its own sweep, not folded into State A: pausing re-renders and would drop A's RIR row.
+    await evaluate(`toggleWorkoutPause(); true`);
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout-paused', ...r }); });
+    await evaluate(`toggleWorkoutPause(); true`);
+
     // --- State B: the exercise menu sheet (disabled move buttons live here) ---
     await evaluate(`openWorkoutExerciseMenu(0); true`);
     await waitFor(`document.getElementById('sheet').open`);

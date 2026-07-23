@@ -246,3 +246,18 @@ test('per-profile backup round-trips a profile state without bleeding into anoth
   restored.history.push({ id: 's2' });
   assert.equal(profileA.history.length, 1);
 });
+
+test('pause: elapsed excludes held time, freezes while a pause is open, and legacy sessions are unchanged', () => {
+  const MIN = 60000;
+  // Closed pause: 10 min on the clock, 4 min of it held → 6 min of training time.
+  assert.equal(Core.sessionElapsedMs({ started: 0, pausedMs: 4 * MIN }, 10 * MIN), 6 * MIN);
+  // Open pause: the clock is frozen at pausedAt no matter how long `now` has run on.
+  const held = { started: 0, pausedAt: 5 * MIN, pausedMs: 0 };
+  assert.equal(Core.sessionElapsedMs(held, 5 * MIN), 5 * MIN);
+  assert.equal(Core.sessionElapsedMs(held, 90 * MIN), 5 * MIN);
+  // Receipt duration is training time, not wall time.
+  assert.equal(Core.summarizeSession({ started: 0, finished: 60 * MIN, pausedMs: 15 * MIN, exercises: [] }).durationMinutes, 45);
+  // A session recorded before pause existed carries neither field and still reads as plain wall time.
+  assert.equal(Core.summarizeSession({ started: 0, finished: 30 * MIN, exercises: [] }).durationMinutes, 30);
+  assert.equal(Core.sessionElapsedMs(null), 0);
+});

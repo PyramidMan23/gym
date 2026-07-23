@@ -158,8 +158,17 @@
     return feed.sort((a, b) => b.started - a.started).slice(0, limit);
   }
 
+  // Pause-aware elapsed time — the single source for every clock read. `pausedMs` accumulates closed
+  // pauses; `pausedAt`, when set, marks a pause still open and freezes the clock at that instant.
+  // History sessions carry neither field, so they read as plain wall time (num() → 0).
+  function sessionElapsedMs(session, now = Date.now()) {
+    if (!session) return 0;
+    const end = num(session.pausedAt) || num(session.finished) || now;
+    return Math.max(0, end - num(session.started) - num(session.pausedMs));
+  }
+
   function summarizeSession(session) {
-    const duration = Math.max(0, num(session?.finished) - num(session?.started));
+    const duration = sessionElapsedMs(session, num(session?.finished));
     return {
       durationMinutes: Math.max(1, Math.round(duration / 60000)),
       completedSets: (session?.exercises || []).reduce((sum, exercise) => sum + doneSets(exercise).length, 0),
@@ -761,5 +770,5 @@
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
 });

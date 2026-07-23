@@ -108,6 +108,7 @@ const DUCK_EXERCISES = [
   {id:'ar19',name:'Zottman Curl',muscle:'Arms',muscles:['Arms','Grip'],patterns:['Isolation'],family:'Curl',equip:['Dumbbell'],equipment:'Dumbbells, curl up / reverse down (biceps + forearm)'},
   {id:'ar20',name:'Diamond Push-Up',muscle:'Arms',muscles:['Arms','Chest'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Bodyweight'],equipment:'Bodyweight, hands together (triceps)'},
   {id:'ar21',name:'Bench Dip',muscle:'Arms',muscles:['Arms','Chest','Shoulders'],patterns:['Vertical Push'],family:'Dip',equip:['Bench','Bodyweight'],equipment:'Hands on one bench, feet on another (triceps)'},
+  {id:'ar22',name:'Dumbbell Curl',muscle:'Arms',muscles:['Arms'],patterns:['Isolation'],family:'Curl',equip:['Dumbbell'],equipment:'Dumbbells, supinated (the plain two-arm curl)'},
   // ---- Grip / Forearms / Climbing ----
   {id:'gr1',timed:true,name:'Hang Board Max Hangs',muscle:'Grip',muscles:['Grip'],patterns:['Isolation'],family:'Hang',equip:['Hang Board'],equipment:'Rock climbing hang board'},
   {id:'gr2',timed:true,name:'Hang Board Repeaters',muscle:'Grip',muscles:['Grip'],patterns:['Isolation'],family:'Hang',equip:['Hang Board'],equipment:'Rock climbing hang board'},
@@ -160,6 +161,8 @@ const DUCK_EXERCISES = [
   {id:'lg39',name:'Cable Hip Abduction',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Abduction',equip:['Cable','Band'],equipment:'G3 low pulley / band, ankle strap (glute med)'},
   {id:'lg40',name:'Seated Calf Raise',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Calf',equip:['Dumbbell','Slant Board','Bench'],equipment:'Seated, dumbbell on the knees (soleus)'},
   {id:'lg41',name:'Reverse Nordic Curl',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Extension',equip:['Machine','Bodyweight'],equipment:'Hyper Pro Nordic bench (quad eccentric — KOT knee)'},
+  {id:'lg42',name:'Trap Bar RDL',muscle:'Legs',muscles:['Legs','Back','Grip'],patterns:['Hinge'],family:'RDL',equip:['Trap Bar','Plate'],equipment:'Trap bar, high handles (hips back, spine neutral)'},
+  {id:'lg43',name:'Banded Glute Bridge',muscle:'Legs',muscles:['Legs','Core'],patterns:['Hinge'],family:'Hip Thrust',equip:['Barbell','Band','Plate'],equipment:'Olympic bar across the hips + heavy band around the knees (shoulders on the floor)'},
   // ---- Core ----
   {id:'co1',name:'Hanging Leg Raise',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar'},
   {id:'co2',timed:true,name:'Plank',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Plank',equip:['Bodyweight'],equipment:'Bodyweight'},
@@ -313,6 +316,16 @@ const GYM_PLANS = [
       { name:'Push', exerciseIds:['ch1','sh1','ch4','sh4','ch6','ar6','ar9'] },
       { name:'Pull', exerciseIds:['ba1','ba3','ba5','ba9','sh7','ar2','ar3'] },
       { name:'Legs', exerciseIds:['lg1','lg5','lg7','lg13','lg18','lg17','co4'] }
+    ]
+  },
+  {
+    id:'plan-ty-ppl', tag:'TY', name:'Ty · PPL', goal:3,
+    blurb:'3 days · Ty’s push / pull / legs',
+    note:'Ty’s rotation, exactly as written in his doc. Vest work (deficit push-ups, dips, optional pull-ups) is logged as 8 kg — take it off for the bench and lateral raises. On legs, put the leg extension and leg curl back to back and flip the superset switch on the extension.',
+    days:[
+      { name:'Push', exerciseIds:['ch17','ch5','ch19','sh4','ar9'] },
+      { name:'Pull', exerciseIds:['ba3','ba8','ba6','ar22','cs35'] },
+      { name:'Legs', exerciseIds:['lg3','lg42','lg43','lg23','lg14','lg13','lg18'] }
     ]
   },
   {

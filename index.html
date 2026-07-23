@@ -108,7 +108,7 @@
       </section>
 
       <section id="view-workout" class="view workout-view" aria-labelledby="workoutTitle">
-        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p id="workoutClock" class="workout-clock hero-num">00:00</p></div><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></header>
+        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p class="workout-clock hero-num"><span id="workoutClock">00:00</span><span id="pausedFlag" class="paused-flag" hidden>PAUSED</span></p></div><div class="workout-actions"><button id="pauseButton" class="pause-button" onclick="toggleWorkoutPause()" aria-pressed="false">Pause</button><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></div></header>
         <p id="workoutContext" class="workout-context"></p>
         <div id="workoutMetrics" class="live-metrics"></div>
         <div id="workoutExercises" class="workout-exercises"></div>

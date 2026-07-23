@@ -426,6 +426,14 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 
 /* ---- WORKOUT: cockpit ---- */
 .workout-clock{font-size:44px}
+/* Pause sits beside Finish: quiet secondary weight, same 50px target height. */
+.workout-actions{display:flex;align-items:center;gap:8px}
+.pause-button{padding:0 16px;min-height:50px;border-radius:var(--radius);font-weight:800;background:var(--glass-2);border:1px solid var(--hair);color:var(--cream);transition:transform .12s var(--ease)}
+.pause-button:active{transform:scale(.98)}
+/* Cream, not taupe: at 11px the muted ink measured 4.48:1 on glass-2 in dark — under the 4.5 bar. */
+/* :not([hidden]) — a bare `display` would beat the UA hidden rule and leave a phantom chip laid out. */
+.paused-flag:not([hidden]){display:inline-block;margin-left:10px;padding:4px 9px;border-radius:var(--r1);background:var(--glass-2);border:1px solid var(--hair);color:var(--cream);font-size:11px;font-weight:800;letter-spacing:1px;vertical-align:middle}
+.workout-view.paused .workout-clock{color:var(--taupe)}
 /* Live metrics = one instrument strip with dividers, not three boxes. */
 .live-metrics{grid-template-columns:repeat(3,1fr);gap:0;background:var(--card-bg);border:1px solid var(--card-hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow);overflow:hidden}
 .live-metric{background:transparent;border:0;box-shadow:none;border-radius:0;padding:14px 12px 13px}

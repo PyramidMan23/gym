@@ -181,7 +181,9 @@ function renderToday(){
   renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
-  document.getElementById('resumeSlot').innerHTML=state.activeSession?`<div class="resume-card card-live"><strong><span class="live-dot" aria-hidden="true"></span>Workout in progress</strong><p>${esc(state.activeSession.name)} · started ${formatElapsed(state.activeSession.started)} ago</p><button onclick="resumeWorkout()">Resume workout</button></div>`:'';
+  // A paused session must not read as "in progress" with a live pulse — the card states the real state.
+  const live=state.activeSession,livePaused=!!live?.pausedAt;
+  document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
   const routines=state.routines.slice(0,6);
   document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(routineStripCard).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
   document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="empty-card card"><strong>No sessions logged</strong>Your first completed workout will land here.</div>`;
@@ -843,6 +845,10 @@ function renderWorkout(){
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
   document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
+  const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
+  btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
+  document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue — the state must survive colour-blindness
+  document.getElementById('view-workout').classList.toggle('paused',paused);
   startActiveClock();
 }
 // Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable — friction kills habits.
@@ -1086,8 +1092,33 @@ function toggleSuperset(index,on){
   saveState();renderWorkout();
 }
 function addExerciseToWorkout(id){if(!state.activeSession)return;state.activeSession.exercises.push({exerciseId:id,notes:'',sets:[{weight:'',reps:'',done:false}]});saveState();renderWorkout();}
-function startActiveClock(){clearInterval(activeTimer);const update=()=>{if(!state.activeSession)return;document.getElementById('workoutClock').textContent=Core.formatDuration((Date.now()-state.activeSession.started)/1000)};update();activeTimer=setInterval(update,1000);}
-function formatElapsed(started){return Core.formatDuration((Date.now()-started)/1000);}
+function startActiveClock(){
+  clearInterval(activeTimer);
+  const update=()=>{if(!state.activeSession)return;document.getElementById('workoutClock').textContent=Core.formatDuration(Core.sessionElapsedMs(state.activeSession)/1000)};
+  update();
+  if(!state.activeSession?.pausedAt)activeTimer=setInterval(update,1000); // paused: the value is frozen, so there is nothing to tick
+}
+// Pause the session clock for a phone call, a chat, a coffee — held time is never training time.
+// One accumulator (`pausedMs`) + an open mark (`pausedAt`); every elapsed read goes through
+// Core.sessionElapsedMs, so the live clock, the receipt duration and history all agree.
+function toggleWorkoutPause(){
+  const session=state.activeSession;if(!session)return;
+  const now=Date.now();
+  if(session.pausedAt){
+    const held=now-session.pausedAt;
+    session.pausedMs=(session.pausedMs||0)+held;session.pausedAt=null;
+    // Rest is deadline-anchored, so it is owed the same held time back before it ticks again.
+    if(restDeadline){restDeadline+=held;if(document.getElementById('restPill').classList.contains('show')){clearInterval(restTimer);tickRest();restTimer=setInterval(tickRest,1000);}}
+    showToast('Workout resumed');
+  }else{
+    session.pausedAt=now;clearInterval(restTimer);
+    showToast('Workout paused — the clock is stopped');
+  }
+  saveState();buzz(10);renderWorkout();
+}
+function settlePause(session,now=Date.now()){ // close any open pause so `finished` lands on real training time
+  if(session?.pausedAt){session.pausedMs=(session.pausedMs||0)+(now-session.pausedAt);session.pausedAt=null;}
+}
 
 // Deadline-anchored rest (Codex verify 2026-07-20): remaining derives from an absolute deadline,
 // and a visibilitychange reconciliation fires the end path immediately when the tab wakes past it —
@@ -1110,7 +1141,7 @@ function tickRest(){
   if(label)label.textContent=ending?'Get ready':'Rest';
   if(restRemaining<=0){clearInterval(restTimer);pill.classList.remove('show','ending');if(label)label.textContent='Rest';buzz(40);showToast('Rest done — next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
 }
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&document.getElementById('restPill').classList.contains('show'))tickRest();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.activeSession?.pausedAt&&document.getElementById('restPill').classList.contains('show'))tickRest();});
 // Rest-end notification (opt-in). ponytail: fires while the page is alive (incl. a backgrounded tab);
 // no Notification-Triggers scheduling — if the OS fully suspends the PWA, the buzz+toast on return cover it.
 async function enableRestNotify(on){
@@ -1216,7 +1247,7 @@ function setPostCheckin(button,value){
 }
 function finishWorkout(){
   const session=state.activeSession;if(!session)return;
-  session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
+  settlePause(session);session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
   if(session.prs.length)buzz([20,60,20]); // PR: distinct double pulse
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
@@ -1347,7 +1378,18 @@ function saveCustomExercise(){const name=document.getElementById('customName').v
 
 function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;const summary=Core.summarizeSession(session);
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+}
+// A routine IS just a named, ordered exercise list — so any logged workout can become one.
+// To merge two workouts into a single routine, save one here then ••• → Edit and add the rest.
+function saveHistoryAsRoutine(id){
+  const session=state.history.find(s=>s.id===id);if(!session)return;
+  const exerciseIds=[...new Set((session.exercises||[]).map(ex=>ex.exerciseId).filter(x=>exerciseById(x)))];
+  if(!exerciseIds.length)return showToast('Nothing in this workout to save');
+  let name=session.name||'Saved workout',n=2;
+  while(state.routines.some(r=>r.name===name))name=`${session.name} ${n++}`; // two identical names in the list help nobody
+  state.routines.unshift({id:`r${Date.now()}`,name,exerciseIds});
+  saveState();closeSheet();renderTrain();renderToday();showToast(`Saved as routine · ${name}`);
 }
 function deleteHistory(id){
   state.history=state.history.filter(s=>s.id!==id);
