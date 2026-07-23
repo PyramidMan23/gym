@@ -184,8 +184,8 @@ function renderToday(){
   // A paused session must not read as "in progress" with a live pulse — the card states the real state.
   const live=state.activeSession,livePaused=!!live?.pausedAt;
   document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
-  const routines=state.routines.slice(0,6);
-  document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(routineStripCard).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
+  const routines=state.routines.slice(0,6),doneThisWeek=Core.routinesDoneThisWeek(state.history);
+  document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(r=>routineStripCard(r,doneThisWeek)).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
   document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="empty-card card"><strong>No sessions logged</strong>Your first completed workout will land here.</div>`;
 }
 function renderActivityRings(weekly){
@@ -216,14 +216,17 @@ function renderWeekDots(){
   const completed=new Set(state.history.map(s=>{const d=new Date(s.started);d.setHours(0,0,0,0);return d.getTime()}));
   document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday.getTime()+index*DAY);return `<span class="day-dot ${completed.has(date.getTime())?'done':''} ${date.toDateString()===now.toDateString()?'today':''}"><i></i><small>${label}</small></span>`}).join('');
 }
-function routineCard(routine){
+// `done` = the Set from Core.routinesDoneThisWeek. A tick AND the words — never a colour alone.
+function routineCard(routine,done){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
-  return `<article class="routine-card"><div><h3>${esc(routine.name)}</h3><p>${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></div><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">Start</button></div></article>`;
+  const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done this week</span> · ':'';
+  return `<article class="routine-card"><div><h3>${esc(routine.name)}</h3><p>${tick}${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></div><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
 }
 // Today's horizontal quick-start strip — same onclick contracts as routineCard (start + options menu).
-function routineStripCard(routine){
+function routineStripCard(routine,done){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
-  return `<article class="routine-strip-card"><div class="rs-top"><h3>${esc(routine.name)}</h3><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button></div><p>${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p><button class="rs-start" onclick="startRoutine('${routine.id}')">Start</button></article>`;
+  const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done</span> · ':'';
+  return `<article class="routine-strip-card"><div class="rs-top"><h3>${esc(routine.name)}</h3><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button></div><p>${tick}${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p><button class="rs-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></article>`;
 }
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
@@ -326,7 +329,8 @@ function exportLastSession(){
 
 function renderTrain(){
   document.getElementById('planList').innerHTML=plans.map(p=>`<button class="template-card plan-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
-  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(routineCard).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, or add a plan above.</div>`;
+  const doneThisWeek=Core.routinesDoneThisWeek(state.history);
+  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, or add a plan above.</div>`;
   document.getElementById('templateList').innerHTML=templates.map(t=>`<button class="template-card" onclick="startTemplate('${t.id}')"><span>${t.label}</span><strong>${t.name}</strong><small>${t.exerciseIds.length} exercises · start now</small></button>`).join('');
 }
 function startTemplate(id){ const template=templates.find(t=>t.id===id);if(template)beginSession(template); }
@@ -1378,7 +1382,36 @@ function saveCustomExercise(){const name=document.getElementById('customName').v
 
 function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;const summary=Core.summarizeSession(session);
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div><button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div>${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+}
+// A workout logged BEFORE its routine existed has routineId null, so the week never counts it.
+// This is the repair: attach it after the fact and the routine ticks over to done.
+function historyLinkRow(session){
+  const linked=state.routines.find(r=>r.id===session.routineId);
+  return `<button class="secondary-button full-button" onclick="openHistoryLink('${session.id}')">${linked?`Counts as · ${esc(linked.name)}`:'Count this as a routine'}</button>`;
+}
+function openHistoryLink(id){
+  const session=state.history.find(s=>s.id===id);if(!session)return;
+  if(!state.routines.length)return showToast('No routines to link to yet');
+  // Best-overlap first: the routine sharing the most exercises with what was actually trained is
+  // nearly always the one meant, so the common case is one tap instead of a hunt.
+  const trained=new Set((session.exercises||[]).map(ex=>ex.exerciseId));
+  const ranked=state.routines.map(r=>({r,hits:r.exerciseIds.filter(x=>trained.has(x)).length}))
+    .sort((a,b)=>b.hits-a.hits||a.r.name.localeCompare(b.r.name));
+  const rows=ranked.map(({r,hits})=>`<div class="selected-row"><span><strong>${esc(r.name)}</strong><small style="display:block;color:var(--muted)">${hits} of ${r.exerciseIds.length} exercises match${r.id===session.routineId?' · linked now':''}</small></span><button onclick="linkHistoryToRoutine('${id}','${r.id}')">${r.id===session.routineId?'Keep':'Pick'}</button></div>`).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${esc(session.name)}</p><h2>Count this as</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">Attaches this logged workout to a routine so your week shows it as done. Nothing about the sets changes.</p><div class="selected-list">${rows}</div>${session.routineId?`<button class="secondary-button full-button" onclick="linkHistoryToRoutine('${id}','')">Unlink</button>`:''}<button class="secondary-button full-button" onclick="openHistory('${id}')">Back</button>`;
+  document.getElementById('sheet').showModal();
+}
+function linkHistoryToRoutine(sessionId,routineId){
+  const session=state.history.find(s=>s.id===sessionId);if(!session)return;
+  const routine=state.routines.find(r=>r.id===routineId);
+  session.routineId=routine?routine.id:null;
+  // Only the untouched default name is rewritten — never a title the lifter chose themselves.
+  if(routine&&session.name==='Quick workout')session.name=routine.name;
+  saveState();
+  if(Sync)try{Sync.onSessionComplete(session);}catch{} // the stored copy must carry the new link too
+  closeSheet();renderToday();renderTrain();renderProgress();
+  showToast(routine?`Counted as ${routine.name}`:'Unlinked');
 }
 // A routine IS just a named, ordered exercise list — so any logged workout can become one.
 // To merge two workouts into a single routine, save one here then ••• → Edit and add the rest.

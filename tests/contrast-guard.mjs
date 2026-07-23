@@ -241,6 +241,21 @@ try {
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'today-goal-strip', ...r }); });
 
+    // --- State D4: Train, with a routine already ticked off for the week.
+    // The "Done this week" badge only exists once a logged session is linked to a routine, so the
+    // state has to be built — an unlinked app would sweep the card and never see the badge.
+    await evaluate(`(()=>{
+      applyPlan('plan-ty-ppl');
+      if(state.history[0]) state.history[0].routineId = state.routines[0].id;
+      saveState(); navigate('train'); renderTrain(); renderToday();
+      return document.querySelectorAll('.done-badge').length;
+    })()`);
+    await settle();
+    const badges = await evaluate(`document.querySelectorAll('.done-badge').length`);
+    assert.ok(badges > 0, 'contrast guard must actually render a Done-this-week badge to audit it');
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'train-routine-done', ...r }); });
+
     // --- State E: settings sheet (injury toggle, sync copy) ---
     await evaluate(`openSettings(); true`);
     await waitFor(`document.getElementById('sheet').open`);

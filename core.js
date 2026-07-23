@@ -176,6 +176,17 @@
     };
   }
 
+  // Which routines are already done in the CURRENT local week, as a Set of routine ids.
+  // createSession has always stamped routineId, but nothing ever read it — this is what turns that
+  // dead field into "Push done, Legs done, Pull to go". One pass, so a long history stays cheap.
+  function routinesDoneThisWeek(history, now = Date.now()) {
+    const start = startOfLocalWeek(now);
+    const done = new Set();
+    for (const session of history || [])
+      if (session?.routineId && num(session.started) >= start) done.add(session.routineId);
+    return done;
+  }
+
   function startOfLocalWeek(timestamp) {
     const date = new Date(timestamp);
     const day = (date.getDay() + 6) % 7;
@@ -770,5 +781,5 @@
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
 });

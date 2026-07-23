@@ -261,3 +261,21 @@ test('pause: elapsed excludes held time, freezes while a pause is open, and lega
   assert.equal(Core.summarizeSession({ started: 0, finished: 30 * MIN, exercises: [] }).durationMinutes, 30);
   assert.equal(Core.sessionElapsedMs(null), 0);
 });
+
+test('routinesDoneThisWeek counts only linked sessions inside the current local week', () => {
+  const now = new Date(2026, 6, 23, 9, 0, 0).getTime();      // Thursday; the week starts Monday
+  const monday = new Date(2026, 6, 20, 7, 0, 0).getTime();
+  const lastWeek = new Date(2026, 6, 16, 7, 0, 0).getTime();
+  const history = [
+    { id: 's1', routineId: 'rPush', started: monday },        // this week, linked
+    { id: 's2', routineId: 'rLegs', started: now - 3600000 }, // this week, linked
+    { id: 's3', routineId: 'rPull', started: lastWeek },      // LAST week — must not count
+    { id: 's4', routineId: null,    started: monday }         // unlinked quick workout — must not count
+  ];
+  const done = Core.routinesDoneThisWeek(history, now);
+  assert.ok(done.has('rPush') && done.has('rLegs'));
+  assert.ok(!done.has('rPull'), 'last week must not carry over');
+  assert.equal(done.size, 2);
+  assert.equal(Core.routinesDoneThisWeek([], now).size, 0);
+  assert.equal(Core.routinesDoneThisWeek(undefined, now).size, 0);
+});

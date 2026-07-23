@@ -424,6 +424,9 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 .pr-feed:has(.pr-row)::before{content:'';position:absolute;left:6px;top:16px;bottom:16px;width:2px;background:linear-gradient(180deg,var(--amber),rgba(var(--bloom-amber),.22))}
 .pr-feed:has(.pr-row) .pr-row::before{content:'';position:absolute;left:-15px;top:50%;transform:translateY(-50%);width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px var(--card-solid)}
 
+/* "Done this week" on a routine card — same cream-on-glass recipe the PAUSED chip passes with. */
+.done-badge{display:inline-block;padding:2px 8px;border-radius:var(--r1);background:var(--glass-2);border:1px solid var(--hair);color:var(--cream);font-size:11px;font-weight:800;letter-spacing:.4px}
+
 /* ---- WORKOUT: cockpit ---- */
 .workout-clock{font-size:44px}
 /* Pause sits beside Finish: quiet secondary weight, same 50px target height. */
