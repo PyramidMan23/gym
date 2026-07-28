@@ -256,6 +256,48 @@ try {
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'train-routine-done', ...r }); });
 
+    // --- State F: the 2026-07-28 surfaces: deload advisory, Desk Reset row, coach cue + plan notes.
+    // All teal-on-card ink that had never been measured. Each block ASSERTS the element actually
+    // rendered before sweeping: a guard that silently skips a new state proves nothing, which is
+    // exactly how a real 4.48:1 dark-mode failure survived two green runs (2026-07-23).
+    const seeded = await evaluate(`(()=>{
+      const WEEK=7*86400000, now=Date.now();
+      const wk=(back,kg)=>({id:'dl'+back,routineId:null,name:'Week -'+back,started:now-back*WEEK,
+        finished:now-back*WEEK+3600000,checkin:{pre:null,post:'same',flare:false},prs:[],
+        exercises:[{exerciseId:'lg4',notes:'',sets:[{weight:kg,reps:1,done:true}]}]});
+      state.history=[wk(1,300),wk(2,200),wk(3,100)];
+      // A remote plan is what makes the coach card render its cue AND the plan-rules disclosure.
+      if(Sync) Sync.updateConfig(c=>{c.plan={planId:'guard-probe',basedThroughSessionId:'dl1',
+        expiresAfterSessions:3,capabilities:['reentry'],
+        notes:['STOP RULE: any sharp pain ends the exposure.','Never chase load: add reps before weight.'],
+        sessions:[{title:'Probe block',exercises:[{exerciseId:'lg4',sets:3,reps:8,load:30,
+          cue:'Confirmed once: repeat exactly as last time to build a tolerance base.'}]}]};});
+      saveState(); navigate('today'); renderToday();
+      return {deload:!!document.querySelector('.deload-card'),desk:!!document.querySelector('.desk-card'),
+        cue:!!document.querySelector('.coach-cue'),notes:!!document.querySelector('.coach-notes')};
+    })()`);
+    await settle();
+    assert.ok(seeded.deload, 'contrast guard must actually render the deload advisory to audit it');
+    assert.ok(seeded.desk, 'contrast guard must actually render the Desk Reset row to audit it');
+    assert.ok(seeded.cue, 'contrast guard must actually render a coach cue to audit it');
+    assert.ok(seeded.notes, 'contrast guard must actually render the plan-notes disclosure to audit it');
+    await evaluate(`document.querySelector('.coach-notes').open=true; true`); // measure the list ink too
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'today-deload-desk-coach', ...r }); });
+
+    // --- State G: the warm-up bookend strip inside a live workout (dashed panel, teal eyebrow) ---
+    const strip = await evaluate(`(()=>{
+      if(state.activeSession) state.activeSession=null;
+      startQuickWorkout(); addExerciseToWorkout('lg4');   // a hinge: the warm-up map has drills for it
+      return !!document.querySelector('.bookend-strip');
+    })()`);
+    await settle();
+    assert.ok(strip, 'contrast guard must actually render the warm-up strip to audit it');
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout-bookend', ...r }); });
+    await evaluate(`state.activeSession=null; saveState(); navigate('today'); true`);
+
     // --- State E: settings sheet (injury toggle, sync copy) ---
     await evaluate(`openSettings(); true`);
     await waitFor(`document.getElementById('sheet').open`);

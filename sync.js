@@ -32,6 +32,10 @@
       started: s.started || null,
       finished: s.finished || null,
       checkin: s.checkin || null, // three-touch safety answers (pre 0-10, post, next-session flare)
+      // Whether the tolerance gate APPLIED to this session. The app only ASKS the flare question in
+      // injury mode, so without this flag the brain-side coach demanded an answer that was never
+      // collected and froze on "repeat exactly as last time" forever (audit 2026-07-28).
+      injuryMode: s.injuryMode === true,
       prs: Array.isArray(s.prs) ? s.prs : [],
       exercises: (s.exercises || []).map(ex => ({
         exerciseId: ex.exerciseId,

@@ -35,6 +35,7 @@ let deferredInstall = null;
 
 const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
+const prepMap = (typeof GYM_PREP!=='undefined') ? GYM_PREP : {warmup:{},cooldown:{}};
 
 function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],goals:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
 // Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
@@ -177,7 +178,9 @@ function renderToday(){
   document.getElementById('todayTitle').textContent=hour<12?'Morning.':hour<18?'Ready to train?':'Let’s finish strong.';
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
+  renderDeload();
   renderCoach();
+  renderDeskReset();
   renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
@@ -187,6 +190,29 @@ function renderToday(){
   const routines=state.routines.slice(0,6),doneThisWeek=Core.routinesDoneThisWeek(state.history);
   document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(r=>routineStripCard(r,doneThisWeek)).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
   document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="empty-card card"><strong>No sessions logged</strong>Your first completed workout will land here.</div>`;
+}
+// Deload awareness (2026-07-28). Volume that only ever climbs is how a return to training becomes
+// the next injury: the exact failure mode this app exists to prevent, and nothing modelled it.
+// Advisory only: it never blocks a session and never changes a prescription.
+function renderDeload(){
+  const slot=document.getElementById('deloadSlot');if(!slot)return;
+  const check=Core.deloadCheck(state.history);
+  slot.innerHTML=check.due
+    ?`<section class="deload-card card" aria-label="Easy week suggested"><p class="kicker">EASY WEEK SUGGESTED</p><p>${esc(check.reason)}</p></section>`
+    :'';
+}
+// Desk Reset: the counter-dose to a laptop day. Deliberately startable in ONE tap without installing
+// the plan: friction is what kills a five-minute habit, and it needs to work on a rest day too.
+const DESK_PLAN=plans.find(p=>p.id==='plan-desk');
+function renderDeskReset(){
+  const slot=document.getElementById('deskSlot');if(!slot||!DESK_PLAN)return;
+  const day=DESK_PLAN.days[0];
+  const done=Core.routinesDoneThisWeek(state.history).has('plan-desk');
+  slot.innerHTML=`<button class="desk-card card" onclick="startDeskReset()"><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-go" aria-hidden="true">›</span></button>`;
+}
+function startDeskReset(){
+  const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
+  beginSession({id:'plan-desk',name:'Desk Reset',exerciseIds:day.exerciseIds});
 }
 function renderActivityRings(weekly){
   const goals=state.preferences;
@@ -258,7 +284,9 @@ function coachContext(){
     verdict={status:'rejected',reason:'The stored plan could not be read — using safe local programming.'};
   }
   // Local ramp fallback (also the default when there's no plan at all).
-  const confirmedFor=id=>Core.lastConfirmedExposure(state.history,id);
+  // Same requireConfirmation rule the targets use: outside injury mode the app never asks the flare
+  // question, so demanding its answer here left the ramp saying "find an easy working load" forever.
+  const confirmedFor=id=>Core.lastConfirmedExposure(state.history,id,{requireConfirmation:injuryMode()});
   const suggestion=RETURN_RAMP?Coach.localSession(state.history,RETURN_RAMP.days,{confirmedFor}):null;
   const superseded=verdict&&verdict.status!=='usable'?verdict.reason:'';
   return {source:'local',label:'Local ramp',suggestion,provenance:'Joint-friendly Return Ramp · safe local programming',superseded};
@@ -285,7 +313,15 @@ function renderCoach(){
   // numbers through Coach.doseLine (finite-or-nothing) — a hostile field renders inert.
   const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped — not in library)`;});
   const line=e=>{const d=esc(Coach.doseLine(e));return d?` · ${d}`:'';};
-  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}</li>`).join('');
+  // The cue is the plan's REASONING ("repeat exactly and answer the check-in", "stepped down 20%
+  // after a flare") and the card was dropping it entirely, leaving numbers with no why. Untrusted
+  // remote string → esc()'d like every other plan-derived field.
+  const why=e=>e.cue?`<small class="coach-cue">${esc(e.cue)}</small>`:'';
+  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}${why(e)}</li>`).join('');
+  // A plan's notes are its stop rules and its standing instructions. They shipped in every plan and
+  // were never rendered anywhere, so the safety copy the generator writes reached nobody.
+  const notes=(ctx.source==='coach'&&Array.isArray(ctx.plan?.notes)?ctx.plan.notes:[]).filter(n=>typeof n==='string'&&n.trim()).slice(0,4);
+  const notesBlock=notes.length?`<details class="coach-notes"><summary>Plan rules (${notes.length})</summary><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></details>`:'';
   const sync=Sync?Sync.status():{configured:false,queued:0,lastSyncAt:null};
   const syncLine=sync.configured
     ?`${sync.connected?'Synced':'Sync pending'}${sync.lastSyncAt?' · '+formatDate(sync.lastSyncAt):''}${sync.queued?` · ${sync.queued} queued`:''}`
@@ -295,6 +331,7 @@ function renderCoach(){
     <h2>${esc(s.title)}</h2>
     ${ctx.superseded?`<p class="coach-superseded">${esc(ctx.superseded)}</p>`:''}
     <ul class="coach-list">${list}</ul>
+    ${notesBlock}
     <p class="coach-prov">${esc(ctx.provenance)}</p>
     <button class="primary-button full-button" onclick="startCoachSession()">Start ${esc(s.title)}</button>
     <div class="coach-sync"><span>${esc(syncLine)}</span>${sync.configured?'':`<button class="text-button" onclick="exportLastSession()">Export session</button>`}</div>
@@ -848,12 +885,36 @@ function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
-  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
+  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
   btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
   document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue — the state must survive colour-blindness
   document.getElementById('view-workout').classList.toggle('paused',paused);
   startActiveClock();
+}
+// Session bookends (2026-07-28). The catalogue carried 31 mobility/stretch entries that nothing ever
+// sequenced, so they only got used by someone who already knew what to look for. The strip proposes
+// drills for the patterns THIS session actually trains: warm-up while nothing is logged yet,
+// cool-down once real work is done. One control, contextual: skipping costs nothing.
+function bookendFor(session){
+  const ids=(session?.exercises||[]).map(e=>e.exerciseId);
+  const phase=(session?.exercises||[]).some(e=>Core.doneSets(e).length)?'cooldown':'warmup';
+  const patterns=Core.sessionPatterns(ids,id=>exerciseById(id)?.patterns);
+  const present=new Set(ids);
+  return {phase,picks:Core.prepFor(patterns,prepMap[phase],3).filter(id=>!present.has(id)&&exerciseById(id))};
+}
+function bookendMarkup(session){
+  const {phase,picks}=bookendFor(session);
+  if(!picks.length)return '';
+  return `<div class="bookend-strip"><div><p class="kicker">${phase==='warmup'?'WARM UP':'COOL DOWN'}</p><small>${picks.map(id=>esc(exerciseById(id).name)).join(' · ')}</small></div><button class="secondary-button" onclick="addBookend()">Add ${picks.length}</button></div>`;
+}
+function addBookend(){
+  const session=state.activeSession;if(!session)return;
+  const {phase,picks}=bookendFor(session);
+  if(!picks.length)return;
+  for(const id of picks)session.exercises.push({exerciseId:id,notes:'',sets:[{weight:'',reps:'',done:false}]});
+  saveState();renderWorkout();
+  showToast(`${picks.length} ${phase==='warmup'?'warm-up':'cool-down'} drill${picks.length===1?'':'s'} added`);
 }
 // Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable — friction kills habits.
 function checkinMarkup(session){
@@ -869,16 +930,25 @@ function checkinMarkup(session){
   return `<div class="checkin-card" id="checkinCard">${scale}${flare}<button class="checkin-skip" onclick="dismissCheckin()">Skip</button></div>`;
 }
 function setPreCheckin(n){if(!state.activeSession?.checkin)return;state.activeSession.checkin.pre=n;saveState();renderWorkout();if(n>=7)showToast('Noted. Keep loads easy today.');}
+// The flare answer arrives a SESSION LATE: it rewrites a workout that was already finished, and
+// therefore already uploaded. Saving locally is not enough: the coach reads the Drive copy, so
+// without this re-upload the one field it requires could never reach it, no matter how diligently
+// the question was answered (audit 2026-07-28: the same dead-data shape as routineId).
+function resyncSession(session){
+  if(session&&Sync)try{Sync.onSessionComplete(session);}catch{} // best-effort, never blocks the flow
+}
 function setFlare(had){
   const last=state.history[0];if(last?.checkin)last.checkin.flare=had;
-  saveState();renderWorkout();
+  saveState();resyncSession(last);renderWorkout();
   if(had)showToast('Logged. Add a note on any exercise that felt off.');
 }
 function dismissCheckin(){
   const session=state.activeSession;if(!session?.checkin)return;
   session.checkin.dismissed=true;
-  const last=state.history[0];if(last?.checkin&&last.checkin.flare==null)last.checkin.flare='skipped';
-  saveState();renderWorkout();
+  const last=state.history[0];
+  if(last?.checkin&&last.checkin.flare==null){last.checkin.flare='skipped';saveState();resyncSession(last);}
+  else saveState();
+  renderWorkout();
 }
 function renderWorkoutMetrics(){
   const session=state.activeSession;if(!session)return;
@@ -1254,6 +1324,11 @@ function finishWorkout(){
   settlePause(session);session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
   if(session.prs.length)buzz([20,60,20]); // PR: distinct double pulse
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
+  // The tolerance gate is only ASKED in injury mode, so whether it applied is a property of the
+  // session, not of today's settings. Stamping it here is what lets the brain-side coach apply the
+  // same rule the app applied: without it the coach demanded a flare answer the app never
+  // collected and froze on "repeat exactly as last time" forever (audit 2026-07-28).
+  session.injuryMode=injuryMode();
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
   checkGoalAchievements(); // the session just finished is new evidence against every declared goal

@@ -120,6 +120,12 @@ const DUCK_EXERCISES = [
   {id:'gr8',name:'Reverse Wrist Curl',muscle:'Grip',muscles:['Grip'],patterns:['Isolation'],family:'Wrist',equip:['Barbell','Bench'],equipment:'Olympic / EZ bar, overhand (wrist extensors)'},
   {id:'gr9',name:'Hang Board Pull-Up',muscle:'Grip',muscles:['Grip','Back','Arms'],patterns:['Vertical Pull'],family:'Pull-Up',equip:['Hang Board'],equipment:'Pull-ups on the climbing hang board edges (finger strength)'},
   {id:'gr10',name:'Kettlebell Bottoms-Up Carry',muscle:'Grip',muscles:['Grip','Core','Shoulders'],patterns:['Carry'],family:'Carry',equip:['Kettlebell'],equipment:'Kettlebell held upside-down (grip + shoulder stability)'},
+  // Carries are the cheapest anti-rotation work there is and the kit is already owned: 4 entries
+  // was thin for a pattern this useful to a right-sided chain (2026-07-28).
+  {id:'gr11',name:'Offset Carry',muscle:'Grip',muscles:['Grip','Core','Shoulders'],patterns:['Carry','Anti-Rotation'],family:'Carry',equip:['Kettlebell','Dumbbell'],equipment:'One bell overhead, one at the side: swap sides each set (tag L/R)'},
+  {id:'gr12',name:'Overhead Carry',muscle:'Grip',muscles:['Grip','Shoulders','Core'],patterns:['Carry'],family:'Carry',equip:['Kettlebell','Dumbbell'],equipment:'Locked out overhead, ribs down (tag L/R for single-arm)'},
+  {id:'gr13',name:'Front Rack Carry',muscle:'Grip',muscles:['Grip','Core','Shoulders'],patterns:['Carry'],family:'Carry',equip:['Kettlebell','Dumbbell'],equipment:'Bells in the front rack, elbows up (anti-flexion)'},
+  {id:'gr14',name:'Trap Bar Carry',muscle:'Grip',muscles:['Grip','Back','Legs'],patterns:['Carry'],family:'Carry',equip:['Trap Bar','Plate'],equipment:'Loaded trap bar, walk it: the heaviest carry the home gym allows'},
   // ---- Legs ----
   {id:'lg1',name:'Back Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'lg2',name:'Front Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
@@ -180,6 +186,12 @@ const DUCK_EXERCISES = [
   {id:'co14',name:'Weighted Decline Sit-Up',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Crunch',equip:['Bench','Plate'],equipment:'Adjustable bench declined, plate on the chest'},
   {id:'co15',timed:true,name:'Copenhagen Plank',muscle:'Core',muscles:['Core','Legs'],patterns:['Isolation'],family:'Plank',equip:['Bench','Bodyweight'],equipment:'Side plank, top leg on the bench (adductor + oblique)'},
   {id:'co16',name:'Barbell Rollout',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Rollout',equip:['Barbell','Plate'],equipment:'Loaded barbell rolled out from the knees (anti-extension)'},
+  // Rotation held just 2 of 243 exercises, in an app built around a right-sided ROTATIONAL chain -
+  // the library could barely express the thing it exists to work on (2026-07-28).
+  {id:'co17',name:'Half-Kneeling Cable Chop',muscle:'Core',muscles:['Core','Shoulders'],patterns:['Rotation'],family:'Woodchop',equip:['Cable'],equipment:'G3 upper cable, half-kneeling, high-to-low (tag L/R per set)'},
+  {id:'co18',name:'Half-Kneeling Cable Lift',muscle:'Core',muscles:['Core','Shoulders'],patterns:['Rotation'],family:'Woodchop',equip:['Cable'],equipment:'G3 lower cable, half-kneeling, low-to-high (tag L/R per set)'},
+  {id:'co19',name:'Banded Standing Rotation',muscle:'Core',muscles:['Core'],patterns:['Rotation'],family:'Woodchop',equip:['Band'],equipment:'Band anchored at chest height, feet planted, rotate through the trunk'},
+  {id:'co20',name:'Half-Kneeling Pallof Press',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Anti-Rotation',equip:['Cable','Band'],equipment:'Cable or band, half-kneeling: the hips can’t cheat the way they do standing'},
   // ---- Full Body / Power ----
   {id:'fb1',name:'Kettlebell Clean & Press',muscle:'Full Body',muscles:['Full Body','Shoulders','Legs'],patterns:['Olympic'],family:'Clean',equip:['Kettlebell'],equipment:'Kettlebell'},
   {id:'fb2',name:'Kettlebell Snatch',muscle:'Full Body',muscles:['Full Body','Shoulders','Legs'],patterns:['Olympic'],family:'Snatch',equip:['Kettlebell'],equipment:'Kettlebell'},
@@ -202,17 +214,21 @@ const DUCK_EXERCISES = [
   {id:'ca7',name:'Jumping Jacks',muscle:'Cardio',muscles:['Cardio'],patterns:['Conditioning'],family:'Conditioning',equip:['Bodyweight'],equipment:'Bodyweight (warm-up conditioning)'},
   // ---- Mobility / Prehab ----
   {id:'mo1',name:'Banded Shoulder Dislocates',muscle:'Mobility',muscles:['Mobility','Shoulders'],patterns:['Mobility'],family:'Mobility',equip:['Band'],equipment:'Resistance band'},
-  {id:'mo2',name:'Banded Hip Flexor Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Band'],equipment:'Resistance band (right hip flexor)'},
+  {id:'mo2',timed:true,name:'Banded Hip Flexor Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Band'],equipment:'Resistance band (right hip flexor)'},
   {id:'mo3',name:'Banded Monster Walk',muscle:'Mobility',muscles:['Mobility','Legs'],patterns:['Mobility'],family:'Mobility',equip:['Band'],equipment:'Knee band (glute activation)'},
   {id:'mo4',timed:true,name:'BOSU Balance Hold',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Balance',equip:['BOSU'],equipment:'BOSU ball'},
-  {id:'mo5',name:'Slant Board Ankle Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Slant Board'],equipment:'Slant board'},
-  {id:'mo6',name:'Couch Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight (hip flexor)'},
+  {id:'mo5',timed:true,name:'Slant Board Ankle Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Slant Board'],equipment:'Slant board'},
+  {id:'mo6',timed:true,name:'Couch Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight (hip flexor)'},
   {id:'mo7',name:'90/90 Hip Rotations',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Bodyweight (rotation)'},
   {id:'mo8',name:'World’s Greatest Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Lunge + rotation flow (full-body warm-up)'},
   {id:'mo9',name:'Wall Slides',muscle:'Mobility',muscles:['Mobility','Shoulders'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Back to the wall, arms sliding overhead (shoulder mobility)'},
   {id:'mo10',name:'Thoracic Extension over Bench',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bench'],equipment:'Upper back over the bench edge (t-spine extension)'},
-  {id:'mo11',name:'Banded Ankle Distraction',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Band'],equipment:'Band around the ankle, knee drives forward (dorsiflexion)'},
+  {id:'mo11',timed:true,name:'Banded Ankle Distraction',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Band'],equipment:'Band around the ankle, knee drives forward (dorsiflexion)'},
   {id:'mo12',name:'Jefferson Curl',muscle:'Mobility',muscles:['Mobility','Legs','Back'],patterns:['Mobility'],family:'Stretch',equip:['Dumbbell','Bench'],equipment:'Light dumbbell, slow spinal roll-down (loaded hamstring / spine mobility)'},
+  // Desk-posture drills (2026-07-28): the load a 10-hour laptop day actually accumulates.
+  {id:'mo13',name:'Prone Y-T-W Raise',muscle:'Mobility',muscles:['Mobility','Back','Shoulders'],patterns:['Mobility'],family:'Scapular',equip:['Bench','Bodyweight'],equipment:'Face-down on the incline bench, no weight: Y then T then W'},
+  {id:'mo14',timed:true,name:'Chin Tuck Hold',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Scapular',equip:['Bodyweight'],equipment:'Back to a wall, chin drawn straight back (deep neck flexors: the forward-head antidote)'},
+  {id:'mo15',name:'Open Book Rotation',muscle:'Mobility',muscles:['Mobility','Back'],patterns:['Mobility','Rotation'],family:'Stretch',equip:['Bodyweight'],equipment:'Side-lying, knees stacked, top arm opens across (t-spine rotation)'},
   // ---- Calisthenics (bodyweight families incl. regressions; advanced moves labelled) ----
   {id:'cs1',name:'Scapular Pull-Up',muscle:'Calisthenics',muscles:['Calisthenics','Back'],patterns:['Vertical Pull'],family:'Pull-Up',equip:['Pull-Up Bar'],equipment:'Pull-up bar'},
   {id:'cs2',name:'Band-Assisted Pull-Up',muscle:'Calisthenics',muscles:['Calisthenics','Back','Arms'],patterns:['Vertical Pull'],family:'Pull-Up',equip:['Pull-Up Bar','Band'],equipment:'Pull-up bar + resistance band'},
@@ -251,28 +267,61 @@ const DUCK_EXERCISES = [
   // search covers it (same shape as ch19 Bar Dip). timed: an L-sit is a hold, logged in seconds.
   {id:'cs35',timed:true,name:'Parallette L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Arms','Legs'],patterns:['Isolation'],family:'L-Sit',equip:['Bodyweight'],equipment:'Parallettes / dip bars / floor — support hold, legs straight out (advanced)'},
   // ---- Stretches (neutral — no corrective claims; see council 2026-07-18) ----
-  {id:'st1',name:'Standing Hamstring Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
-  {id:'st2',name:'Pigeon Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
+  {id:'st1',timed:true,name:'Standing Hamstring Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
+  {id:'st2',timed:true,name:'Pigeon Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
   {id:'st3',timed:true,name:'Deep Squat Hold',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight (hold rack for support)'},
-  {id:'st4',name:'Doorway Pec Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Rack upright'},
-  {id:'st5',name:'Lat Stretch on Bar',muscle:'Stretches',muscles:['Stretches','Back'],patterns:['Mobility'],family:'Stretch',equip:['Pull-Up Bar'],equipment:'Pull-up bar / rack'},
+  {id:'st4',timed:true,name:'Doorway Pec Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Rack upright'},
+  {id:'st5',timed:true,name:'Lat Stretch on Bar',muscle:'Stretches',muscles:['Stretches','Back'],patterns:['Mobility'],family:'Stretch',equip:['Pull-Up Bar'],equipment:'Pull-up bar / rack'},
   {id:'st6',name:'Cat-Cow',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
-  {id:'st7',name:'Thread the Needle',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor (thoracic rotation)'},
-  {id:'st8',name:'Standing Quad Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
-  {id:'st9',name:'Calf Stretch on Slant Board',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Slant Board'],equipment:'Slant board'},
-  {id:'st10',name:'Child’s Pose',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
-  {id:'st11',name:'Seated Forward Fold',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Seated, reaching for the toes (hamstrings / back)'},
-  {id:'st12',name:'Butterfly Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Seated, soles together (adductors / hips)'},
-  {id:'st13',name:'Cobra Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Prone press-up (spine / abs)'},
-  {id:'st14',name:'Kneeling Wrist Stretch',muscle:'Stretches',muscles:['Stretches','Grip'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Palms down, leaning back (forearm / wrist)'},
-  {id:'st15',name:'Lateral Neck Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Ear-to-shoulder, gentle hold (neck)'},
-  {id:'st16',name:'Figure-4 Glute Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Supine, ankle over the knee (glute / piriformis)'},
+  {id:'st7',timed:true,name:'Thread the Needle',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor (thoracic rotation)'},
+  {id:'st8',timed:true,name:'Standing Quad Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
+  {id:'st9',timed:true,name:'Calf Stretch on Slant Board',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Slant Board'],equipment:'Slant board'},
+  {id:'st10',timed:true,name:'Child’s Pose',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
+  {id:'st11',timed:true,name:'Seated Forward Fold',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Seated, reaching for the toes (hamstrings / back)'},
+  {id:'st12',timed:true,name:'Butterfly Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Seated, soles together (adductors / hips)'},
+  {id:'st13',timed:true,name:'Cobra Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Prone press-up (spine / abs)'},
+  {id:'st14',timed:true,name:'Kneeling Wrist Stretch',muscle:'Stretches',muscles:['Stretches','Grip'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Palms down, leaning back (forearm / wrist)'},
+  {id:'st15',timed:true,name:'Lateral Neck Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Ear-to-shoulder, gentle hold (neck)'},
+  {id:'st16',timed:true,name:'Figure-4 Glute Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Supine, ankle over the knee (glute / piriformis)'},
   // ---- Trial drills (from Mark's body map — log the response, keep only what earns it) ----
-  {id:'tr1',name:'QL / Side Bend Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
+  {id:'tr1',timed:true,name:'QL / Side Bend Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial: log response'},
   {id:'tr2',name:'Kneeling Psoas March',muscle:'Legs',muscles:['Legs','Core'],patterns:['Mobility'],family:'Activation',equip:['Bodyweight'],equipment:'Trial — log response'},
   {id:'tr3',name:'Jaw / Neck Release Sequence',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
   {id:'tr4',name:'Big-Toe Isolation Drill',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response (right foot)'}
 ];
+
+// Session bookends (2026-07-28): movement pattern → the drills worth doing before / after it.
+// A curated table, NOT a scoring function: every mobility entry carries pattern 'Mobility', so any
+// computed "relevance" would be fake precision. Core.prepFor unions these in order, dedupes and caps.
+// Empty pattern → no suggestion, which is the honest answer for Isolation and Conditioning work.
+const GYM_PREP = {
+  warmup: {
+    'Squat':          ['mo7','st3','mo11'],
+    'Hinge':          ['mo7','mo3','st16'],
+    'Lunge':          ['mo6','mo7','mo11'],
+    'Horizontal Push':['mo9','mo1','st4'],
+    'Vertical Push':  ['mo9','mo1','mo10'],
+    'Horizontal Pull':['mo9','mo13','mo10'],
+    'Vertical Pull':  ['mo1','mo13','st5'],
+    'Olympic':        ['mo7','mo1','st3'],
+    'Carry':          ['mo13','mo14','mo1'],
+    'Rotation':       ['mo15','mo7','mo10'],
+    'Anti-Rotation':  ['mo15','mo3','mo9']
+  },
+  cooldown: {
+    'Squat':          ['st8','st2','st9'],
+    'Hinge':          ['st1','st16','st11'],
+    'Lunge':          ['mo6','st8','st2'],
+    'Horizontal Push':['st4','st13','st7'],
+    'Vertical Push':  ['st4','st5','st15'],
+    'Horizontal Pull':['st5','st7','st10'],
+    'Vertical Pull':  ['st5','st7','st10'],
+    'Olympic':        ['st3','st4','st8'],
+    'Carry':          ['st15','st14','st5'],
+    'Rotation':       ['st7','st13','st10'],
+    'Anti-Rotation':  ['st7','st16','st10']
+  }
+};
 
 // Single-day quick-starts (Train tab → "Templates"). Every id above.
 const GYM_TEMPLATES = [
@@ -326,6 +375,14 @@ const GYM_PLANS = [
       { name:'Push', exerciseIds:['ch17','ch5','ch19','sh4','ar9'] },
       { name:'Pull', exerciseIds:['ba3','ba8','ba6','ar22','cs35'] },
       { name:'Legs', exerciseIds:['lg3','lg42','lg43','lg23','lg14','lg13','lg18'] }
+    ]
+  },
+  {
+    id:'plan-desk', tag:'DESK RESET', name:'Desk Reset', goal:5,
+    blurb:'5 min · undo the laptop day',
+    note:'Not a workout: the counter-dose to sitting. Five minutes, no kit beyond a wall and the bench, run it on training days or rest days. Everything here is a hold: log the seconds, not reps. Order matters: open the front of the hips and chest first, then ask the upper back to rotate and the neck to stack.',
+    days:[
+      { name:'Desk Reset', exerciseIds:['mo6','st4','mo10','mo15','mo13','mo14'] }
     ]
   },
   {

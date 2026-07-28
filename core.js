@@ -130,14 +130,21 @@
   // Last confirmed-tolerated exposure (council 2026-07-18): a session only counts once
   // post-session response wasn't 'worse' AND the next-session flare check came back 'no'.
   // Sessions without that double confirmation stay 'unresolved' and never become the baseline.
-  function lastConfirmedExposure(history, exerciseId) {
+  // opts.requireConfirmation=false drops the flare half of the gate, exactly as confirmedBasis does.
+  // The app only ASKS the flare question in injury mode, so demanding its answer outside injury
+  // mode left the Local Ramp permanently saying "find an easy working load" for a lifter whose
+  // targets were already progressing (audit 2026-07-28: the same mismatch existed in three places).
+  function lastConfirmedExposure(history, exerciseId, opts) {
+    const requireConfirmation = !(opts && opts.requireConfirmation === false);
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
       const sets = exercise ? doneSets(exercise) : [];
       if (!sets.length) continue;
       const checkin = session.checkin;
-      if (!checkin || checkin.post === 'worse' || checkin.flare !== false) continue;
+      if (requireConfirmation && (!checkin || checkin.post === 'worse' || checkin.flare !== false)) continue;
+      // Off the injury gate a session marked "worse" is still never a tolerated baseline.
+      if (!requireConfirmation && checkin && checkin.post === 'worse') continue;
       return {
         started: num(session.started),
         setCount: sets.length,
@@ -775,11 +782,66 @@
     return (goals || []).filter(g => !g.achievedAt).filter(g => { const p = goalProgress(g, ctx); return p && p.done; });
   }
 
+  // ---- Session bookends (2026-07-28): warm-up + cool-down from the day's own movement patterns. ----
+  // The catalogue already held 31 mobility/stretch entries that nothing ever sequenced. `map` is the
+  // curated pattern → drill-ids table that ships with the catalogue (data lives with the data); this
+  // is a pure ordered set-union so the same session always proposes the same drills. Deliberately a
+  // lookup rather than a scoring function: mobility entries are all tagged pattern 'Mobility', so any
+  // overlap score would be fake precision dressed up as intelligence.
+  function sessionPatterns(exerciseIds, getPatterns) {
+    const seen = new Set();
+    for (const id of exerciseIds || []) for (const p of (getPatterns(id) || [])) seen.add(p);
+    return [...seen];
+  }
+  function prepFor(patternList, map, cap = 4) {
+    const out = [], seen = new Set();
+    for (const pattern of patternList || []) {
+      for (const id of (map && map[pattern]) || []) if (!seen.has(id)) { seen.add(id); out.push(id); }
+    }
+    return out.slice(0, Math.max(0, num(cap)));
+  }
+
+  // ---- Deload awareness (2026-07-28) ----
+  // Trailing weekly volume, oldest → newest, walking week boundaries backwards so a DST shift can't
+  // skew a window (same idiom as muscleVolumeWeeks).
+  function weeklyVolumes(history, weeks = 4, now = Date.now()) {
+    const out = [];
+    let end = now;
+    for (let i = 0; i < weeks; i++) {
+      const start = startOfLocalWeek(end);
+      let volume = 0, workouts = 0;
+      for (const session of history || []) {
+        const t = num(session.started);
+        if (t >= start && t <= end) { volume += calculateVolume(session); workouts += 1; }
+      }
+      out.unshift({ start, volume: Math.round(volume), workouts });
+      end = start - 1;
+    }
+    return out;
+  }
+  // Volume that climbs every week with no step-back is how a return to training becomes an injury -
+  // exactly the failure mode this app exists to prevent, and nothing modelled it. Measures only
+  // COMPLETE weeks: the current week is still being written and would always read as a false drop.
+  const compactKg = v => (num(v) >= 1000 ? `${Math.round(num(v) / 100) / 10}k` : String(Math.round(num(v)))) + ' kg';
+  function deloadCheck(history, now = Date.now(), weeks = 3) {
+    const span = Math.max(2, num(weeks) || 3);
+    const windows = weeklyVolumes(history, span + 1, now);
+    const complete = windows.slice(0, span); // drop the in-progress current week
+    const none = { due: false, weeks: 0, volumes: [], reason: '' };
+    if (complete.length < span || complete.some(w => w.workouts === 0)) return none;
+    const rising = complete.every((w, i) => i === 0 || w.volume > complete[i - 1].volume);
+    if (!rising) return none;
+    return {
+      due: true, weeks: span, volumes: complete.map(w => w.volume),
+      reason: `Volume has climbed ${span} weeks running (${complete.map(w => compactKg(w.volume)).join(' → ')}). Take an easy week: same movements, about half the sets.`
+    };
+  }
+
   function bodyweightTrend(entries, days = 90, now = Date.now()) {
     const cutoff = now - days * 86400000;
     return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck };
 });
