@@ -40,7 +40,7 @@
       exercises: (s.exercises || []).map(ex => ({
         exerciseId: ex.exerciseId,
         exerciseName: (typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).name) || '',
-        // Hold-type exercises put SECONDS in `reps`. The flag has to travel WITH the data — anything
+        // Hold-type exercises put SECONDS in `reps`. The flag has to travel WITH the data - anything
         // downstream (the MarkOS brain ingest) has no access to the catalogue and would otherwise
         // record a 60-second hang as 60 reps forever (audit 2026-07-22).
         timed: !!(typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).timed),
@@ -59,7 +59,7 @@
     if (at >= 0) list[at] = payload; else list.push(payload);
     return list;
   }
-  // Deleting a workout must also drop it from the pending queue AND its uploaded-file mapping —
+  // Deleting a workout must also drop it from the pending queue AND its uploaded-file mapping -
   // otherwise the next flush re-uploads a session the user deleted, and it reappears in the Drive
   // backup (audit 2026-07-22). Also stops uploadedFiles growing forever on deleted ids.
   function forget(sessionId) {
@@ -75,7 +75,7 @@
 
   // ---------- config store (browser-only, defensive) ----------
   const hasLS = () => typeof localStorage !== 'undefined';
-  // An OAuth client id identifies the APP, not the user — it is public by design and visible in the
+  // An OAuth client id identifies the APP, not the user - it is public by design and visible in the
   // source of every Google-sign-in page on the web. Shipping it as the default is what makes backup
   // self-serve: each person signs in with THEIR OWN Google account and gets their own private
   // Gym-Sync folder, instead of needing a Google Cloud console to produce an id (audit 2026-07-22).
@@ -100,7 +100,7 @@
       // A profile saved before the default existed carries clientId:'' and would otherwise spread
       // the default away, leaving backup unreachable for exactly the people it was added for.
       if (!merged.clientId) merged.clientId = DEFAULT_CLIENT_ID;
-      // Anyone who connected before this flag existed has a folderId to prove it — keep them on.
+      // Anyone who connected before this flag existed has a folderId to prove it - keep them on.
       if (c && c.enabled === undefined) merged.enabled = !!c.folderId;
       return merged;
     }
@@ -119,7 +119,7 @@
   let pending = null;         // { resolve, reject } bridging the GIS callbacks to requestToken()
   const tokenValid = () => !!accessToken && Date.now() < tokenExpiry - 60000;
   // Generation guard (Codex P0-2): setUser() bumps gen; every async chain captures its generation
-  // at start and aborts after EVERY await if a profile switch happened meanwhile — an in-flight
+  // at start and aborts after EVERY await if a profile switch happened meanwhile - an in-flight
   // chain started for profile A must never read or write through profile B's config key.
   let gen = 0;
   const stale = g => g !== gen;
@@ -169,7 +169,7 @@
   // SYNCHRONOUSLY. Loading the library inside the click handler (the old bug) drops the browser's
   // transient user activation, so the popup is blocked ('popup_failed_to_open') on every device.
   // Only warms Google's script for people who actually use sync, or when the Settings sheet is open
-  // and a Connect tap is plausibly next (force) — never a third-party fetch on every cold boot.
+  // and a Connect tap is plausibly next (force) - never a third-party fetch on every cold boot.
   function preload(force) {
     if (typeof document === 'undefined' || !loadConfig().clientId) return Promise.resolve(false);
     if (!force && !configured()) return Promise.resolve(false);
@@ -302,12 +302,12 @@
   // Drop a stored plan the app couldn't use (poisoned/malformed) so it can't break every launch.
   function clearPlan() { return updateConfig(c => { c.plan = null; }).plan; }
 
-  // First connect — MUST be called from a user gesture (Settings). Requests consent, then creates
+  // First connect - MUST be called from a user gesture (Settings). Requests consent, then creates
   // the folder + empty plan file, then flushes anything queued and pulls any existing plan.
   function connect() {
     const g = gen;
     return ensureToken(true)
-      .then(() => { updateConfig(c => { c.enabled = true; }); }) // consent granted — sync may now run
+      .then(() => { updateConfig(c => { c.enabled = true; }); }) // consent granted - sync may now run
       .then(() => ensureFolder(g))
       .then(folderId => ensurePlanFile(folderId, g))
       .then(() => { guard(g); return flush(); })

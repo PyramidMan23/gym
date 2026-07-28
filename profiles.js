@@ -1,4 +1,4 @@
-// Local profiles — Track B (council 2026-07-19-council-gym-multiuser).
+// Local profiles - Track B (council 2026-07-19-council-gym-multiuser).
 // Shared-phone identity boundary: per-user namespaced state + sync, one shared catalogue.
 // UMD like core.js/sync.js: browser global (DuckGymProfiles) + require()-able node module.
 // Everything here is a pure function over a Storage-like adapter (getItem/setItem/removeItem/key/length),
@@ -25,7 +25,7 @@
   function randomBytes(n) {
     const bytes = new Uint8Array(n), c = webcrypto();
     if (c && c.getRandomValues) c.getRandomValues(bytes);
-    // ponytail: Math.random fallback only where WebCrypto is absent — never on a real phone; ids/salts stay opaque either way.
+    // ponytail: Math.random fallback only where WebCrypto is absent - never on a real phone; ids/salts stay opaque either way.
     else for (let i = 0; i < n; i++) bytes[i] = Math.floor(Math.random() * 256);
     return bytes;
   }
@@ -70,7 +70,7 @@
 
   function readRegistry(storage) { return parseRegistry(storage.getItem(PROFILES_KEY)); }
   function writeRegistry(storage, reg) { storage.setItem(PROFILES_KEY, JSON.stringify(reg)); return reg; }
-  // Read/modify/write helper — mutate is handed a fresh parsed registry.
+  // Read/modify/write helper - mutate is handed a fresh parsed registry.
   function updateRegistry(storage, mutate) {
     const reg = readRegistry(storage);
     if (!reg) return null;
@@ -80,7 +80,7 @@
     return writeRegistry(storage, reg);
   }
 
-  // Enumerate profile ids that already own namespaced state — the anchor for corrupt-registry recovery.
+  // Enumerate profile ids that already own namespaced state - the anchor for corrupt-registry recovery.
   function listStateIds(storage) {
     const ids = [], n = Number(storage.length) || 0;
     for (let i = 0; i < n; i++) {
@@ -94,7 +94,7 @@
   const blankProfile = (id, name, now) => ({ id, name: name || '', emoji: '', locked: false, pinHash: null, salt: null, createdAt: now });
 
   // Ensure a valid registry + active profile exists. Handles: normal boot, first-ever run,
-  // legacy migration (copy, never move), and corrupt-registry recovery. IDEMPOTENT — re-running
+  // legacy migration (copy, never move), and corrupt-registry recovery. IDEMPOTENT - re-running
   // never duplicates a profile, never re-copies over newer namespaced data, never clobbers a name.
   function bootstrap(storage, now) {
     now = now || Date.now();
@@ -107,7 +107,7 @@
       return { registry: reg, activeId: reg.activeId, migrated: false, created: false, recovered: false, needsName: !active.name };
     }
 
-    // No usable registry. If a raw value was present it was corrupt — back it up before overwriting.
+    // No usable registry. If a raw value was present it was corrupt - back it up before overwriting.
     let recovered = false;
     if (rawReg != null) { try { storage.setItem(PROFILES_KEY + '.corrupt.' + now, rawReg); } catch { } recovered = true; }
 

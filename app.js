@@ -2,7 +2,7 @@
 
 const Core = DuckGymCore;
 // Hold-type exercises store SECONDS in the `reps` field. Register them with Core once, here, so
-// volume/e1RM/PR/progression all agree — exercises.js loads before app.js (see index.html).
+// volume/e1RM/PR/progression all agree - exercises.js loads before app.js (see index.html).
 Core.setTimedExercises((typeof DUCK_EXERCISES !== 'undefined' ? DUCK_EXERCISES : []).filter(e => e.timed).map(e => e.id));
 const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
 const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
@@ -26,7 +26,7 @@ let currentView = 'today';
 let activeTimer = null;
 let restTimer = null;
 let restRemaining = 0;
-let restExerciseIndex = 0; // which exercise the running rest belongs to — drives rest-end progression
+let restExerciseIndex = 0; // which exercise the running rest belongs to - drives rest-end progression
 let padTarget = null;      // {exIdx,setIdx,key} the numeric pad is editing
 let padHold = null;        // press-and-hold acceleration timer for the pad
 let routineDraft = null;
@@ -58,12 +58,12 @@ function readState(){
 bootProfiles();
 let state=readState();
 // While a locked profile is gated (P0-1), state is a neutral empty shell and MUST never be
-// persisted — otherwise stray interactions behind the gate could clobber the real data.
+// persisted - otherwise stray interactions behind the gate could clobber the real data.
 let lockGate=false;
 function saveState(){
   if(lockGate)return false;
   try{localStorage.setItem(stateKey,JSON.stringify(state));return true;}
-  catch(error){console.error('Duck Gym could not persist state',error);showToast('Could not save — browser storage is full');return false;}
+  catch(error){console.error('Duck Gym could not persist state',error);showToast('Could not save - browser storage is full');return false;}
 }
 function allExercises(){ return [...DUCK_EXERCISES,...state.customExercises]; }
 function exerciseById(id){ return allExercises().find(exercise=>exercise.id===id); }
@@ -73,12 +73,12 @@ function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekda
 function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?3200:1900); }
 const REDUCED_MOTION=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // PR moment (POLISH): celebrate a live PR at most once per exercise per session. Keyed on the
-// session object identity so a new session (or a boot-reloaded one) starts fresh. Transient — never persisted.
+// session object identity so a new session (or a boot-reloaded one) starts fresh. Transient - never persisted.
 let prCelebratedSession=null;const prCelebrated=new Set();
 // Haptics: a short buzz that announces a real event (set done / PR / rest end), never navigation.
-// Gated on the profile toggle + navigator.vibrate — iOS PWAs have no vibrate, so this no-ops silently.
+// Gated on the profile toggle + navigator.vibrate - iOS PWAs have no vibrate, so this no-ops silently.
 function buzz(pattern){ try{ if(Core.shouldBuzz(state.preferences,'vibrate' in navigator))navigator.vibrate(pattern); }catch{} }
-// Number roll: old span slides up, new span slides in — transform/opacity only, gated on reduced-motion.
+// Number roll: old span slides up, new span slides in - transform/opacity only, gated on reduced-motion.
 function rollNumber(el,newText){
   newText=String(newText);
   const current=el.dataset.val;
@@ -90,7 +90,7 @@ function rollNumber(el,newText){
   requestAnimationFrame(()=>mask.classList.add('go'));
   clearTimeout(el._roll);el._roll=setTimeout(()=>{el.textContent=newText;},260);
 }
-// One earned line from real state only — no canned encouragement, no exclamation marks.
+// One earned line from real state only - no canned encouragement, no exclamation marks.
 function contextLine(){
   const s=state.activeSession;
   if(s&&currentView!=='workout'){
@@ -105,7 +105,7 @@ function contextLine(){
         if(top>conf.topWeight)return `Above your last confirmed load on ${exerciseById(ex.exerciseId)?.name||'this lift'}.`;
       }
     }
-    // A pending set only counts as planned once it has data — the auto-added trailing set doesn't block "all complete".
+    // A pending set only counts as planned once it has data - the auto-added trailing set doesn't block "all complete".
     const planned=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done||x.weight!==''||x.reps!=='').length,0);
     const done=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done).length,0);
     const remaining=planned-done;
@@ -137,11 +137,11 @@ addEventListener('scroll',()=>document.body.classList.toggle('scrolled',scrollY>
 function toggleNavCondense(on){state.preferences.navCondense=!!on;saveState();document.body.classList.toggle('nav-condense',!!on);}
 function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
 // Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
-function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on — pain check-ins added':'Injury mode off');}
+function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}
 try{if(state.preferences.navCondense===true)document.body.classList.add('nav-condense');}catch{}
 function navigate(view){
   if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
-  // A fresh Library open always starts unfiltered — a stale filter must never silently hide exercises (council 2026-07-19).
+  // A fresh Library open always starts unfiltered - a stale filter must never silently hide exercises (council 2026-07-19).
   if(view==='library')libraryFilter=newFilterState();
   currentView=view;
   // View Transitions (Wave 2): morph the view swap (content + active classes together) when supported
@@ -184,7 +184,7 @@ function renderToday(){
   renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
-  // A paused session must not read as "in progress" with a live pulse — the card states the real state.
+  // A paused session must not read as "in progress" with a live pulse - the card states the real state.
   const live=state.activeSession,livePaused=!!live?.pausedAt;
   document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
   const routines=state.routines.slice(0,6),doneThisWeek=Core.routinesDoneThisWeek(state.history);
@@ -245,7 +245,7 @@ function renderWeekDots(){
   const completed=new Set(state.history.map(s=>{const d=new Date(s.started);d.setHours(0,0,0,0);return d.getTime()}));
   document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday.getTime()+index*DAY);return `<span class="day-dot ${completed.has(date.getTime())?'done':''} ${date.toDateString()===now.toDateString()?'today':''}"><i></i><small>${label}</small></span>`}).join('');
 }
-// `done` = the Set from Core.routinesDoneThisWeek. A tick AND the words — never a colour alone.
+// `done` = the Set from Core.routinesDoneThisWeek. A tick AND the words - never a colour alone.
 function routineCard(routine,done){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
   const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done this week</span> · ':'';
@@ -254,7 +254,7 @@ function routineCard(routine,done){
   // three-dot button (2026-07-28). Same handler, one much larger target.
   return `<article class="routine-card"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><h3>${esc(routine.name)}</h3><p>${tick}${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></button><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
 }
-// Today's horizontal quick-start strip — same onclick contracts as routineCard (start + options menu).
+// Today's horizontal quick-start strip - same onclick contracts as routineCard (start + options menu).
 function routineStripCard(routine,done){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
   const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done</span> · ':'';
@@ -265,7 +265,7 @@ function historyCard(session){
   return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} set${summary.completedSets===1?'':'s'}</span>${summary.volume>0?`<span>${compact(summary.volume)} kg</span>`:''}${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
 }
 
-// Coach surface (Today): one active source only — remote "Coach's block" when a plan validates,
+// Coach surface (Today): one active source only - remote "Coach's block" when a plan validates,
 // otherwise the local ramp. A superseded/rejected remote plan is shown but never startable.
 const RETURN_RAMP=plans.find(p=>p.id==='plan-return');
 function coachContext(){
@@ -285,9 +285,9 @@ function coachContext(){
       return {source:'coach',label:"Coach’s block",plan:rawPlan,suggestion,provenance:planProvenance(rawPlan,verdict),verdict};
     }
   }catch(error){
-    console.warn('Coach plan unusable — cleared',error);
+    console.warn('Coach plan unusable - cleared',error);
     if(Sync)try{Sync.clearPlan();}catch{}
-    verdict={status:'rejected',reason:'The stored plan could not be read — using safe local programming.'};
+    verdict={status:'rejected',reason:'The stored plan could not be read - using safe local programming.'};
   }
   // Local ramp fallback (also the default when there's no plan at all).
   // Same requireConfirmation rule the targets use: outside injury mode the app never asks the flare
@@ -300,11 +300,11 @@ function coachContext(){
 function planProvenance(plan,verdict){
   const total=Number.isFinite(plan.expiresAfterSessions)?plan.expiresAfterSessions:Coach.DEFAULT_EXPIRES;
   const remaining=Math.max(0,total-verdict.postCount);
-  // Plain text — renderCoach esc()'s the whole provenance line once.
-  return `Based through session ${String(plan.basedThroughSessionId||'—')} · ${remaining} session${remaining===1?'':'s'} remaining`;
+  // Plain text - renderCoach esc()'s the whole provenance line once.
+  return `Based through session ${String(plan.basedThroughSessionId||'-')} · ${remaining} session${remaining===1?'':'s'} remaining`;
 }
 // Coach-card scoping (council 2026-07-19): a profile only sees the Local Ramp / Coach's Block card
-// once it has skin in the game — a plan/routine, some history, or sync configured. A brand-new profile
+// once it has skin in the game - a plan/routine, some history, or sync configured. A brand-new profile
 // gets a neutral empty state instead, so Mark-tuned re-entry programming is never pushed at housemates.
 function renderCoach(){
   const slot=document.getElementById('coachSlot');if(!slot)return;
@@ -316,14 +316,19 @@ function renderCoach(){
   if(!ctx||!ctx.suggestion){slot.innerHTML='';return;}
   const s=ctx.suggestion;
   // Plan JSON is untrusted (comes from Drive): every plan-derived string goes through esc(),
-  // numbers through Coach.doseLine (finite-or-nothing) — a hostile field renders inert.
-  const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped — not in library)`;});
+  // numbers through Coach.doseLine (finite-or-nothing) - a hostile field renders inert.
+  const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped - not in library)`;});
   const line=e=>{const d=esc(Coach.doseLine(e));return d?` · ${d}`:'';};
   // The cue is the plan's REASONING ("repeat exactly and answer the check-in", "stepped down 20%
   // after a flare") and the card was dropping it entirely, leaving numbers with no why. Untrusted
   // remote string → esc()'d like every other plan-derived field.
-  const why=e=>e.cue?`<small class="coach-cue">${esc(e.cue)}</small>`:'';
-  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}${why(e)}</li>`).join('');
+  // Six rows repeating the identical cue is noise wearing the costume of information: when every
+  // exercise carries the same cue, say it ONCE under the list (council 2026-07-28).
+  const cues=s.exercises.map(e=>e.cue||'');
+  const allSame=cues.length>1&&cues.every(c=>c&&c===cues[0]);
+  const why=e=>!allSame&&e.cue?`<small class="coach-cue">${esc(e.cue)}</small>`:'';
+  const sharedCue=allSame?`<small class="coach-cue coach-cue-shared">${esc(cues[0])}</small>`:'';
+  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}${why(e)}</li>`).join('')+sharedCue;
   // A plan's notes are its stop rules and its standing instructions. They shipped in every plan and
   // were never rendered anywhere, so the safety copy the generator writes reached nobody.
   const notes=(ctx.source==='coach'&&Array.isArray(ctx.plan?.notes)?ctx.plan.notes:[]).filter(n=>typeof n==='string'&&n.trim()).slice(0,4);
@@ -392,7 +397,7 @@ function openPlan(id){
   const dayList=plan.days.map((d,i)=>`<div class="selected-row"><span><strong>${i+1}. ${esc(d.name)}</strong><small style="display:block;color:var(--muted)">${d.exerciseIds.map(x=>esc(exerciseById(x)?.name||x)).join(' · ')}</small></span></div>`).join('');
   const pv=Core.planVolume(plan.days,muscleLookup);
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
-  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board — direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
+  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board - direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div>${planned}<div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routine${plan.days.length===1?'':'s'}</button></div>`;
   document.getElementById('sheet').showModal();
 }
@@ -401,7 +406,7 @@ function applyPlan(id){
   const stamp=Date.now();
   plan.days.forEach((d,i)=>state.routines.unshift({id:`r${stamp}_${i}`,name:`${plan.name} · ${d.name}`,exerciseIds:[...d.exerciseIds]}));
   state.preferences.weeklyWorkoutGoal=Math.min(14,Math.max(Number(state.preferences.weeklyWorkoutGoal)||0,plan.goal||plan.days.length));
-  saveState();closeSheet();renderTrain();renderToday();showToast(`${plan.name} added — ${plan.days.length} routines ready`);
+  saveState();closeSheet();renderTrain();renderToday();showToast(`${plan.name} added - ${plan.days.length} routines ready`);
 }
 
 // ---- Exercise catalogue (council 2026-07-19): flat, search/filter-first, shared by Library + the add-exercise picker.
@@ -417,7 +422,7 @@ const CAT={
 };
 function catState(ctx){return ctx==='library'?libraryFilter:pickerFilterState;}
 function catEl(ctx,key){return document.getElementById(CAT[ctx].ids[key]);}
-function catAdd(ctx,id){(ctx==='library'?quickExercise:pickExercise)(id);} // add by EXACT id — logging/progression path unchanged
+function catAdd(ctx,id){(ctx==='library'?quickExercise:pickExercise)(id);} // add by EXACT id - logging/progression path unchanged
 // Full render (quick + chips + list). The search <input> node is only re-valued, never replaced, so focus/caret survive.
 function renderCatalogue(ctx){
   const input=catEl(ctx,'search'); if(input)input.value=catState(ctx).query;
@@ -437,7 +442,7 @@ function renderCatalogueChips(ctx){
   if(host)host.innerHTML=['All',...MUSCLE_ORDER].map(m=>`<button class="filter-chip ${fs.muscle===m?'active':''}" data-muscle="${esc(m)}" aria-pressed="${fs.muscle===m}">${esc(m)}</button>`).join('');
   updateFiltersControl(ctx);
 }
-// Reflect the active facet count on the Filters button (badge + accent) and the open dialog's Clear button — in place, no rebuild.
+// Reflect the active facet count on the Filters button (badge + accent) and the open dialog's Clear button - in place, no rebuild.
 function updateFiltersControl(ctx){
   const fs=catState(ctx),n=fs.patterns.length+fs.equip.length+fs.families.length,btn=catEl(ctx,'filtersBtn');
   if(btn){btn.classList.toggle('has-active',n>0);btn.setAttribute('aria-label',n?`More filters, ${n} active`:'More filters');const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
@@ -463,7 +468,7 @@ function exerciseRow(exercise,activeMuscle){
   const match=activeMuscle&&activeMuscle!=='All'; // a muscle filter is active → the plates light amber to show the cut
   return `<article class="exercise-row"><button class="exercise-pick" data-id="${id}" aria-label="Add ${esc(exercise.name)}"><span class="ex-plate${match?' match':''}" aria-hidden="true">${plateLetter}</span><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
 }
-// One delegated click listener per catalogue surface — no per-row handlers, no id interpolation (injection-safe).
+// One delegated click listener per catalogue surface - no per-row handlers, no id interpolation (injection-safe).
 function onCatalogueClick(ctx,e){
   const pick=e.target.closest('.exercise-pick');
   if(pick&&pick.dataset.id){
@@ -509,7 +514,7 @@ function renderFiltersSheet(){
   const group=(title,kind,values,selected)=>values.length?`<div class="filter-group"><p class="kicker">${title}</p><div class="chip-wrap">${values.map(v=>`<button class="facet-chip${selected.includes(v)?' on':''}" data-kind="${kind}" data-value="${esc(v)}" aria-pressed="${selected.includes(v)}">${esc(v)}</button>`).join('')}</div></div>`:'';
   document.getElementById('filterSheetContent').innerHTML=`<div class="sheet-head"><h2 id="filterSheetTitle">Filters</h2><button class="close-button" onclick="closeFiltersSheet()">×</button></div>${group('MOVEMENT PATTERN','patterns',distinctTags(e=>e.patterns),fs.patterns)}${group('EQUIPMENT','equip',distinctTags(e=>e.equip),fs.equip)}${group('FAMILY','families',distinctFamilies(),fs.families)}<div class="sheet-actions"><button id="filterClearBtn" class="secondary-button"${n?'':' disabled'} onclick="clearFacets()">Clear</button><button class="primary-button" onclick="closeFiltersSheet()">Show results</button></div>`;
 }
-// Facet toggle (delegated): flip THIS chip + the Filters badge in place — never rebuild the dialog, so keyboard focus survives.
+// Facet toggle (delegated): flip THIS chip + the Filters badge in place - never rebuild the dialog, so keyboard focus survives.
 function onFacetClick(e){
   const chip=e.target.closest('.facet-chip'); if(!chip)return;
   const kind=chip.dataset.kind,value=chip.dataset.value,arr=catState(filterSheetCtx)[kind],i=arr.indexOf(value),on=i<0;
@@ -519,7 +524,7 @@ function onFacetClick(e){
 }
 function clearFacets(){const fs=catState(filterSheetCtx);fs.patterns=[];fs.equip=[];fs.families=[];renderFiltersSheet();updateFiltersControl(filterSheetCtx);renderCatalogueList(filterSheetCtx,true);}
 function closeFiltersSheet(){dismissDialog(document.getElementById('filterSheet'));}
-// Keep the renderLibrary name — renderView, boot and saveCustomExercise all call it.
+// Keep the renderLibrary name - renderView, boot and saveCustomExercise all call it.
 function renderLibrary(){renderCatalogue('library');}
 function quickExercise(id){
   if(state.activeSession){addExerciseToWorkout(id);showToast('Added to current workout');return;}
@@ -528,7 +533,18 @@ function quickExercise(id){
 
 function renderProgress(){
   const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0);
-  // A lifter who only trains bodyweight has a real lifetime of work and zero kilos — count their
+  // The headline was a static "Getting stronger." even when every recap number was down - a
+  // billion-dollar app never asserts what the data contradicts (council 2026-07-28). Derived from
+  // the same recap the cards below show, so the page can never disagree with itself.
+  const ttl=document.getElementById('progressTitle');
+  if(ttl){
+    const rc=Core.weeklyRecap(state.history,muscleLookup);
+    ttl.textContent=!state.history.length?'Your story starts here.'
+      :rc.prs>0||rc.volumeDelta>0||rc.setsDelta>0?'Getting stronger.'
+      :rc.workouts===0?'Quiet week so far.'
+      :'Steady as she goes.';
+  }
+  // A lifter who only trains bodyweight has a real lifetime of work and zero kilos - count their
   // sets rather than showing them a proud "0".
   const lifetimeSets=state.history.reduce((sum,s)=>sum+Core.summarizeSession(s).completedSets,0);
   const third=lifetimeVolume>0?{n:Math.round(lifetimeVolume),fmt:' data-fmt="compact"',label:'LIFETIME KG'}:{n:lifetimeSets,fmt:'',label:'LIFETIME SETS'};
@@ -547,11 +563,11 @@ function renderProgress(){
 }
 // ---- Declared goals (2026-07-22) ----------------------------------------------------------
 // The app measured process (weekly rings) and emergent PRs, but nothing the lifter actually said
-// they wanted. A goal is stated once and then answered by their own logged evidence — the same
+// they wanted. A goal is stated once and then answered by their own logged evidence - the same
 // rule as everything else here: the app never claims progress the numbers don't show.
 function goalCtx(){return {history:state.history,bodyweight:state.bodyweight,now:Date.now()};}
 // Bodyweight and hold work moves no barbell, so a calisthenics session used to report "0 kg moved"
-// — which reads as "nothing happened" for a session that was anything but. Sets are the honest unit
+// - which reads as "nothing happened" for a session that was anything but. Sets are the honest unit
 // for that work; kilos lead only when there are kilos to report (audit 2026-07-22).
 function workLine(summary){
   return summary.volume>0?`${compact(summary.volume)} kg moved`:`${summary.completedSets} working set${summary.completedSets===1?'':'s'}`;
@@ -566,8 +582,8 @@ function goalCardMarkup(goal){
   const p=Core.goalProgress(goal,goalCtx());if(!p)return '';
   const pct=Math.round(p.pct*100);
   const achieved=!!goal.achievedAt;
-  // Progress reads three ways — bar, number and sentence — so it never depends on colour alone.
-  const value=p.current==null?'—':p.type==='consistency'?`${p.current}`:`${p.current}`;
+  // Progress reads three ways - bar, number and sentence - so it never depends on colour alone.
+  const value=p.current==null?'-':p.type==='consistency'?`${p.current}`:`${p.current}`;
   const foot=achieved?`Achieved ${formatDate(goal.achievedAt)}`
     :p.noEvidence?`Log a set of ${esc(goalName(goal))} to start tracking`
     :p.type==='consistency'?(p.done?`Done this week${p.streak>1?` · ${p.streak}-week streak`:''}`:`${p.remaining} more session${p.remaining===1?'':'s'} this week${p.streak?` · ${p.streak}-week streak`:''}`)
@@ -585,7 +601,7 @@ function renderGoals(){
   const active=state.goals.filter(g=>!g.achievedAt),done=state.goals.filter(g=>g.achievedAt);
   board.innerHTML=(active.length||done.length)
     ?active.map(goalCardMarkup).join('')+(done.length?`<details class="goal-done"><summary>${done.length} achieved</summary>${done.map(goalCardMarkup).join('')}</details>`:'')
-    :`<div class="empty-card card"><strong>No goals yet</strong>Name one thing you're chasing — a lift, a bodyweight, or a number of sessions a week — and every workout is measured against it.</div>`;
+    :`<div class="empty-card card"><strong>No goals yet</strong>Name one thing you're chasing - a lift, a bodyweight, or a number of sessions a week - and every workout is measured against it.</div>`;
   renderTodayGoal();
 }
 // Today shows the single nearest-to-done active goal: a reminder of why you're here, not a list.
@@ -600,7 +616,7 @@ function renderTodayGoal(){
   slot.innerHTML=`<button class="goal-strip card-live" onclick="navigate('progress')"><span class="goal-strip-top"><span class="kicker">GOAL · ${GOAL_KICKER[p.type]}</span><span class="goal-pct">${pct}%</span></span><strong>${esc(goalName(g))}</strong><span class="goal-bar"><i style="--p:${p.pct.toFixed(3)}"></i></span><small>${esc(line)}</small></button>`;
 }
 // Stamp + celebrate goals the latest evidence just completed. Called after a session is finished
-// and after a bodyweight entry — the only two moments new evidence can arrive.
+// and after a bodyweight entry - the only two moments new evidence can arrive.
 function checkGoalAchievements(){
   const hit=Core.newlyAchieved(state.goals,goalCtx());
   if(!hit.length)return;
@@ -608,7 +624,7 @@ function checkGoalAchievements(){
   hit.forEach(g=>{const target=state.goals.find(x=>x.id===g.id);if(target)target.achievedAt=now;});
   saveState();
   buzz([20,60,20,60,20]);
-  showToast(hit.length===1?`★ Goal reached — ${goalName(hit[0])}`:`★ ${hit.length} goals reached`,true);
+  showToast(hit.length===1?`★ Goal reached - ${goalName(hit[0])}`:`★ ${hit.length} goals reached`,true);
 }
 function openGoalSheet(){
   goalDraft={type:'strength',exerciseId:'',target:'',perWeek:String(state.preferences.weeklyWorkoutGoal||3)};
@@ -630,7 +646,7 @@ function renderGoalSheet(){
   }else if(d.type==='bodyweight'){
     const latest=Core.latestBodyweight(state.bodyweight);
     body=`<div class="field"><label>TARGET BODYWEIGHT (KG)</label><input id="goalTarget" type="number" inputmode="decimal" min="1" step="0.5" value="${esc(d.target)}" placeholder="e.g. 80"></div>
-      <p class="goal-help">${latest?`You're at ${latest} kg today — up or down both work.`:'Log your weight on the Progress tab and this starts tracking.'}</p>`;
+      <p class="goal-help">${latest?`You're at ${latest} kg today - up or down both work.`:'Log your weight on the Progress tab and this starts tracking.'}</p>`;
   }else{
     body=`<div class="field"><label>SESSIONS PER WEEK</label><input id="goalTarget" type="number" inputmode="numeric" min="1" max="14" step="1" value="${esc(d.perWeek)}"></div>
       <p class="goal-help">Counts completed workouts each week and tracks your streak. An unfinished week never breaks it.</p>`;
@@ -701,13 +717,13 @@ function openMuscleDetail(muscle){
   <div class="section-heading"><div><p class="kicker">DIRECT</p><h2>Working sets</h2></div></div><div class="selected-list">${rows('direct')}</div>
   <div class="section-heading"><div><p class="kicker">ASSISTING</p><h2>Exposure</h2></div></div><div class="selected-list">${rows('assisting')}</div>
   ${(()=>{const dvals=Core.muscleVolumeWeeks(state.history,muscleLookup,8).map(w=>w[muscle]?.direct||0);const dmax=Math.max(1,...dvals);return dvals.some(v=>v)?`<div class="section-heading"><div><p class="kicker">TREND</p><h2>Direct sets · 8 weeks</h2></div></div><div class="chart-card mv-spark">${dvals.map((v,i)=>`<span class="bar-col ${i===7?'active':''}"><b>${v||''}</b><i style="height:${Math.max(3,v/dmax*72)}%"></i><small>${i===7?'Now':'−'+(7-i)}</small></span>`).join('')}</div>`:'';})()}
-  <div class="section-heading"><div><p class="kicker">OPTIONAL</p><h2>Weekly range — direct sets only</h2></div></div>
+  <div class="section-heading"><div><p class="kicker">OPTIONAL</p><h2>Weekly range - direct sets only</h2></div></div>
   <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label>MIN</label><input id="mvMin" type="number" min="0" inputmode="numeric" value="${range[0]}"></div><div class="field" style="flex:1"><label>MAX</label><input id="mvMax" type="number" min="0" inputmode="numeric" value="${range[1]}"></div></div>
   <div class="sheet-actions"><button class="secondary-button" onclick="clearMuscleRange('${muscle}')">Clear range</button><button class="primary-button" onclick="saveMuscleRange('${muscle}')">Save</button></div>`;
   document.getElementById('sheet').showModal();
 }
 // Exercise detail sheet (Wave 2): e1RM trend, this-week volume, rep records, recent sessions, active cue.
-// Opened from Library rows and the workout exercise head — one lean screen, no tabs.
+// Opened from Library rows and the workout exercise head - one lean screen, no tabs.
 function openExerciseDetail(id){
   const item=exerciseById(id);if(!item)return;
   const timed=!!item.timed; // a hold trends on best TIME; an estimated 1RM from a hang is meaningless
@@ -739,7 +755,7 @@ function clearMuscleRange(muscle){
   const r={...(state.preferences.muscleRanges||{})};delete r[muscle];
   state.preferences.muscleRanges=r;saveState();closeSheet();renderProgress();
 }
-// Strength trend — evidence-gated (council 2026-07-18): a lift unlocks its chart after 3 logged sessions.
+// Strength trend - evidence-gated (council 2026-07-18): a lift unlocks its chart after 3 logged sessions.
 const TREND_UNLOCK=3;
 let strengthPick=null;
 function renderStrength(){
@@ -764,7 +780,7 @@ function renderStrength(){
 }
 function pickStrength(id){strengthPick=id;renderStrength();}
 // Shared line-chart SVG (council 2026-07-20 refactor): points=[{t,v}], oldest→newest. Reused by the
-// strength trend, the exercise detail sheet's e1RM, and the bodyweight trend — one drawing routine.
+// strength trend, the exercise detail sheet's e1RM, and the bodyweight trend - one drawing routine.
 function chartSvg(points,ariaLabel){
   const W=340,H=160,PL=36,PR=12,PT=16,PB=26,IW=W-PL-PR,IH=H-PT-PB;
   const xs=points.map(p=>p.t),ys=points.map(p=>p.v);
@@ -810,7 +826,7 @@ function renderWeeklyRecap(){
   if(sessions<RECAP_MIN_SESSIONS&&spanDays<7){
     if(!sessions){el.innerHTML='';return;}
     const need=RECAP_MIN_SESSIONS-sessions;
-    el.innerHTML=`<div class="recap-card card recap-locked"><p class="kicker">WEEKLY RECAP</p><strong>${sessions} of ${RECAP_MIN_SESSIONS} sessions logged</strong><p>Recap unlocks with ${need} more session${need===1?'':'s'} — or a week of data.</p><div class="lock-progress">${[0,1,2].map(i=>`<i class="${i<sessions?'full':''}"></i>`).join('')}</div></div>`;
+    el.innerHTML=`<div class="recap-card card recap-locked"><p class="kicker">WEEKLY RECAP</p><strong>${sessions} of ${RECAP_MIN_SESSIONS} sessions logged</strong><p>Recap unlocks with ${need} more session${need===1?'':'s'} - or a week of data.</p><div class="lock-progress">${[0,1,2].map(i=>`<i class="${i<sessions?'full':''}"></i>`).join('')}</div></div>`;
     return;
   }
   const recap=Core.weeklyRecap(state.history,muscleLookup);
@@ -860,7 +876,7 @@ function renderBalance(){
   }).join('');
   const partialRows=oneSided.map(([id,b])=>{
     const hasL=b.left.sets>0,side=hasL?'Left':'Right',other=hasL?'right':'left',top=hasL?b.left.topWeight:b.right.topWeight,n=hasL?b.left.sets:b.right.sets;
-    return `<div class="bal-row bal-partial"><div class="bal-name">${esc(exerciseById(id)?.name||id)}</div><div class="bal-partial-line">${side} only so far — ${top} kg top, ${n} set${n===1?'':'s'}. Tag some ${other} sets to compare.</div></div>`;
+    return `<div class="bal-row bal-partial"><div class="bal-name">${esc(exerciseById(id)?.name||id)}</div><div class="bal-partial-line">${side} only so far - ${top} kg top, ${n} set${n===1?'':'s'}. Tag some ${other} sets to compare.</div></div>`;
   }).join('');
   el.innerHTML=`<div class="bal-board">${bothRows}${partialRows}</div>`;
 }
@@ -885,7 +901,7 @@ function saveBodyweight(){
   if(!Array.isArray(state.bodyweight))state.bodyweight=[];
   state.bodyweight.push({t:Date.now(),kg:Math.round(kg*10)/10});
   saveState();closeSheet();renderProgress();showToast('Weight logged');
-  checkGoalAchievements(); // new evidence — a bodyweight goal may have just landed
+  checkGoalAchievements(); // new evidence - a bodyweight goal may have just landed
 }
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
@@ -894,7 +910,7 @@ function renderWorkout(){
   document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
   btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
-  document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue — the state must survive colour-blindness
+  document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue - the state must survive colour-blindness
   document.getElementById('view-workout').classList.toggle('paused',paused);
   startActiveClock();
 }
@@ -926,7 +942,7 @@ function addBookend(){
   saveState();renderWorkout();
   showToast(`${picks.length} ${phase==='warmup'?'warm-up':'cool-down'} drill${picks.length===1?'':'s'} added`);
 }
-// Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable — friction kills habits.
+// Three-touch safety loop: pre-session 0–10, next-session flare yes/no. Optional, skippable - friction kills habits.
 function checkinMarkup(session){
   // The whole loop is rehab machinery. Someone with no injury has no "problem area" to rate, and
   // being asked on session one reads like a medical form, not a training app (audit 2026-07-22).
@@ -935,7 +951,7 @@ function checkinMarkup(session){
   const last=state.history[0],askFlare=Boolean(last?.checkin&&last.checkin.flare==null);
   const askPre=session.checkin.pre==null;
   if(!askPre&&!askFlare)return '';
-  const scale=askPre?`<p>Any aches or niggles today?<small>0 = feel great, 10 = don't train today. Optional — skip if all good.</small></p><div class="checkin-scale">${Array.from({length:11},(_,n)=>`<button onclick="setPreCheckin(${n})" aria-label="Rate ${n} out of 10">${n}</button>`).join('')}</div>`:'';
+  const scale=askPre?`<p>Any aches or niggles today?<small>0 = feel great, 10 = don't train today. Optional - skip if all good.</small></p><div class="checkin-scale">${Array.from({length:11},(_,n)=>`<button onclick="setPreCheckin(${n})" aria-label="Rate ${n} out of 10">${n}</button>`).join('')}</div>`:'';
   const flare=askFlare?`<div class="checkin-row" style="margin-top:${askPre?'12px':'0'}"><button onclick="setFlare(false)">No flare since last session</button><button onclick="setFlare(true)">Had a flare</button></div>`:'';
   return `<div class="checkin-card" id="checkinCard">${scale}${flare}<button class="checkin-skip" onclick="dismissCheckin()">Skip</button></div>`;
 }
@@ -977,12 +993,12 @@ function renderWorkoutMetrics(){
   const ctx=document.getElementById('workoutContext');
   if(ctx)ctx.textContent=contextLine();
 }
-// Wave 1: the session's pain controller and per-exercise progression target — pure Core, surfaced here.
+// Wave 1: the session's pain controller and per-exercise progression target - pure Core, surfaced here.
 function sessionPainGate(){return Core.painGate(state.history,state.activeSession?.checkin?.pre);}
 // Injury mode carries the whole rehab layer: the pain check-in, the flare question, and the
 // tolerance gate that only lets a confirmed pain-free session become a progression basis. Someone
 // not training around an injury has nothing to confirm tolerance against, so their completed
-// sessions are evidence on their own — otherwise they'd never see a target at all (audit 2026-07-22).
+// sessions are evidence on their own - otherwise they'd never see a target at all (audit 2026-07-22).
 function injuryMode(){return state.preferences.injuryMode===true;}
 function targetFor(exerciseId,pg){return Core.nextTarget(state.history,exerciseId,{step:Number(state.preferences.weightStep)||2.5,block:!!(pg&&pg.block),stepDown:!!(pg&&pg.stepDown),requireConfirmation:injuryMode()});}
 // Human phrasing for a target result (null = no confirmed basis yet). Timed holds read in seconds.
@@ -996,23 +1012,23 @@ const RULE_WORD={'add-rep':'build reps','add-load':'load up','add-time':'add tim
 function workoutExerciseMarkup(exercise,index){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const timed=!!item?.timed; // hold-type exercise: the "reps" field stores seconds
-  const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>timed?`${s.weight?`${s.weight} kg × `:''}${s.reps} s`:`${s.weight||'—'} kg × ${s.reps}`).join(' · ')}`:'First time — set your benchmark';
-  // Neutral facts only — the app never prescribes a dose (council 2026-07-18).
-  // "Confirmed tolerated" is rehab language about an injury — only meaningful in injury mode.
+  const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>timed?`${s.weight?`${s.weight} kg × `:''}${s.reps} s`:`${s.weight||'-'} kg × ${s.reps}`).join(' · ')}`:'First time - set your benchmark';
+  // Neutral facts only - the app never prescribes a dose (council 2026-07-18).
+  // "Confirmed tolerated" is rehab language about an injury - only meaningful in injury mode.
   const confirmed=injuryMode()?Core.lastConfirmedExposure(state.history,exercise.exerciseId):null;
-  const confirmedText=!injuryMode()?'':(confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'—'} kg · ${timed?`${confirmed.topReps} s`:`${confirmed.topReps} reps`} · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':''));
-  // Progression target line — a second line under "Last time", with a "why?" that opens the evidence sheet.
+  const confirmedText=!injuryMode()?'':(confirmed?`Confirmed tolerated ${formatDate(confirmed.started)}: ${confirmed.topWeight||'-'} kg · ${timed?`${confirmed.topReps} s`:`${confirmed.topReps} reps`} · ${confirmed.setCount} set${confirmed.setCount===1?'':'s'}`:(previous.length?'No confirmed-tolerated baseline yet (check-ins pending)':''));
+  // Progression target line - a second line under "Last time", with a "why?" that opens the evidence sheet.
   const pg=sessionPainGate(),target=targetFor(exercise.exerciseId,pg);
   const blocked=target&&target.rule==='blocked';
   const targetLine=target?`<span class="target-line${blocked?' blocked':''}"><b aria-hidden="true">→</b> <span class="target-lead">Today:</span> <strong>${esc(formatTarget(target))}</strong> <button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></span>`:'';
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) —
+  // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) -
   // otherwise finishing every intended set still reads as incomplete (Codex verify 2026-07-20).
   const sets=exercise.sets,last=sets[sets.length-1];
   const total=sets.length-((sets.length>1&&last&&!last.done&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
-  // Blank done-ticks are not evidence — completion counts route through the same doneSets rule (Codex P1).
+  // Blank done-ticks are not evidence - completion counts route through the same doneSets rule (Codex P1).
   const doneCount=Core.doneSets(exercise).length,doneFrac=total?Math.min(1,doneCount/total):0;
-  // RIR capture — one optional tap once the last NON-DROP set is done. A drop set's RIR must never
+  // RIR capture - one optional tap once the last NON-DROP set is done. A drop set's RIR must never
   // progress the heavy set, so drops neither trigger nor satisfy the ask (Codex P1).
   // "Planned" mirrors the rail denominator: a not-done set that is prefilled-or-blank isn't intended yet.
   const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
@@ -1032,7 +1048,7 @@ function rirRowMarkup(exercise,index,show){
   if(!show)return '';
   const chips=RIR_CHIPS.map(([v,l])=>`<button class="rir-chip" onclick="setRir(${index},'${v}')" aria-label="${v==='skip'?'Skip':v+' reps'} left in tank">${l}</button>`).join('');
   // Honest label: with drop sets present, the RIR refers to the last WORKING (non-drop) set.
-  const label=(exercise.sets||[]).some(s=>s.drop)?'Last working set — reps left in tank:':'Last set — reps left in tank:';
+  const label=(exercise.sets||[]).some(s=>s.drop)?'Last working set - reps left in tank:':'Last set - reps left in tank:';
   // "Reps in reserve" is lifting jargon; the app asks a plain question instead of assuming it.
   return `<div class="rir-row"><span class="rir-label">${label}<small class="rir-help">How many more could you have done? 0 = nothing left, 4+ = easy</small></span><div class="rir-chips">${chips}</div></div>`;
 }
@@ -1042,7 +1058,7 @@ function setRir(index,value){
   saveState();renderWorkout();
 }
 function changeRir(index){const ex=state.activeSession?.exercises[index];if(!ex)return;delete ex.rir;saveState();renderWorkout();}
-// "Why this target" — the evidence and the rule, one honest sentence. Blocked shows the pain copy prominently.
+// "Why this target" - the evidence and the rule, one honest sentence. Blocked shows the pain copy prominently.
 function openTargetWhy(index){
   const ex=state.activeSession?.exercises[index];if(!ex)return;
   const item=exerciseById(ex.exerciseId);
@@ -1053,28 +1069,28 @@ function openTargetWhy(index){
   if(target&&target.rule==='blocked'){
     body=`<div class="why-block" role="alert"><span class="why-block-glyph" aria-hidden="true">✕</span><p>${esc(pg.reason)}</p></div>`;
   }else if(!target){
-    body=`<p class="why-sentence">${injuryMode()?'No confirmed-tolerated set yet, so there\'s no target — find an easy working load and log it. A target appears once a session is confirmed pain-free next time.':'No logged set yet, so there\'s no target — find an easy working load and log it. A target appears from your own numbers next time.'}</p>`;
+    body=`<p class="why-sentence">${injuryMode()?'No confirmed-tolerated set yet, so there\'s no target - find an easy working load and log it. A target appears once a session is confirmed pain-free next time.':'No logged set yet, so there\'s no target - find an easy working load and log it. A target appears from your own numbers next time.'}</p>`;
   }else{
     const rirTxt=basis?(basis.rir==null?'no RIR was logged':basis.rir==='skip'?'RIR was skipped':`you left ${basis.rir==='4'||basis.rir===4?'4+':basis.rir} in the tank`):'no basis';
-    const basisTxt=basis?(timed?`${basis.weight?`${basis.weight} kg × `:''}${basis.reps} s`:`${basis.weight||'—'} kg × ${basis.reps}`):'';
+    const basisTxt=basis?(timed?`${basis.weight?`${basis.weight} kg × `:''}${basis.reps} s`:`${basis.weight||'-'} kg × ${basis.reps}`):'';
     const evidence=basis?`Last ${injuryMode()?'confirmed ':''}set: ${esc(basisTxt)}, and ${esc(rirTxt)}.`:'';
     const RULE_SENTENCE={
       'add-rep':'Reps are below the top of your range, so hold the load and add a rep.',
       'add-load':'You hit the top of the range with reps to spare, so add one load step and reset reps.',
       'add-time':'You had time left in the tank, so hold the same load and add 5 seconds.',
-      'hold':'Reps in reserve were low (0–1), so repeat the same load — no progression today.',
-      'repeat-no-rir':'No RIR evidence, so this stays conservative — repeat last, never guess up.',
+      'hold':'Reps in reserve were low (0–1), so repeat the same load - no progression today.',
+      'repeat-no-rir':'No RIR evidence, so this stays conservative - repeat last, never guess up.',
       'step-down':'Pain has been elevated, so the load steps back about 10% today.'
     };
     body=`<p class="why-evidence">${evidence}</p><p class="why-sentence">${esc(RULE_SENTENCE[target.rule]||'')}</p>`;
   }
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TODAY'S TARGET</p><h2>${esc(item?.name||'Exercise')}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>${body}<p class="why-foot">Targets come from your own logged evidence — never from a plan you didn't earn.</p>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TODAY'S TARGET</p><h2>${esc(item?.name||'Exercise')}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>${body}<p class="why-foot">Targets come from your own logged evidence - never from a plan you didn't earn.</p>`;
   document.getElementById('sheet').showModal();
 }
 // A cell input opens the numeric pad instead of the keyboard (readonly + role=button); the pad's
 // "Keyboard" button removes readonly for arbitrary entry. Prefilled (carry-forward) sets read muted
-// AND italic/lighter — a non-colour cue too, since Mark is colour-blind — until the lifter confirms them.
-function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed){const completion=Core.setCompletionState(set.done,setIndex+1);const pf=set.prefilled&&!set.done?' prefilled':'';const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;const adopt=Core.showAdoptAction(set,setIndex,!!firstPrev)?`<button class="adopt-last" onclick="adoptLast(${exerciseIndex})" aria-label="Use last session's ${firstPrev.weight||'—'} kilograms for ${firstPrev.reps} reps">Use last: ${esc(firstPrev.weight||'—')} kg × ${esc(firstPrev.reps)}</button>`:'';return `<div class="set-grid set-row ${completion.className}${isActive?' notched':''}${pf}${set.drop?' drop-set':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${set.drop?'↓':setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'—'}" ${cellAttrs('weight')} onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'—'}" ${cellAttrs('reps')} onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>${adopt}`;}
+// AND italic/lighter - a non-colour cue too, since Mark is colour-blind - until the lifter confirms them.
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed){const completion=Core.setCompletionState(set.done,setIndex+1);const pf=set.prefilled&&!set.done?' prefilled':'';const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;const adopt=Core.showAdoptAction(set,setIndex,!!firstPrev)?`<button class="adopt-last" onclick="adoptLast(${exerciseIndex})" aria-label="Use last session's ${firstPrev.weight||'-'} kilograms for ${firstPrev.reps} reps">Use last: ${esc(firstPrev.weight||'-')} kg × ${esc(firstPrev.reps)}</button>`:'';return `<div class="set-grid set-row ${completion.className}${isActive?' notched':''}${pf}${set.drop?' drop-set':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${set.drop?'↓':setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'-'}" ${cellAttrs('weight')} onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'-'}" ${cellAttrs('reps')} onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>${adopt}`;}
 // Explicit set-1 adoption: fill (never auto) set 1 from last session's first set; the lifter can still edit.
 function adoptLast(exerciseIndex){
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
@@ -1094,7 +1110,7 @@ function cycleSide(exerciseIndex,setIndex){
 function updateSet(exerciseIndex,setIndex,key,value){const set=state.activeSession?.exercises[exerciseIndex]?.sets[setIndex];if(!set)return;set[key]=value;delete set.prefilled;saveState();renderWorkoutMetrics();}
 // Completing a set writes its real numbers, then pre-fills the NEXT still-empty incomplete set with
 // those numbers (Core.carryForward) so an unchanged set becomes a genuine one-tap. Prefill only lands
-// in a set the lifter hasn't touched (both fields empty) — never overwrites entered data.
+// in a set the lifter hasn't touched (both fields empty) - never overwrites entered data.
 function carryForwardExercise(exercise){
   const sets=exercise.sets||[];const j=sets.findIndex(s=>!s.done);
   if(j<=0)return; // no incomplete set, or set 1 (never prefilled)
@@ -1109,7 +1125,7 @@ function toggleSet(exerciseIndex,setIndex){
     // Superset: completing a set of the FIRST exercise in a pair skips rest and hands straight to
     // the partner exercise; rest runs normally after the partner (second) exercise's set.
     const pairFirst=state.activeSession.exercises[exerciseIndex].supersetWithNext&&exerciseIndex<state.activeSession.exercises.length-1;
-    if(pairFirst){showToast('Superset — straight to the next exercise');setTimeout(()=>progressToNextSet(exerciseIndex+1),60);}
+    if(pairFirst){showToast('Superset - straight to the next exercise');setTimeout(()=>progressToNextSet(exerciseIndex+1),60);}
     else{
       // Second of a pair rests, then progression scans from the pair's FIRST exercise so the
       // superset keeps alternating A1→B1→A2→B2 (Codex verify 2026-07-20).
@@ -1117,7 +1133,7 @@ function toggleSet(exerciseIndex,setIndex){
       startRest(state.preferences.restSeconds,prevPair?exerciseIndex-1:exerciseIndex);
     }
     if(setIndex===state.activeSession.exercises[exerciseIndex].sets.length-1)addSet(exerciseIndex,true);carryForwardExercise(state.activeSession.exercises[exerciseIndex]);buzz(15);}
-  else{ // un-complete: downstream prefills seeded by this set are stale — reset + re-derive (Codex)
+  else{ // un-complete: downstream prefills seeded by this set are stale - reset + re-derive (Codex)
     const ex=state.activeSession.exercises[exerciseIndex];
     ex.sets.forEach((s,i)=>{if(i>setIndex&&s.prefilled&&!s.done){s.weight='';s.reps='';delete s.prefilled;}});
     carryForwardExercise(ex);
@@ -1126,7 +1142,7 @@ function toggleSet(exerciseIndex,setIndex){
   if(set.done){
     // A completed set that beats this exercise's PRIOR best earns the (once-per-exercise) live PR moment;
     // otherwise the ordinary settle animation. detectPRs is reused read-only against a single-exercise shadow.
-    // A first-ever exposure (no prior best to beat) is NOT a live moment — it still counts in the receipt.
+    // A first-ever exposure (no prior best to beat) is NOT a live moment - it still counts in the receipt.
     const ex=state.activeSession.exercises[exerciseIndex];let isPr=false;
     try{if(!prCelebrated.has(ex.exerciseId)&&Core.previousPerformance(state.history,ex.exerciseId).length){const recs=Core.detectPRs(state.history,{exercises:[ex]});if(recs&&recs.length){isPr=true;prCelebrated.add(ex.exerciseId);}}}catch{}
     if(isPr)celebratePR(exerciseIndex,setIndex,String(set.weight||''));
@@ -1140,7 +1156,7 @@ function toggleSet(exerciseIndex,setIndex){
 // light sweeps UP the exercise card's left rail, then the upgraded ▲PR toast. Reduced-motion: toast only.
 function celebratePR(exerciseIndex,setIndex,val){
   buzz([15,60,20]); // distinct double pulse for a PR
-  showToast('▲ PR — new best',true);
+  showToast('▲ PR - new best',true);
   if(REDUCED_MOTION)return;
   const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
   if(!row)return;
@@ -1151,20 +1167,20 @@ function celebratePR(exerciseIndex,setIndex,val){
 }
 function addSet(exerciseIndex,silent=false){
   // Sets are born EMPTY; carry-forward (on completing the prior set) is the sole prefill path, so a
-  // prefilled value is always the flagged/muted kind — never a silent copy the lifter didn't choose.
+  // prefilled value is always the flagged/muted kind - never a silent copy the lifter didn't choose.
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
   ex.sets.push({weight:'',reps:'',done:false});
   if(!silent){carryForwardExercise(ex);saveState();renderWorkout();} // manual add prefills if the prior set is already done
   else saveState();
 }
 // Drop set: appended after the last completed set, prefilled at −20% (rounded to 0.5) and flagged.
-// Counts as a normal hard set everywhere (volume, PRs, muscle ledgers) — the flag is presentation only.
+// Counts as a normal hard set everywhere (volume, PRs, muscle ledgers) - the flag is presentation only.
 function addDropSet(exerciseIndex){
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
   const lastDone=[...ex.sets].reverse().find(s=>s.done);
-  if(!lastDone){showToast('Complete a set first — a drop set follows it');return;}
+  if(!lastDone){showToast('Complete a set first - a drop set follows it');return;}
   const w=Number(lastDone.weight);
-  // Insert directly AFTER the last completed set — not at the tail, where the auto-added blank
+  // Insert directly AFTER the last completed set - not at the tail, where the auto-added blank
   // successor would sit above it as the active row (Codex verify 2026-07-20).
   const li=ex.sets.lastIndexOf(lastDone);
   ex.sets.splice(li+1,0,{weight:Number.isFinite(w)&&w>0?String(Math.round(w*0.8*2)/2):'',reps:'',done:false,drop:true});
@@ -1182,7 +1198,7 @@ function startActiveClock(){
   update();
   if(!state.activeSession?.pausedAt)activeTimer=setInterval(update,1000); // paused: the value is frozen, so there is nothing to tick
 }
-// Pause the session clock for a phone call, a chat, a coffee — held time is never training time.
+// Pause the session clock for a phone call, a chat, a coffee - held time is never training time.
 // One accumulator (`pausedMs`) + an open mark (`pausedAt`); every elapsed read goes through
 // Core.sessionElapsedMs, so the live clock, the receipt duration and history all agree.
 function toggleWorkoutPause(){
@@ -1196,7 +1212,7 @@ function toggleWorkoutPause(){
     showToast('Workout resumed');
   }else{
     session.pausedAt=now;clearInterval(restTimer);
-    showToast('Workout paused — the clock is stopped');
+    showToast('Workout paused - the clock is stopped');
   }
   saveState();buzz(10);renderWorkout();
 }
@@ -1205,7 +1221,7 @@ function settlePause(session,now=Date.now()){ // close any open pause so `finish
 }
 
 // Deadline-anchored rest (Codex verify 2026-07-20): remaining derives from an absolute deadline,
-// and a visibilitychange reconciliation fires the end path immediately when the tab wakes past it —
+// and a visibilitychange reconciliation fires the end path immediately when the tab wakes past it -
 // an OS-suspended interval can no longer resume stale.
 let restDeadline=0;
 function startRest(seconds,exerciseIndex=0){
@@ -1214,7 +1230,7 @@ function startRest(seconds,exerciseIndex=0){
   tickRest();restTimer=setInterval(tickRest,1000);
 }
 // Council 2026-07-23: rest is RECOVERY (teal) until the last 10s, when it becomes an ACTION (amber).
-// The label changes with the hue — never hue alone, Mark is colour-blind.
+// The label changes with the hue - never hue alone, Mark is colour-blind.
 const REST_ENDING_SECONDS=10;
 function tickRest(){
   restRemaining=Math.max(0,Math.round((restDeadline-Date.now())/1000));
@@ -1223,11 +1239,11 @@ function tickRest(){
   pill.classList.toggle('ending',ending);
   const label=pill.querySelector('.rest-info span');
   if(label)label.textContent=ending?'Get ready':'Rest';
-  if(restRemaining<=0){clearInterval(restTimer);pill.classList.remove('show','ending');if(label)label.textContent='Rest';buzz(40);showToast('Rest done — next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
+  if(restRemaining<=0){clearInterval(restTimer);pill.classList.remove('show','ending');if(label)label.textContent='Rest';buzz(40);showToast('Rest done - next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.activeSession?.pausedAt&&document.getElementById('restPill').classList.contains('show'))tickRest();});
 // Rest-end notification (opt-in). ponytail: fires while the page is alive (incl. a backgrounded tab);
-// no Notification-Triggers scheduling — if the OS fully suspends the PWA, the buzz+toast on return cover it.
+// no Notification-Triggers scheduling - if the OS fully suspends the PWA, the buzz+toast on return cover it.
 async function enableRestNotify(on){
   if(!on){state.preferences.restNotify=false;saveState();return;}
   try{const perm=await Notification.requestPermission();state.preferences.restNotify=perm==='granted';if(perm!=='granted')showToast('Notifications are blocked for this app in the browser');}
@@ -1244,7 +1260,7 @@ function updateRest(){rollNumber(document.getElementById('restTime'),Core.format
 function skipRest(){clearInterval(restTimer);restRemaining=0;document.getElementById('restPill').classList.remove('show');progressToNextSet(restExerciseIndex);}
 // Rest-end "what's next": the next incomplete set (same exercise, else the next exercise with one)
 // gets a one-time amber emphasis on its already-notched active row and scrolls into view. Purely
-// visual — no focus() so the keyboard never pops. Reduced motion: instant scroll, no pulse.
+// visual - no focus() so the keyboard never pops. Reduced motion: instant scroll, no pulse.
 function progressToNextSet(fromExIndex){
   const s=state.activeSession;if(!s)return;
   const firstIncomplete=exIdx=>{const ex=s.exercises[exIdx];return ex?ex.sets.findIndex(x=>!x.done):-1;};
@@ -1258,7 +1274,7 @@ function progressToNextSet(fromExIndex){
 }
 
 // ---- Numeric pad (council 2026-07-19): tapping a weight/reps cell opens this bottom sheet instead
-// of the keyboard — big −/+ with hold-acceleration, a per-profile weight step, and a Keyboard escape
+// of the keyboard - big −/+ with hold-acceleration, a per-profile weight step, and a Keyboard escape
 // hatch for arbitrary entry. Writes go through the same updateSet path as typing. ----
 const WEIGHT_STEPS=[1,2.5,5];
 function padStep(){return padTarget?.key==='weight'?(Number(state.preferences.weightStep)||2.5):1;}
@@ -1285,10 +1301,10 @@ function padSetStep(s){state.preferences.weightStep=s;saveState();renderPad();}
 function plateLine(v){
   const bar=Number(state.preferences.barWeight)||20;
   if(!v)return '';
-  if(v<bar)return `Below the ${bar} kg bar — dumbbells or fixed weight`;
+  if(v<bar)return `Below the ${bar} kg bar - dumbbells or fixed weight`;
   const b=Core.plateBreakdown(v,bar);
   if(!b.perSide.length)return `Empty bar (${bar} kg)`;
-  return `Per side: ${b.perSide.join(' · ')}${b.exact?'':` — ${b.remainder} kg won't plate`}`;
+  return `Per side: ${b.perSide.join(' · ')}${b.exact?'':` - ${b.remainder} kg won't plate`}`;
 }
 function padAdjust(dir){
   if(!padTarget)return;
@@ -1304,7 +1320,7 @@ function padHoldStart(dir){padAdjust(dir);let delay=380;const tick=()=>{padAdjus
 function padHoldStop(){clearTimeout(padHold);padHold=null;}
 function padKeyboard(){
   // Focus must happen AFTER the modal dialog has really closed (a modal makes the page inert) and
-  // AFTER closePad's renderWorkout has rebuilt the rows — so re-query the CURRENT DOM in the
+  // AFTER closePad's renderWorkout has rebuilt the rows - so re-query the CURRENT DOM in the
   // completion callback, never the pre-close node (Codex P1).
   const t=padTarget;
   closePad(()=>{
@@ -1332,6 +1348,7 @@ function setPostCheckin(button,value){
 function finishWorkout(){
   const session=state.activeSession;if(!session)return;
   settlePause(session);session.finished=Date.now();session.prs=Core.detectPRs(state.history,session);
+  session.verdict=Core.sessionVerdict(state.history,session); // deltas vs last exposure, judged BEFORE this session joins history
   if(session.prs.length)buzz([20,60,20]); // PR: distinct double pulse
   if(session.checkin&&session.checkin.flare===undefined)session.checkin.flare=null; // arms the next-session flare question
   // The tolerance gate is only ASKED in injury mode, so whether it applied is a property of the
@@ -1346,14 +1363,24 @@ function finishWorkout(){
 }
 function openReceipt(session){
   const summary=Core.summarizeSession(session),prs=session.prs||[];
-  // "Volume 0 kg" tells a calisthenics session it did nothing — name the work honestly instead.
+  // Verdict layer (council 2026-07-28): the receipt reported totals but never DELTAS. One computed
+  // headline of what changed today, one proof line, honest fallback on first exposure. NEXT SESSION
+  // stays fully visible below (Codex wanted it collapsed; the anchor is never hidden).
+  const v=session.verdict||Core.sessionVerdict(state.history.filter(x=>x.id!==session.id),session);
+  const VERDICT_COPY={advanced:'Moved forward.',held:'Held steady.','backed-off':'Backed off today.',baseline:'Baseline set.'};
+  const deltaText=h=>{if(!h)return '';const n=exerciseById(h.exerciseId)?.name||'';
+    return h.kind==='load'?`${esc(n)} +${h.delta} kg`:h.kind==='time'?`${esc(n)} +${h.delta} s`:`${esc(n)} +${h.delta} rep${h.delta===1?'':'s'}`;};
+  const proof=v.verdict==='baseline'?'Progression starts next time.'
+    :v.considered?`${v.advanced} of ${v.considered} lift${v.considered===1?'':'s'} advanced${v.highlight?' · '+deltaText(v.highlight):''}`:'';
+  const verdictBlock=v.verdict==='none'?'':`<div class="receipt-verdict receipt-verdict-${v.verdict}"><strong>${VERDICT_COPY[v.verdict]}</strong>${proof?`<small>${proof}</small>`:''}</div>`;
+  // "Volume 0 kg" tells a calisthenics session it did nothing - name the work honestly instead.
   const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
   const prBlocks=prs.map(pr=>{
     const item=exerciseById(pr.exerciseId);
     const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
     return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
   }).join('');
-  // NEXT SESSION prescription — the engagement anchor. Run against the just-finished history state.
+  // NEXT SESSION prescription - the engagement anchor. Run against the just-finished history state.
   const pg=Core.painGate(state.history,null),step=Number(state.preferences.weightStep)||2.5;
   const nextRows=session.exercises.filter(ex=>ex.sets.some(s=>s.done)).map((ex,i)=>{
     const item=exerciseById(ex.exerciseId),t=Core.nextTarget(state.history,ex.exerciseId,{step,block:!!pg.block,stepDown:!!pg.stepDown});
@@ -1362,14 +1389,14 @@ function openReceipt(session){
     return `<div class="receipt-next-row" style="--i:${i}"><span>${esc(item?.name||'Exercise')}</span><strong>${esc(val)}${word?` <em>${esc(word)}</em>`:''}</strong></div>`;
   }).join('');
   const nextBlock=nextRows?`<div class="receipt-next"><p class="kicker">NEXT SESSION</p><div class="receipt-next-rows">${nextRows}</div></div>`:'';
-  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p><div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
+  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p>${verdictBlock}<div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
   const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;overlay.style.display='grid';
   requestAnimationFrame(()=>overlay.classList.add('show'));
   document.getElementById('receiptCard').querySelector('.primary-button').focus();
   overlay.onclick=e=>{if(e.target===overlay)closeReceipt();};
   overlay.onkeydown=e=>{
     if(e.key==='Escape'){e.preventDefault();closeReceipt();return;}
-    if(e.key==='Tab'){e.preventDefault();document.getElementById('receiptCard').querySelector('.primary-button').focus();} // ponytail: one focusable control — trap is a refocus
+    if(e.key==='Tab'){e.preventDefault();document.getElementById('receiptCard').querySelector('.primary-button').focus();} // ponytail: one focusable control - trap is a refocus
   };
 }
 function closeReceipt(){const overlay=document.getElementById('receiptOverlay');overlay.classList.remove('show');overlay.hidden=true;overlay.style.display='none';overlay.onkeydown=null;navigate('progress');}
@@ -1393,7 +1420,7 @@ function openExercisePicker(target){
 function pickExercise(id){
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
   else if(pickerTarget==='routine'){if(!routineDraft.exerciseIds.includes(id))routineDraft.exerciseIds.push(id);renderRoutineEditor();}
-  // Picking for a goal returns to the goal sheet with the choice made — the draft is never lost.
+  // Picking for a goal returns to the goal sheet with the choice made - the draft is never lost.
   else if(pickerTarget==='goal'&&goalDraft){goalDraft.exerciseId=id;renderGoalSheet();}
 }
 function closeSheet(){
@@ -1450,7 +1477,7 @@ function openWorkoutExerciseMenu(index){
   if(!state.activeSession?.exercises[index])return;
   const exercise=state.activeSession.exercises[index],name=exerciseById(exercise.exerciseId)?.name||'Exercise';
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square — right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule — clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right — that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below — no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square - right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule - clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right - that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below - no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
 }
 function saveExerciseNote(index){
   const exercise=state.activeSession?.exercises[index];if(!exercise)return;
@@ -1464,14 +1491,14 @@ function saveExerciseNote(index){
 function removeWorkoutExercise(index){
   if(!state.activeSession)return;
   state.activeSession.exercises.splice(index,1);
-  // A running rest belongs to an exercise by INDEX — after a splice that index points at a different
+  // A running rest belongs to an exercise by INDEX - after a splice that index points at a different
   // exercise (or past the end), so rest-end would highlight the wrong row. Re-anchor it.
   if(restExerciseIndex===index)restExerciseIndex=Math.min(index,state.activeSession.exercises.length-1);
   else if(restExerciseIndex>index)restExerciseIndex--;
   saveState();closeSheet();renderWorkout();
 }
 // Reorder: swap with the neighbour. supersetWithNext travels with its exercise, so a moved pair-first
-// simply pairs with its new neighbour — visible immediately, one more tap fixes it if unwanted.
+// simply pairs with its new neighbour - visible immediately, one more tap fixes it if unwanted.
 function moveWorkoutExercise(index,delta){
   const exs=state.activeSession?.exercises;if(!exs)return;
   const j=index+delta;if(j<0||j>=exs.length)return;
@@ -1513,14 +1540,14 @@ function linkHistoryToRoutine(sessionId,routineId){
   const session=state.history.find(s=>s.id===sessionId);if(!session)return;
   const routine=state.routines.find(r=>r.id===routineId);
   session.routineId=routine?routine.id:null;
-  // Only the untouched default name is rewritten — never a title the lifter chose themselves.
+  // Only the untouched default name is rewritten - never a title the lifter chose themselves.
   if(routine&&session.name==='Quick workout')session.name=routine.name;
   saveState();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // the stored copy must carry the new link too
   closeSheet();renderToday();renderTrain();renderProgress();
   showToast(routine?`Counted as ${routine.name}`:'Unlinked');
 }
-// A routine IS just a named, ordered exercise list — so any logged workout can become one.
+// A routine IS just a named, ordered exercise list - so any logged workout can become one.
 // To merge two workouts into a single routine, save one here then ••• → Edit and add the rest.
 // A routine is just a named, ordered exercise list, so ANY source of one can become a routine:
 // a finished workout, the workout running right now, a plan day, a template. One helper, so the
@@ -1570,23 +1597,23 @@ function saveRingGoals(){
 function openSettings(){
   // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
   if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only — iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down — buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down - buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
 function syncSettingsMarkup(){
   if(!Sync)return '';
   const st=Sync.status(),cfg=Sync.loadConfig(),beighton=Sync.getBeighton();
-  const conn=st.configured?(st.connected?'Connected':'Connected — signing in again on next sync'):'Not connected';
+  const conn=st.configured?(st.connected?'Connected':'Connected - signing in again on next sync'):'Not connected';
   if(Sync.preload)try{Sync.preload(true);}catch{} // sheet is open; warm GIS so the Connect tap is in-gesture
   return `<div class="section-heading"><div><p class="kicker">SYNC & COACH</p><h2>Google Drive</h2></div></div>
-    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional. Backs your workouts up to <strong>your own</strong> Google Drive, in a private <strong>Gym-Sync</strong> folder. This app can only ever see files it created itself — never the rest of your Drive.</p>
+    <p style="color:var(--taupe);font-size:12px;margin:-2px 0 10px">Optional. Backs your workouts up to <strong>your own</strong> Google Drive, in a private <strong>Gym-Sync</strong> folder. This app can only ever see files it created itself - never the rest of your Drive.</p>
     <details class="sync-advanced"><summary>Advanced</summary><div class="field" style="margin-top:10px"><label>OAUTH CLIENT ID</label><input id="syncClientId" value="${esc(cfg.clientId||'')}" placeholder="xxxx.apps.googleusercontent.com" oninput="saveSyncClientId(this.value)"><small style="color:var(--taupe);font-size:11px">Only change this if you run your own Google Cloud project. Clear it to go back to the built-in one.</small></div></details>
     <div class="stack">
       ${st.configured?`<button class="secondary-button full-button" onclick="disconnectSync()">Disconnect</button>`:`<button class="secondary-button full-button" ${st.available?'':'disabled'} onclick="connectSync()">Connect Google Drive</button>`}
     </div>
     <p style="color:var(--taupe);font-size:11px;margin:8px 2px 0">Status: ${esc(conn)}${st.queued?` · ${st.queued} session${st.queued===1?'':'s'} queued`:''}</p>
-    ${injuryMode()?`<label class="beighton-toggle"><span><strong>Hypermobility features</strong><small>For lifters with a Beighton hypermobility assessment — unlocking accepts coach plans that use those extra joint-safety capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`:''}`;
+    ${injuryMode()?`<label class="beighton-toggle"><span><strong>Hypermobility features</strong><small>For lifters with a Beighton hypermobility assessment - unlocking accepts coach plans that use those extra joint-safety capabilities.</small></span><input type="checkbox" ${beighton?'checked':''} onchange="toggleBeighton(this.checked)"></label>`:''}`;
 }
 function saveSyncClientId(value){if(Sync)Sync.setClientId(value);}
 function connectSync(){
@@ -1594,10 +1621,10 @@ function connectSync(){
   Sync.connect().then(()=>{openSettings();renderToday();showToast('Google Drive connected');}).catch(e=>{
     const m=String((e&&e.message)||e);
     showToast(
-      m==='gsi-not-ready'?'Still loading Google — tap Connect again':
-      m==='popup_failed_to_open'?'Pop-up blocked — allow pop-ups for this site, then tap Connect':
-      m==='no-token'||m==='access_denied'?'Sign-in cancelled — tap Connect to retry':
-      'Could not connect — try again');
+      m==='gsi-not-ready'?'Still loading Google - tap Connect again':
+      m==='popup_failed_to_open'?'Pop-up blocked - allow pop-ups for this site, then tap Connect':
+      m==='no-token'||m==='access_denied'?'Sign-in cancelled - tap Connect to retry':
+      'Could not connect - try again');
   });
 }
 function disconnectSync(){if(Sync){Sync.disconnect();openSettings();renderToday();showToast('Disconnected');}}
@@ -1623,7 +1650,7 @@ async function installApp(){
   const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   if(standalone)return showToast('Already installed');
   const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  // iOS never fires beforeinstallprompt and only Safari can install — give the real steps.
+  // iOS never fires beforeinstallprompt and only Safari can install - give the real steps.
   if(ios){document.getElementById('confirmContent').innerHTML=`<h2>Install on iPhone</h2><p>In <strong>Safari</strong>, tap the Share button (the square with the up arrow), then <strong>“Add to Home Screen”</strong>. Chrome and Brave can’t install apps on iOS.</p><div class="confirm-actions"><button class="primary-button" onclick="closeConfirm()">Got it</button></div>`;document.getElementById('confirmDialog').showModal();return;}
   showToast('Use your browser menu → Install app');
 }
@@ -1654,7 +1681,7 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{});});
   }).catch(()=>{});
   // Reload ONLY on a real update swap (a previous controller existed, or the pill asked for the swap).
-  // A fresh first install fires controllerchange via clients.claim() — that must never reload (Codex P2).
+  // A fresh first install fires controllerchange via clients.claim() - that must never reload (Codex P2).
   const hadController=!!navigator.serviceWorker.controller;
   let reloadedForUpdate=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
@@ -1664,11 +1691,11 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
 }
 document.getElementById('sheet').addEventListener('click',event=>{if(event.target===event.currentTarget&&!(pinContext&&pinContext.mandatory)&&!lockGate)closeSheet();});
 document.getElementById('filterSheet').addEventListener('click',event=>{if(event.target===event.currentTarget)closeFiltersSheet();});
-// Catalogue event delegation — one listener per surface; row/star/quick/muscle actions read data-id/data-muscle (no inline handlers).
+// Catalogue event delegation - one listener per surface; row/star/quick/muscle actions read data-id/data-muscle (no inline handlers).
 document.getElementById('view-library').addEventListener('click',event=>onCatalogueClick('library',event));
 document.getElementById('sheetContent').addEventListener('click',event=>onCatalogueClick('picker',event));
 document.getElementById('filterSheetContent').addEventListener('click',onFacetClick);
-// ================= POLISH pass (council 2026-07-20) — sheet physics =================
+// ================= POLISH pass (council 2026-07-20) - sheet physics =================
 // Play a native <dialog>'s exit animation before .close(). Reduced-motion (and a closed dialog)
 // skip straight to the callback. A pending close is flushable so a "close→reopen same dialog"
 // sequence (e.g. PIN → back to Settings, both on #sheet) can't hit showModal's already-open throw.
@@ -1688,7 +1715,7 @@ function dismissDialog(dlg,after){
   proto.showModal=function(){
     if(this._closing&&this._flushClose)this._flushClose();
     if(this.open)return; // same-dialog navigation (e.g. Settings→PIN on #sheet): keep the FIRST opener
-    // Record the opener only when it is a real control OUTSIDE this dialog — an innerHTML swap often
+    // Record the opener only when it is a real control OUTSIDE this dialog - an innerHTML swap often
     // leaves focus on <body>, which must not clobber a good opener from the original open (Codex P2).
     const ae=document.activeElement;
     if(ae&&ae!==document.body&&!this.contains(ae))this._opener=ae;
@@ -1706,7 +1733,7 @@ if(window.visualViewport){
   const syncVVH=()=>{const keyboard=window.innerHeight-vv.height;if(vv.height>0&&keyboard>120)root.style.setProperty('--vvh',Math.round(vv.height-8)+'px');else root.style.removeProperty('--vvh');};
   vv.addEventListener('resize',syncVVH);syncVVH();
 }
-// Drag-to-dismiss — ONLY from the handle's 44px grab zone (the sheet body scrolls untouched). Rubber-band
+// Drag-to-dismiss - ONLY from the handle's 44px grab zone (the sheet body scrolls untouched). Rubber-band
 // resistance above rest; release past 25% height OR downward velocity >0.5px/ms dismisses, else springs back.
 function attachSheetDrag(sheetId,dismissFn){
   const dlg=document.getElementById(sheetId),handle=dlg&&dlg.querySelector('.sheet-handle');if(!handle)return;
@@ -1739,13 +1766,13 @@ function attachSheetDrag(sheetId,dismissFn){
 attachSheetDrag('sheet',closeSheet);
 attachSheetDrag('padSheet',closePad);
 attachSheetDrag('filterSheet',closeFiltersSheet);
-// ================= Track B — local profiles UI =================
+// ================= Track B - local profiles UI =================
 function renderProfileChip(){
   const chip=document.getElementById('profileChip');if(!chip)return;
   if(!Profiles){chip.hidden=true;return;}
   const p=Profiles.getActive(localStorage);
   document.getElementById('profileChipInitial').textContent=p?Profiles.initial(p.name||'?'):'?';
-  chip.setAttribute('aria-label',`Switch profile${p&&p.name?` — currently ${p.name}`:''}`);
+  chip.setAttribute('aria-label',`Switch profile${p&&p.name?` - currently ${p.name}`:''}`);
   chip.classList.toggle('is-locked',!!(p&&p.locked));
   chip.hidden=false;
 }
@@ -1778,7 +1805,7 @@ function commitSwitch(id){
   Profiles.setActive(localStorage,id);
   activeProfileId=id;
   stateKey=Profiles.stateKeyFor(id);
-  if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(id)); // hard auth reset — no cross-profile token bleed
+  if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(id)); // hard auth reset - no cross-profile token bleed
   pinContext=null;pinBuffer='';lockGate=false; // leaving any gate: the switched-to profile is unlocked-by-definition here
   state=readState();
   clearInterval(activeTimer);clearInterval(restTimer);
@@ -1799,7 +1826,7 @@ function commitSwitch(id){
 }
 function addPerson(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Add person</h2><button class="close-button" onclick="closeSheet()">×</button></div>
-    <p class="first-run-sub">A separate space on this phone — their own history, favourites and plans. The only shared thing is the gym’s exercise list.</p>
+    <p class="first-run-sub">A separate space on this phone - their own history, favourites and plans. The only shared thing is the gym’s exercise list.</p>
     <div class="field"><label>NAME</label><input id="newPersonName" placeholder="Their name" onkeydown="if(event.key==='Enter')submitAddPerson()"></div>
     <div class="sheet-actions"><button class="secondary-button" onclick="openProfileSwitcher()">Back</button><button class="primary-button" onclick="submitAddPerson()">Create & switch</button></div>`;
   document.getElementById('sheet').showModal();
@@ -1810,7 +1837,7 @@ function submitAddPerson(){
   if(!name)return showToast('Enter a name');
   commitSwitch(Profiles.addProfile(localStorage,name));
 }
-// First-run / post-migration welcome — names the profile bootstrap already created. One screen, no friction.
+// First-run / post-migration welcome - names the profile bootstrap already created. One screen, no friction.
 function openFirstRunSheet(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training on this phone?</h2></div>
     <p class="first-run-sub"><strong>Log your lifts, see what's actually working, get stronger.</strong> Your workouts stay in a private space on this device. You can add other people later from the profile menu.</p>
@@ -1881,7 +1908,7 @@ function doDeleteProfile(id){
 // ---- PIN entry (custom keypad sheet; council: UI privacy boundary, not forensic security) ----
 let pinBuffer='';
 let pinContext=null; // {mode:'gate',profile,onSuccess} | {mode:'set',first}
-// mandatory=true (boot gate for the ACTIVE locked profile): NON-DISMISSIBLE — no × path back to
+// mandatory=true (boot gate for the ACTIVE locked profile): NON-DISMISSIBLE - no × path back to
 // the app, Escape ('cancel') intercepted; the only ways out are the keypad or switching person.
 function openPinGate(profile,onSuccess,mandatory){
   pinBuffer='';pinContext={mode:'gate',profile,onSuccess,mandatory:!!mandatory};
@@ -1918,12 +1945,12 @@ async function pinComplete(){
   if(pinContext.mode==='gate'){
     const ok=await Profiles.verifyPin(pinContext.profile,entered);
     if(ok){const cb=pinContext.onSuccess;pinContext=null;pinBuffer='';cb(entered);}
-    else pinFail('Wrong PIN — try again');
+    else pinFail('Wrong PIN - try again');
     return;
   }
-  // set mode: confirm the digits match before committing (target bound at render time — P1-4)
+  // set mode: confirm the digits match before committing (target bound at render time - P1-4)
   if(!pinContext.first){pinContext.first=entered;pinBuffer='';renderPinSheet('Confirm PIN','Enter the same 4 digits again.');return;}
-  if(pinContext.first!==entered){pinContext.first=null;pinBuffer='';renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');showToast('PINs didn’t match — start again');return;}
+  if(pinContext.first!==entered){pinContext.first=null;pinBuffer='';renderPinSheet('Set a PIN','Choose a 4-digit PIN for this profile.');showToast('PINs didn’t match - start again');return;}
   const target=pinContext.targetId;
   if(!settingsTargetOk(target)){pinContext=null;pinBuffer='';closeSheet();showToast('Profile changed in another tab');return;}
   await Profiles.setPin(localStorage,target,entered);
@@ -1936,12 +1963,12 @@ function closePinSheet(){if(pinContext&&pinContext.mandatory)return;pinContext=n
 
 saveState();
 renderProfileChip();
-// Render the active profile's data — UNLESS it's locked and not yet unlocked this page-load, in which
+// Render the active profile's data - UNLESS it's locked and not yet unlocked this page-load, in which
 // case its data is never rendered until the PIN clears (council: locked = data hidden).
 function renderAllViews(){renderToday();renderTrain();renderLibrary();renderProgress();}
 function afterUnlockBoot(){
   renderAllViews();
-  // Flush any queued sessions and pull the latest coach plan on launch — silent, deferred, never blocking.
+  // Flush any queued sessions and pull the latest coach plan on launch - silent, deferred, never blocking.
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
 }
 // Gate the ACTIVE locked profile behind a non-dismissible PIN sheet with a NEUTRAL shell behind it:
@@ -1962,7 +1989,7 @@ function gateLockedProfile(profile){
   if(active&&active.locked&&!unlockedProfiles.has(activeProfileId)){gateLockedProfile(active);return;}
   afterUnlockBoot();
 })();
-// The mandatory gate is non-dismissible: Escape fires 'cancel' on the dialog — intercept it.
+// The mandatory gate is non-dismissible: Escape fires 'cancel' on the dialog - intercept it.
 document.getElementById('sheet').addEventListener('cancel',event=>{
   if((pinContext&&pinContext.mandatory)||lockGate)event.preventDefault();
 });
@@ -1982,5 +2009,5 @@ window.addEventListener('storage',event=>{
     lockGate=false;state=readState();renderAllViews();
     return;
   }
-  renderProfileChip(); // rename/PIN change elsewhere — refresh the chip only
+  renderProfileChip(); // rename/PIN change elsewhere - refresh the chip only
 });

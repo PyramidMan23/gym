@@ -1,14 +1,14 @@
-// Mark's home-gym catalogue — every movement maps to equipment he actually owns.
+// Mark's home-gym catalogue - every movement maps to equipment he actually owns.
 // Equipment strings name his real kit so the library is bespoke.
 // Full inventory of record lives in the brain: MarkOS/worlds/gym-biomechanics.md + brain/notes/home-gym-equipment.md
 //
 // Multi-tag data model (council 2026-07-19-council-gym-catalogue). Each entry carries:
-//   muscle      — PRIMARY muscle-group category (backward-compat; the library UI groups on this). ALWAYS === muscles[0].
-//   muscles[]   — primary + secondary categories, so a lift shows under every muscle it trains.
-//   patterns[]  — movement pattern(s) — a filter facet (Row/Hinge/Squat/Vertical Pull…).
-//   family      — movement family for grouping/filtering (a facet, NEVER a navigation layer).
-//   equip[]     — normalized equipment tags (a facet).
-//   equipment   — the human-readable kit string (kept verbatim on existing entries).
+//   muscle      - PRIMARY muscle-group category (backward-compat; the library UI groups on this). ALWAYS === muscles[0].
+//   muscles[]   - primary + secondary categories, so a lift shows under every muscle it trains.
+//   patterns[]  - movement pattern(s) - a filter facet (Row/Hinge/Squat/Vertical Pull…).
+//   family      - movement family for grouping/filtering (a facet, NEVER a navigation layer).
+//   equip[]     - normalized equipment tags (a facet).
+//   equipment   - the human-readable kit string (kept verbatim on existing entries).
 // Fixed vocabularies (tests enforce them):
 //   muscles  : Chest, Back, Shoulders, Arms, Grip, Legs, Core, Full Body, Cardio, Mobility, Calisthenics, Stretches
 //   patterns : Horizontal Push, Vertical Push, Horizontal Pull, Vertical Pull, Squat, Hinge, Lunge, Carry, Anti-Rotation, Rotation, Isolation, Olympic, Conditioning, Mobility
@@ -52,7 +52,7 @@ const DUCK_EXERCISES = [
   {id:'ba16',name:'Wide-Grip Seated Cable Row',muscle:'Back',muscles:['Back','Shoulders','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Cable'],equipment:'G3 low pulley, wide bar (upper back)'},
   {id:'ba19',name:'Wide-Grip Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, wide bar'},
   {id:'ba20',name:'Neutral-Grip Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, V-bar (neutral grip)'},
-  {id:'ba21',name:'Underhand Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'Cables (supinated close grip — lower lat / biceps bias)'},
+  {id:'ba21',name:'Underhand Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'Cables (supinated close grip - lower lat / biceps bias)'},
   {id:'ba22',name:'Single-Arm Lat Pulldown',muscle:'Back',muscles:['Back','Arms'],patterns:['Vertical Pull'],family:'Pulldown',equip:['Cable'],equipment:'G3 high pulley, one arm'},
   {id:'ba23',name:'Rack Pull',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell from the rack pins (above the knee)'},
   {id:'ba24',name:'Deficit Deadlift',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell, standing on a plate (extra range)'},
@@ -130,7 +130,7 @@ const DUCK_EXERCISES = [
   {id:'lg1',name:'Back Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'lg2',name:'Front Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Squat'],family:'Squat',equip:['Barbell'],equipment:'Olympic barbell + G3 rack'},
   {id:'lg3',name:'Smith Machine Squat',muscle:'Legs',muscles:['Legs'],patterns:['Squat'],family:'Squat',equip:['Smith'],equipment:'Force USA G3 Smith'},
-  {id:'lg4',name:'Kickstand RDL',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell (left foot fwd — your pain-free hinge)'},
+  {id:'lg4',name:'Kickstand RDL',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell (left foot fwd - your pain-free hinge)'},
   {id:'lg5',name:'Romanian Deadlift',muscle:'Legs',muscles:['Legs','Back'],patterns:['Hinge'],family:'RDL',equip:['Barbell'],equipment:'Olympic barbell'},
   {id:'lg6',name:'Trap Bar Deadlift',muscle:'Legs',muscles:['Legs','Back','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Trap Bar','Plate'],equipment:'Trap bar'},
   {id:'lg7',name:'Bulgarian Split Squat',muscle:'Legs',muscles:['Legs','Core'],patterns:['Lunge'],family:'Split Squat',equip:['Dumbbell','Bench'],equipment:'Dumbbells + bench'},
@@ -166,7 +166,7 @@ const DUCK_EXERCISES = [
   {id:'lg38',name:'Cable Hip Adduction',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Adduction',equip:['Cable','Band'],equipment:'G3 low pulley, ankle strap (inner thigh)'},
   {id:'lg39',name:'Cable Hip Abduction',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Abduction',equip:['Cable','Band'],equipment:'G3 low pulley / band, ankle strap (glute med)'},
   {id:'lg40',name:'Seated Calf Raise',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Calf',equip:['Dumbbell','Slant Board','Bench'],equipment:'Seated, dumbbell on the knees (soleus)'},
-  {id:'lg41',name:'Reverse Nordic Curl',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Extension',equip:['Machine','Bodyweight'],equipment:'Hyper Pro Nordic bench (quad eccentric — KOT knee)'},
+  {id:'lg41',name:'Reverse Nordic Curl',muscle:'Legs',muscles:['Legs'],patterns:['Isolation'],family:'Leg Extension',equip:['Machine','Bodyweight'],equipment:'Hyper Pro Nordic bench (quad eccentric - KOT knee)'},
   {id:'lg42',name:'Trap Bar RDL',muscle:'Legs',muscles:['Legs','Back','Grip'],patterns:['Hinge'],family:'RDL',equip:['Trap Bar','Plate'],equipment:'Trap bar, high handles (hips back, spine neutral)'},
   {id:'lg43',name:'Banded Glute Bridge',muscle:'Legs',muscles:['Legs','Core'],patterns:['Hinge'],family:'Hip Thrust',equip:['Barbell','Band','Plate'],equipment:'Olympic bar across the hips + heavy band around the knees (shoulders on the floor)'},
   // ---- Core ----
@@ -198,7 +198,7 @@ const DUCK_EXERCISES = [
   {id:'fb3',name:'Turkish Get-Up',muscle:'Full Body',muscles:['Full Body','Core','Shoulders'],patterns:['Anti-Rotation'],family:'Get-Up',equip:['Kettlebell'],equipment:'Kettlebell'},
   {id:'fb4',name:'Dumbbell Thruster',muscle:'Full Body',muscles:['Full Body','Legs','Shoulders'],patterns:['Squat','Vertical Push'],family:'Thruster',equip:['Dumbbell'],equipment:'Dumbbells'},
   {id:'fb5',name:'Kettlebell Thruster',muscle:'Full Body',muscles:['Full Body','Legs','Shoulders'],patterns:['Squat','Vertical Push'],family:'Thruster',equip:['Kettlebell'],equipment:'Kettlebell'},
-  {id:'fb6',name:'Hang Power Clean',muscle:'Full Body',muscles:['Full Body','Legs','Back'],patterns:['Olympic'],family:'Clean',equip:['Barbell'],equipment:'Olympic barbell (light — Oly technique)'},
+  {id:'fb6',name:'Hang Power Clean',muscle:'Full Body',muscles:['Full Body','Legs','Back'],patterns:['Olympic'],family:'Clean',equip:['Barbell'],equipment:'Olympic barbell (light - Oly technique)'},
   {id:'fb7',name:'Barbell Clean & Press',muscle:'Full Body',muscles:['Full Body','Legs','Shoulders'],patterns:['Olympic'],family:'Clean',equip:['Barbell','Plate'],equipment:'Olympic barbell, floor to overhead'},
   {id:'fb8',name:'Kettlebell Clean',muscle:'Full Body',muscles:['Full Body','Legs','Back'],patterns:['Olympic'],family:'Clean',equip:['Kettlebell'],equipment:'Kettlebell, floor to rack (single)'},
   {id:'fb9',name:'Dumbbell Snatch',muscle:'Full Body',muscles:['Full Body','Legs','Shoulders'],patterns:['Olympic'],family:'Snatch',equip:['Dumbbell'],equipment:'Single dumbbell, floor to overhead'},
@@ -253,7 +253,7 @@ const DUCK_EXERCISES = [
   {id:'cs21',timed:true,name:'Side Plank',muscle:'Calisthenics',muscles:['Calisthenics','Core'],patterns:['Isolation'],family:'Plank',equip:['Bodyweight'],equipment:'Floor'},
   {id:'cs22',name:'Bear Crawl',muscle:'Calisthenics',muscles:['Calisthenics','Core','Cardio'],patterns:['Conditioning'],family:'Crawl',equip:['Bodyweight'],equipment:'Floor'},
   {id:'cs23',timed:true,name:'Hanging Tuck L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Grip'],patterns:['Isolation'],family:'L-Sit',equip:['Pull-Up Bar'],equipment:'Pull-up bar (advanced)'},
-  {id:'cs24',name:'Broad Jump',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight (advanced — knee load)'},
+  {id:'cs24',name:'Broad Jump',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight (advanced - knee load)'},
   {id:'cs25',name:'Single-Leg Calf Raise',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Isolation'],family:'Calf',equip:['Bodyweight','Slant Board'],equipment:'Step / slant board'},
   {id:'cs26',name:'Decline Push-Up',muscle:'Calisthenics',muscles:['Calisthenics','Chest','Shoulders'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Bench','Bodyweight'],equipment:'Feet on the bench (upper-chest / shoulder emphasis)'},
   {id:'cs27',name:'Pseudo-Planche Push-Up',muscle:'Calisthenics',muscles:['Calisthenics','Chest','Shoulders'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Bodyweight'],equipment:'Hands low, leaning forward (advanced)'},
@@ -263,10 +263,10 @@ const DUCK_EXERCISES = [
   {id:'cs31',name:'Jump Squat',muscle:'Calisthenics',muscles:['Calisthenics','Legs'],patterns:['Squat'],family:'Jump',equip:['Bodyweight'],equipment:'Bodyweight squat with a jump (power)'},
   {id:'cs33',name:'Crow Pose',muscle:'Calisthenics',muscles:['Calisthenics','Core','Shoulders'],patterns:['Mobility'],family:'Balance',equip:['Bodyweight'],equipment:'Balancing on the hands, knees on the elbows'},
   {id:'cs34',name:'Wall Walk',muscle:'Calisthenics',muscles:['Calisthenics','Shoulders','Core'],patterns:['Vertical Push'],family:'Handstand',equip:['Bodyweight'],equipment:'Feet up the wall, walking to a handstand'},
-  // Parallettes aren't in the fixed equip vocab, so the kit lives in the human-readable string —
+  // Parallettes aren't in the fixed equip vocab, so the kit lives in the human-readable string -
   // search covers it (same shape as ch19 Bar Dip). timed: an L-sit is a hold, logged in seconds.
-  {id:'cs35',timed:true,name:'Parallette L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Arms','Legs'],patterns:['Isolation'],family:'L-Sit',equip:['Bodyweight'],equipment:'Parallettes / dip bars / floor — support hold, legs straight out (advanced)'},
-  // ---- Stretches (neutral — no corrective claims; see council 2026-07-18) ----
+  {id:'cs35',timed:true,name:'Parallette L-Sit',muscle:'Calisthenics',muscles:['Calisthenics','Core','Arms','Legs'],patterns:['Isolation'],family:'L-Sit',equip:['Bodyweight'],equipment:'Parallettes / dip bars / floor - support hold, legs straight out (advanced)'},
+  // ---- Stretches (neutral - no corrective claims; see council 2026-07-18) ----
   {id:'st1',timed:true,name:'Standing Hamstring Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight'},
   {id:'st2',timed:true,name:'Pigeon Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Floor'},
   {id:'st3',timed:true,name:'Deep Squat Hold',muscle:'Stretches',muscles:['Stretches','Mobility'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Bodyweight (hold rack for support)'},
@@ -283,11 +283,11 @@ const DUCK_EXERCISES = [
   {id:'st14',timed:true,name:'Kneeling Wrist Stretch',muscle:'Stretches',muscles:['Stretches','Grip'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Palms down, leaning back (forearm / wrist)'},
   {id:'st15',timed:true,name:'Lateral Neck Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Ear-to-shoulder, gentle hold (neck)'},
   {id:'st16',timed:true,name:'Figure-4 Glute Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Supine, ankle over the knee (glute / piriformis)'},
-  // ---- Trial drills (from Mark's body map — log the response, keep only what earns it) ----
+  // ---- Trial drills (from Mark's body map - log the response, keep only what earns it) ----
   {id:'tr1',timed:true,name:'QL / Side Bend Stretch',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial: log response'},
-  {id:'tr2',name:'Kneeling Psoas March',muscle:'Legs',muscles:['Legs','Core'],patterns:['Mobility'],family:'Activation',equip:['Bodyweight'],equipment:'Trial — log response'},
-  {id:'tr3',name:'Jaw / Neck Release Sequence',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response'},
-  {id:'tr4',name:'Big-Toe Isolation Drill',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial — log response (right foot)'}
+  {id:'tr2',name:'Kneeling Psoas March',muscle:'Legs',muscles:['Legs','Core'],patterns:['Mobility'],family:'Activation',equip:['Bodyweight'],equipment:'Trial - log response'},
+  {id:'tr3',name:'Jaw / Neck Release Sequence',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial - log response'},
+  {id:'tr4',name:'Big-Toe Isolation Drill',muscle:'Stretches',muscles:['Stretches'],patterns:['Mobility'],family:'Stretch',equip:['Bodyweight'],equipment:'Trial - log response (right foot)'}
 ];
 
 // Session bookends (2026-07-28): movement pattern → the drills worth doing before / after it.
@@ -360,7 +360,7 @@ const GYM_PLANS = [
   {
     id:'plan-ppl', tag:'PREFERRED', name:'Push / Pull / Legs', goal:5,
     blurb:'5–6 days · your PPL',
-    note:'Your PPL. Run the three days through the week and repeat as time allows (5–6 sessions). Watch pressing volume — back off if the right shoulder starts talking.',
+    note:'Your PPL. Run the three days through the week and repeat as time allows (5–6 sessions). Watch pressing volume - back off if the right shoulder starts talking.',
     days:[
       { name:'Push', exerciseIds:['ch1','sh1','ch4','sh4','ch6','ar6','ar9'] },
       { name:'Pull', exerciseIds:['ba1','ba3','ba5','ba9','sh7','ar2','ar3'] },
@@ -370,7 +370,7 @@ const GYM_PLANS = [
   {
     id:'plan-ty-ppl', tag:'TY', name:'Ty · PPL', goal:3,
     blurb:'3 days · Ty’s push / pull / legs',
-    note:'Ty’s rotation, exactly as written in his doc. Vest work (deficit push-ups, dips, optional pull-ups) is logged as 8 kg — take it off for the bench and lateral raises. On legs, put the leg extension and leg curl back to back and flip the superset switch on the extension.',
+    note:'Ty’s rotation, exactly as written in his doc. Vest work (deficit push-ups, dips, optional pull-ups) is logged as 8 kg - take it off for the bench and lateral raises. On legs, put the leg extension and leg curl back to back and flip the superset switch on the extension.',
     days:[
       { name:'Push', exerciseIds:['ch17','ch5','ch19','sh4','ar9'] },
       { name:'Pull', exerciseIds:['ba3','ba8','ba6','ar22','cs35'] },
@@ -388,7 +388,7 @@ const GYM_PLANS = [
   {
     id:'plan-atg', tag:'ATG ADD-ON', name:'Knees & Tibialis', goal:2,
     blurb:'2 short sessions · KOT-style',
-    note:'Knees-Over-Toes style bulletproofing to pair with any split — two short sessions a week using your tib bars, slant board and hang board. Low load, full range, no ego.',
+    note:'Knees-Over-Toes style bulletproofing to pair with any split - two short sessions a week using your tib bars, slant board and hang board. Low load, full range, no ego.',
     days:[
       { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg24','lg18','lg17','gr3'] },
       { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg25','lg19','ba11','mo5','mo3'] }

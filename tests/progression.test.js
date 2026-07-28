@@ -63,7 +63,7 @@ test('nextTarget: basis is the TOP set of the confirmed session', () => {
 });
 
 test('nextTarget: drop-set RIR never progresses the heavy set (basis = top NON-DROP set)', () => {
-  // Main 100×8 + drop 80×12; the exercise-level RIR 3 belongs to the last WORKING set —
+  // Main 100×8 + drop 80×12; the exercise-level RIR 3 belongs to the last WORKING set -
   // the drop must not become the basis nor let its numbers leak into the target.
   const h = [{ started: 1000, checkin: { post: 'same', flare: false }, exercises: [{ exerciseId: 'bench', rir: 3, sets: [
     { weight: 100, reps: 8, done: true },

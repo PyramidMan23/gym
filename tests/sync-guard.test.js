@@ -1,10 +1,10 @@
 // Codex P0-2: in-flight sync chains from profile A must never read/write profile B's config
 // after setUser(). These tests plant a valid token via the test hook, stub fetch to a
-// controllable promise, switch users mid-flight, then resolve — and assert NO write landed.
+// controllable promise, switch users mid-flight, then resolve - and assert NO write landed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// sync.js reads bare `localStorage`/`fetch` globals — provide fakes BEFORE require.
+// sync.js reads bare `localStorage`/`fetch` globals - provide fakes BEFORE require.
 const store = new Map();
 global.localStorage = {
   getItem: k => (store.has(k) ? store.get(k) : null),
@@ -55,7 +55,7 @@ test('flush resuming after setUser never uploads or records into the new profile
   assert.equal(b.folderId ?? null, null, "A's folderId bled into B");
   // A's queue entry survives untouched (nothing was dequeued through the wrong key either).
   const a = JSON.parse(localStorage.getItem('gym:user:p_aaa:sync'));
-  assert.equal(a.queue.length, 1, "the queued session vanished — a stale chain wrote after the switch");
+  assert.equal(a.queue.length, 1, "the queued session vanished - a stale chain wrote after the switch");
 });
 
 test('delayed ensureFolder (via connect path) never writes a folderId into the new profile', async () => {

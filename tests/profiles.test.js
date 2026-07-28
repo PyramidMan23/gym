@@ -136,7 +136,7 @@ test('PIN: set → verify roundtrip, wrong PIN fails, salt makes hashes non-triv
   assert.notEqual(p.pinHash, '1234'); // never stored in the clear
   assert.equal(await Profiles.verifyPin(p, '1234'), true);
   assert.equal(await Profiles.verifyPin(p, '0000'), false);
-  // Codex P0-1c: clearing a lock REQUIRES the current PIN — no pin / wrong pin refuse.
+  // Codex P0-1c: clearing a lock REQUIRES the current PIN - no pin / wrong pin refuse.
   assert.equal(await Profiles.clearPin(s, a), false);
   assert.equal(await Profiles.clearPin(s, a, '9999'), false);
   assert.equal(Profiles.getProfile(s, a).locked, true); // still locked after refused attempts

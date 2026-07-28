@@ -7,11 +7,11 @@
 
   const num = value => Number(value) || 0;
   // A completed set with NO numbers is not training evidence (blank done-ticks must not mint
-  // volume, exposures, or tolerated baselines) — Codex adversarial finding, council data-honesty rule.
+  // volume, exposures, or tolerated baselines) - Codex adversarial finding, council data-honesty rule.
   const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && !(String(set.weight ?? '') === '' && String(set.reps ?? '') === ''));
 
   // Hold-type exercises (catalogue flag `timed:true`) store SECONDS in the `reps` field. The app
-  // registers those ids once at boot from the catalogue — the single source of truth — so every
+  // registers those ids once at boot from the catalogue - the single source of truth - so every
   // formula below agrees. A registry rather than a threaded predicate means no future caller can
   // silently forget it. Empty default = every exercise is rep-based, i.e. the behaviour before
   // holds existed (audit 2026-07-22: seconds were being maths'd as reps everywhere).
@@ -80,7 +80,7 @@
       if (!completed.length) continue;
       const prior = exerciseBest(history, exercise.exerciseId);
       const bestWeight = Math.max(...completed.map(set => num(set.weight)), 0);
-      // A hold's record is TIME (or a heavier hold for the same style) — without this a bodyweight
+      // A hold's record is TIME (or a heavier hold for the same style) - without this a bodyweight
       // hang could never PR at all, since its weight and e1RM are permanently 0.
       if (isTimed(exercise.exerciseId)) {
         const bestSeconds = bestSecondsOf(completed);
@@ -98,7 +98,7 @@
   }
 
   // Strength trend: one point per session containing completed sets of the exercise,
-  // oldest first — value is the best estimated 1RM that day.
+  // oldest first - value is the best estimated 1RM that day.
   function exerciseTrend(history, exerciseId) {
     const points = [];
     for (const session of history || []) {
@@ -165,7 +165,7 @@
     return feed.sort((a, b) => b.started - a.started).slice(0, limit);
   }
 
-  // Pause-aware elapsed time — the single source for every clock read. `pausedMs` accumulates closed
+  // Pause-aware elapsed time - the single source for every clock read. `pausedMs` accumulates closed
   // pauses; `pausedAt`, when set, marks a pause still open and freezes the clock at that instant.
   // History sessions carry neither field, so they read as plain wall time (num() → 0).
   function sessionElapsedMs(session, now = Date.now()) {
@@ -184,7 +184,7 @@
   }
 
   // Which routines are already done in the CURRENT local week, as a Set of routine ids.
-  // createSession has always stamped routineId, but nothing ever read it — this is what turns that
+  // createSession has always stamped routineId, but nothing ever read it - this is what turns that
   // dead field into "Push done, Legs done, Pull to go". One pass, so a long history stays cheap.
   function routinesDoneThisWeek(history, now = Date.now()) {
     const start = startOfLocalWeek(now);
@@ -214,7 +214,7 @@
 
   // Weekly per-muscle set ledgers (council 2026-07-20): a completed set counts 1 DIRECT set
   // for the exercise's primary muscle and 1 ASSISTING exposure for each secondary muscle.
-  // The two ledgers are never summed — a blended total would imply false physiological precision.
+  // The two ledgers are never summed - a blended total would imply false physiological precision.
   function muscleVolume(history, getMuscles, now = Date.now()) {
     const start = startOfLocalWeek(now);
     const out = {};
@@ -229,7 +229,7 @@
       const t = num(session.started);
       if (t < start || t > now) continue;
       for (const ex of session.exercises || []) {
-        const done = doneSets(ex).length; // blank done-ticks are not evidence — same rule everywhere (Codex P1)
+        const done = doneSets(ex).length; // blank done-ticks are not evidence - same rule everywhere (Codex P1)
         if (!done) continue;
         const m = getMuscles(ex.exerciseId);
         if (!m || !m.primary) continue;
@@ -239,7 +239,7 @@
     }
     return out;
   }
-  // Planned weekly ledgers for a plan's days at a default set count — labelled "planned", same model.
+  // Planned weekly ledgers for a plan's days at a default set count - labelled "planned", same model.
   function planVolume(days, getMuscles, setsPerExercise = 3) {
     const out = {};
     for (const day of days || []) for (const id of day.exerciseIds || []) {
@@ -341,7 +341,7 @@
   const searchText = e => [e?.name, ...exMuscles(e), e?.equipment, e?.family, ...exPatterns(e), ...exEquip(e)]
     .filter(Boolean).join(' ').toLowerCase();
   // Search is punctuation-insensitive. The catalogue spells things "Pull-Up", but people type
-  // "pull up" or "pullup" — and a raw substring match returned NOTHING for the three most common
+  // "pull up" or "pullup" - and a raw substring match returned NOTHING for the three most common
   // searches in the app (found 2026-07-22, after a friend of Mark's couldn't find an exercise).
   // `loose` collapses punctuation to spaces; `tight` removes separators entirely.
   const loose = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -353,7 +353,7 @@
     return loose(hay).includes(lq) || tight(hay).includes(tight(query));
   };
 
-  // One exercise vs one criteria set — muscle (single) + patterns/equip/families (multi) + query, all AND-combined.
+  // One exercise vs one criteria set - muscle (single) + patterns/equip/families (multi) + query, all AND-combined.
   function matchesExercise(exercise, criteria) {
     const c = criteria || {};
     if (c.muscle && c.muscle !== 'All' && !exMuscles(exercise).includes(c.muscle)) return false;
@@ -423,7 +423,7 @@
   function validateBackup(data, reservedIds) {
     const validObject = data && typeof data === 'object' && !Array.isArray(data);
     // An activeSession without an exercises ARRAY passes every later `.exercises[i]` deref straight
-    // into a TypeError — and importBackup persists before it renders, so a malformed one would brick
+    // into a TypeError - and importBackup persists before it renders, so a malformed one would brick
     // the next boot. Shape-check it here, where the import can still be rejected cleanly.
     const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession) && Array.isArray(data.activeSession.exercises));
     if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession) {
@@ -449,7 +449,7 @@
   }
 
   // Coach-card scoping (council 2026-07-19): a profile earns the Local Ramp / Coach's Block card only
-  // once it has skin in the game — some history, a saved routine, or sync configured. Brand-new profiles
+  // once it has skin in the game - some history, a saved routine, or sync configured. Brand-new profiles
   // get a neutral empty state instead, so Mark's re-entry programming is never pushed at housemates.
   function coachEligible(state, syncConfigured) {
     const s = state || {};
@@ -459,7 +459,7 @@
   }
 
   // ---- Current-session carry-forward (council 2026-07-19, Codex design). ----
-  // Prefill for a set comes ONLY from the nearest preceding COMPLETED set IN THIS SESSION —
+  // Prefill for a set comes ONLY from the nearest preceding COMPLETED set IN THIS SESSION -
   // never from history (empty = "not entered", never "assume last time"). Set 1 (index 0) never
   // prefills. Because it reads the completed set's ACTUAL stored numbers, any edit a lifter made to
   // a prefilled set is exactly what carries forward next. Returns {weight, reps} or null.
@@ -479,7 +479,7 @@
   }
 
   // Explicit set-1 adoption action ("Use last: 40 kg × 8") is offered ONLY while set 1 is still
-  // untouched — incomplete AND both fields empty — and there is a last-session source to adopt.
+  // untouched - incomplete AND both fields empty - and there is a last-session source to adopt.
   // The done-tick never auto-adopts; this is the sole path from history into a logged set.
   function showAdoptAction(set, setIndex, hasHistory) {
     return setIndex === 0 && !!hasHistory && !set?.done && set?.weight === '' && set?.reps === '';
@@ -492,7 +492,7 @@
   }
 
   // Haptics gate: fire only when the device exposes vibrate AND the profile hasn't turned it off
-  // (default ON — undefined reads as enabled). iOS has no navigator.vibrate, so hasVibrate is false.
+  // (default ON - undefined reads as enabled). iOS has no navigator.vibrate, so hasVibrate is false.
   function shouldBuzz(preferences, hasVibrate) {
     return !!hasVibrate && (preferences?.haptics !== false);
   }
@@ -503,12 +503,12 @@
   const clean = v => Math.round(num(v) * 100) / 100;
 
   // The basis for progression: the most recent CONFIRMED-TOLERATED session's TOP completed set for
-  // this exercise (same double-confirmation gate as lastConfirmedExposure — post !== 'worse' AND the
+  // this exercise (same double-confirmation gate as lastConfirmedExposure - post !== 'worse' AND the
   // next-session flare check came back 'no'). Returns {weight, reps, rir} or null. rir is that session
   // exercise's stored last-set RIR (number, 'skip', or undefined when never captured).
   // opts.requireConfirmation=false (a lifter not training around an injury) drops the flare/post gate:
   // with no injury to confirm tolerance against, any completed session is valid evidence. The gate is
-  // unchanged — and still the default — for anyone in injury mode.
+  // unchanged - and still the default - for anyone in injury mode.
   function confirmedBasis(history, exerciseId, opts) {
     const requireConfirmation = !(opts && opts.requireConfirmation === false);
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
@@ -520,7 +520,7 @@
       if (requireConfirmation && (!checkin || checkin.post === 'worse' || checkin.flare !== false)) continue;
       // Even off the injury gate, a session the lifter marked "worse" is never a progression basis.
       if (!requireConfirmation && checkin && checkin.post === 'worse') continue;
-      // Drop sets are deliberate back-off work — never the progression basis, and RIR evidence only
+      // Drop sets are deliberate back-off work - never the progression basis, and RIR evidence only
       // earns progression when it belongs to the basis (top NON-DROP) set (Codex P1: a drop's RIR 3
       // must not progress the heavy set). RIR is captured on the last non-drop set (app side), so on
       // an all-drop exercise the stored rir has no working-set referent → treat as absent.
@@ -537,7 +537,7 @@
 
   // Conservative double progression. Never progresses without RIR evidence (council non-negotiable #3).
   // opts: {repRange:[lo,hi]=[8,12], step=2.5, secondsStep=5, stepDown, block, lastRir,
-  // requireConfirmation}. Returns {weight,reps,rule,timed} — or null when there is no prior confirmed
+  // requireConfirmation}. Returns {weight,reps,rule,timed} - or null when there is no prior confirmed
   // data to build a target from. For a timed exercise `reps` is SECONDS and progression runs on that
   // axis: telling someone to hang 8 seconds with +2.5 kg because 60 > 12 is not progression.
   function nextTarget(history, exerciseId, opts) {
@@ -552,7 +552,7 @@
     const rir = o.lastRir !== undefined ? o.lastRir : basis.rir;
     if (timed) {
       const secondsStep = num(o.secondsStep) || 5;
-      // Step-down on a hold shortens the hold — scaling a bodyweight hang's load by 0.9 is 0 × 0.9.
+      // Step-down on a hold shortens the hold - scaling a bodyweight hang's load by 0.9 is 0 × 0.9.
       if (o.stepDown) return { weight: basis.weight, reps: Math.max(1, Math.round(basis.reps * 0.9)), rule: 'step-down', timed: true };
       if (rir == null || rir === 'skip') return { weight: basis.weight, reps: basis.reps, rule: 'repeat-no-rir', timed: true };
       if (num(rir) <= 1) return { weight: basis.weight, reps: basis.reps, rule: 'hold', timed: true };
@@ -568,7 +568,7 @@
   }
 
   // Pain controller for the workout logger (council non-negotiable #2). Reads pre-session pain, not charts.
-  const PAIN_BLOCK_COPY = 'Pain 7+/10 — train around it today; pain-free alternative only. If severe or persistent, get it assessed.';
+  const PAIN_BLOCK_COPY = 'Pain 7+/10 - train around it today; pain-free alternative only. If severe or persistent, get it assessed.';
   function painGate(history, currentPre) {
     if (currentPre != null && num(currentPre) >= 7) return { block: true, stepDown: false, reason: PAIN_BLOCK_COPY };
     // Rising pain across the last 3 sessions' check-ins (today included when entered), strictly
@@ -581,12 +581,12 @@
     }
     const last3 = pres.slice(0, 3).reverse(); // oldest → newest
     if (last3.length === 3 && last3[0] < last3[1] && last3[1] < last3[2]) {
-      return { block: false, stepDown: true, reason: 'Pain has risen three sessions running — stepping the load back today.' };
+      return { block: false, stepDown: true, reason: 'Pain has risen three sessions running - stepping the load back today.' };
     }
     // Sustained pain never "rises", so the strictly-increasing test alone left a steady 6,6,6 with no
-    // protection at all — chronic mid-range pain is exactly when loading should back off (audit 2026-07-22).
+    // protection at all - chronic mid-range pain is exactly when loading should back off (audit 2026-07-22).
     if (last3.length === 3 && last3.every(p => p >= 5)) {
-      return { block: false, stepDown: true, reason: 'Pain has stayed at 5+ for three sessions — stepping the load back today.' };
+      return { block: false, stepDown: true, reason: 'Pain has stayed at 5+ for three sessions - stepping the load back today.' };
     }
     return { block: false, stepDown: false, reason: '' };
   }
@@ -671,7 +671,7 @@
 
   // Rep records: heaviest completed weight at each rep count 1..10 across history (Wave 2). Only rows that exist.
   function repRecords(history, exerciseId) {
-    if (isTimed(exerciseId)) return []; // "heaviest at 8 reps" is not a thing for a hold — seconds aren't reps
+    if (isTimed(exerciseId)) return []; // "heaviest at 8 reps" is not a thing for a hold - seconds aren't reps
     const best = {};
     for (const session of history || []) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
@@ -701,11 +701,11 @@
   // ---- Declared goals (2026-07-22). The app measured process and emergent PRs but nothing the
   // lifter actually DECLARED, so it could never say "you are 60% of the way to the thing you came
   // for". A goal is {id, type, target, created, startValue, exerciseId?, achievedAt?}.
-  // Progress is measured from startValue — the distance the lifter has actually travelled — never
+  // Progress is measured from startValue - the distance the lifter has actually travelled - never
   // from zero, which would credit work done before the goal existed.
   const GOAL_TYPES = ['strength', 'bodyweight', 'consistency'];
   // Consecutive weeks meeting a per-week session target. The CURRENT week only counts once it is
-  // already met — an unfinished week must never read as a broken streak.
+  // already met - an unfinished week must never read as a broken streak.
   function weekStreak(history, perWeek, now = Date.now()) {
     const target = Math.max(1, num(perWeek));
     const thisStart = startOfLocalWeek(now), WEEK = 7 * 86400000;
@@ -761,7 +761,7 @@
     return { type: goal.type, current, target, unit, pct, done, start,
       remaining: Math.max(0, Math.round((losing ? current - target : target - current) * 10) / 10) };
   }
-  // Defensive read of stored goals — the same fail-closed posture as validateBackup. Anything
+  // Defensive read of stored goals - the same fail-closed posture as validateBackup. Anything
   // malformed is dropped rather than allowed to throw inside a render.
   function normalizeGoals(list) {
     return (Array.isArray(list) ? list : []).filter(g => g && typeof g === 'object'
@@ -777,7 +777,7 @@
         achievedAt: g.achievedAt == null ? null : num(g.achievedAt)
       }));
   }
-  // Goals newly met this moment — the app stamps achievedAt and celebrates once.
+  // Goals newly met this moment - the app stamps achievedAt and celebrates once.
   function newlyAchieved(goals, ctx) {
     return (goals || []).filter(g => !g.achievedAt).filter(g => { const p = goalProgress(g, ctx); return p && p.done; });
   }
@@ -822,7 +822,9 @@
   // Volume that climbs every week with no step-back is how a return to training becomes an injury -
   // exactly the failure mode this app exists to prevent, and nothing modelled it. Measures only
   // COMPLETE weeks: the current week is still being written and would always read as a false drop.
-  const compactKg = v => (num(v) >= 1000 ? `${Math.round(num(v) / 100) / 10}k` : String(Math.round(num(v)))) + ' kg';
+  // Exact figures, deliberately not compacted: 6,260 and 6,340 both round to "6.3k", and a card
+  // claiming volume "climbed" between two identical-looking numbers reads broken (council 2026-07-28).
+  const exactKg = v => Math.round(num(v)).toLocaleString('en-AU');
   function deloadCheck(history, now = Date.now(), weeks = 3) {
     const span = Math.max(2, num(weeks) || 3);
     const windows = weeklyVolumes(history, span + 1, now);
@@ -833,8 +835,52 @@
     if (!rising) return none;
     return {
       due: true, weeks: span, volumes: complete.map(w => w.volume),
-      reason: `Volume has climbed ${span} weeks running (${complete.map(w => compactKg(w.volume)).join(' → ')}). Take an easy week: same movements, about half the sets.`
+      reason: `Volume has climbed ${span} weeks running (${complete.map(w => exactKg(w.volume)).join(' → ')} kg). Take an easy week: same movements, about half the sets.`
     };
+  }
+
+  // ---- Session verdict (council 2026-07-28). The receipt reported totals but never DELTAS: it
+  // could not say whether today moved anything. Verdict is computed per lift against the last
+  // exposure in history (evidence, never narration): advanced = a heavier top set, more reps at the
+  // same load, or a longer hold. Lifts with no prior exposure are baselines, not failures.
+  // Returns {verdict:'advanced'|'held'|'backed-off'|'baseline'|'none', advanced, considered,
+  // baseline, highlight:{exerciseId,kind:'load'|'reps'|'time',delta}|null}.
+  function sessionVerdict(history, session) {
+    let advanced = 0, below = 0, considered = 0, baseline = 0, highlight = null;
+    const better = (kind, delta, exerciseId) => {
+      // Keep the single most impressive advance: load beats reps beats time, then size of the step.
+      const rank = { load: 3, reps: 2, time: 1 };
+      if (!highlight || rank[kind] > rank[highlight.kind]
+        || (rank[kind] === rank[highlight.kind] && delta > highlight.delta)) {
+        highlight = { exerciseId, kind, delta };
+      }
+    };
+    for (const exercise of session?.exercises || []) {
+      const sets = doneSets(exercise).filter(s => !s.drop); // back-off work never judges the day
+      if (!sets.length) continue;
+      const prior = previousPerformance(history, exercise.exerciseId);
+      if (!prior.length) { baseline++; continue; }
+      considered++;
+      const timed = isTimed(exercise.exerciseId);
+      if (timed) {
+        const now_ = bestSecondsOf(sets), was = bestSecondsOf(prior);
+        if (now_ > was) { advanced++; better('time', now_ - was, exercise.exerciseId); }
+        else if (now_ < was) below++;
+        continue;
+      }
+      const top = list => list.reduce((a, b) =>
+        (num(b.weight) > num(a.weight) || (num(b.weight) === num(a.weight) && num(b.reps) > num(a.reps))) ? b : a);
+      const t = top(sets), p = top(prior);
+      if (num(t.weight) > num(p.weight)) { advanced++; better('load', clean(num(t.weight) - num(p.weight)), exercise.exerciseId); }
+      else if (num(t.weight) === num(p.weight) && num(t.reps) > num(p.reps)) { advanced++; better('reps', num(t.reps) - num(p.reps), exercise.exerciseId); }
+      else if (estimatedOneRepMax(t.weight, t.reps) < estimatedOneRepMax(p.weight, p.reps)) below++;
+    }
+    const verdict =
+      (considered === 0 && baseline === 0) ? 'none'
+        : considered === 0 ? 'baseline'
+          : advanced >= Math.ceil(considered / 2) ? 'advanced'
+            : below > advanced ? 'backed-off' : 'held';
+    return { verdict, advanced, considered, baseline, highlight };
   }
 
   function bodyweightTrend(entries, days = 90, now = Date.now()) {
@@ -843,5 +889,5 @@
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

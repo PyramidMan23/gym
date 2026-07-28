@@ -1,6 +1,6 @@
 // Stress harness for the 2026-07-22 audit fixes. Zero-dep headless Chrome over CDP (same pattern
 // as browser-flow.mjs). This one is adversarial: it drives the sequences the audit said would break
-// things — reorder mid-rest, blur-after-finish, malformed import, timed exercises end to end —
+// things - reorder mid-rest, blur-after-finish, malformed import, timed exercises end to end -
 // and fails on ANY uncaught page error or console error along the way.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -39,7 +39,7 @@ async function waitFor(expression, timeout = 8000) {
   return retry(async () => { const v = await evaluate(expression); if (!v) throw new Error(`Waiting for: ${expression}`); return v; }, timeout);
 }
 const checks = [];
-const ok = (name, cond, detail = '') => { assert.ok(cond, `${name}${detail ? ' — ' + detail : ''}`); checks.push(name); };
+const ok = (name, cond, detail = '') => { assert.ok(cond, `${name}${detail ? ' - ' + detail : ''}`); checks.push(name); };
 
 // Fresh profile + a started workout, injury mode explicitly set.
 async function freshWorkout({ injury = false } = {}) {
@@ -97,7 +97,7 @@ try {
   const order2 = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).join(',')`);
   ok('reorder: boundary + garbage indexes are no-ops', order2 === order1, order2);
   ok('reorder: no exercise lost or duplicated', (await evaluate(`state.activeSession.exercises.length`)) === 4);
-  // 200 random moves — order must stay a permutation of the same 4 ids.
+  // 200 random moves - order must stay a permutation of the same 4 ids.
   await evaluate(`for(let i=0;i<200;i++){const n=state.activeSession.exercises.length;moveWorkoutExercise(Math.floor(Math.random()*n),Math.random()<.5?-1:1);} true`);
   const bag = await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId).sort().join(',')`);
   ok('reorder: 200 random moves preserve the exercise set', bag === 'ch1,co2,gr3,lg22', bag);
@@ -250,7 +250,7 @@ try {
   await evaluate(`(()=>{navigate('today');renderToday();return true})()`);
   const strip = await evaluate(`document.getElementById('todayGoal').textContent`);
   ok('goals: today shows the nearest goal', /GOAL/.test(strip) && /to go/.test(strip), strip.slice(0, 80));
-  // Hit the target — achievement stamps exactly once.
+  // Hit the target - achievement stamps exactly once.
   await evaluate(`(()=>{startQuickWorkout();addExerciseToWorkout('ch1');updateSet(0,0,'weight','100');updateSet(0,0,'reps','3');toggleSet(0,0);finishWorkout();return true})()`);
   await waitFor(`state.goals[0].achievedAt !== null`);
   const stamp = await evaluate(`state.goals[0].achievedAt`);
@@ -347,7 +347,7 @@ try {
   ok('monkey: state shape stayed valid', sane === 'ok', sane);
   const persisted = await evaluate(`(()=>{try{const raw=JSON.parse(localStorage.getItem(stateKey));return raw&&raw.version===2?'ok':'bad';}catch(e){return 'unparseable';}})()`);
   ok('monkey: persisted state is still readable', persisted === 'ok', persisted);
-  // Finish it — the summary must not throw on whatever the monkey built.
+  // Finish it - the summary must not throw on whatever the monkey built.
   await evaluate(`finishWorkout(); true`);
   await waitFor(`state.activeSession === null`);
   ok('monkey: session finished and stored', (await evaluate(`state.history.length >= 1`)) === true);

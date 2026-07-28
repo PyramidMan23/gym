@@ -1,6 +1,6 @@
 // Deterministic local re-entry coach + remote-plan validation contract (council 2026-07-18).
 // UMD like core.js: a browser global (DuckGymCoach) and a require()-able node module.
-// The validator is pure and evidence-driven — a remote plan only survives if the body's own
+// The validator is pure and evidence-driven - a remote plan only survives if the body's own
 // logged evidence says it should. The local coach is always available with zero network.
 (function (root, factory) {
   const api = factory();
@@ -10,10 +10,10 @@
   'use strict';
 
   const num = value => Number(value) || 0;
-  const SUPERSEDED = 'Plan superseded by new evidence — using safe local programming.';
+  const SUPERSEDED = 'Plan superseded by new evidence - using safe local programming.';
   // ponytail: a plan SHOULD carry expiresAfterSessions; this ceiling only applies when it omits one.
   const DEFAULT_EXPIRES = 6;
-  // Conservative re-entry dose. Load is never invented — it comes from the user's own confirmed
+  // Conservative re-entry dose. Load is never invented - it comes from the user's own confirmed
   // exposure; only sets/reps are defaulted so the local ramp can prescribe at all.
   const REENTRY_DOSE = { sets: 3, reps: 8 };
 
@@ -26,7 +26,7 @@
       && typeof plan.planId === 'string'
       && Array.isArray(plan.capabilities)
       && Array.isArray(plan.sessions)
-      // Deep shape: every session an object with an exercises array of objects —
+      // Deep shape: every session an object with an exercises array of objects -
       // a malformed remote plan must reject cleanly, never throw later in render.
       && plan.sessions.every(session => isObj(session) && Array.isArray(session.exercises)
         && session.exercises.every(isObj));
@@ -34,7 +34,7 @@
 
   // Untrusted-plan number: finite number in → number out, anything else → null.
   const safeNum = value => (typeof value === 'number' && Number.isFinite(value)) ? value : null;
-  // Pure dose formatter for the coach card — plain text only, numbers coerced, so the
+  // Pure dose formatter for the coach card - plain text only, numbers coerced, so the
   // caller can esc() the result and a hostile plan (load:"<img onerror>") renders inert.
   function doseLine(exercise) {
     const load = safeNum(exercise && exercise.load);

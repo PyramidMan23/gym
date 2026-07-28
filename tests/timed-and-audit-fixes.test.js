@@ -5,8 +5,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../core.js');
 
-const HANG = 'gr3';   // Dead Hang — bodyweight, timed
-const WHANG = 'gr1';  // Hang Board Max Hangs — can be weighted, timed
+const HANG = 'gr3';   // Dead Hang - bodyweight, timed
+const WHANG = 'gr1';  // Hang Board Max Hangs - can be weighted, timed
 const SQUAT = 'lg22'; // rep-based control
 
 const set = (weight, reps, extra = {}) => ({ weight: String(weight), reps: String(reps), done: true, ...extra });

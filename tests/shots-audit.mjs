@@ -57,7 +57,7 @@ try {
     await evaluate(`closeReceipt(); true`);
     await sleep(400);
     made.push(await shot(`progress-${scheme}`));
-    // Goals: the headline new feature — board, achieved state, and the Today strip.
+    // Goals: the headline new feature - board, achieved state, and the Today strip.
     await evaluate(`(()=>{const now=Date.now();
       state.bodyweight=[{t:now-86400000,kg:90}];
       state.goals=[

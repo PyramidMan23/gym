@@ -1,4 +1,4 @@
-// Surface shots — capture EVERY page and sheet with realistic seeded data, for design review.
+// Surface shots - capture EVERY page and sheet with realistic seeded data, for design review.
 // Built for the 2026-07-23 Apple-pass council, where judging the app needed all 21 surfaces side
 // by side rather than the two screens you happen to be looking at. NOT a pass/fail gate: it writes
 // images for a human (or a model) to critique, so nothing here asserts.
@@ -6,9 +6,9 @@
 //   node tests/surface-shots.mjs
 //   DUCK_GYM_URL=http://127.0.0.1:4173/ SHOT_DIR=./out node tests/surface-shots.mjs
 //
-// Seeds 9 sessions over 4 weeks + bodyweight + goals so charts, recaps and trends actually render —
+// Seeds 9 sessions over 4 weeks + bodyweight + goals so charts, recaps and trends actually render -
 // empty states hide most of the design. Dark at 390px, plus a light pass on Today/Progress.
-// GOTCHA: never use captureBeyondViewport on Library — 240 rows hangs the encoder. Scroll and shoot
+// GOTCHA: never use captureBeyondViewport on Library - 240 rows hangs the encoder. Scroll and shoot
 // the viewport instead, which is what the `-s<Y>` shots do.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';

@@ -1,6 +1,6 @@
-const CACHE='gym-w14-20260728-routines';
+const CACHE='gym-w15-20260728-billion-pass';
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(self.clients.matchAll({type:'window'}).then(list=>list[0]?list[0].focus():self.clients.openWindow('./')));});
-// Update is user-controlled (release truth): no auto-skipWaiting on install — the waiting worker sits
+// Update is user-controlled (release truth): no auto-skipWaiting on install - the waiting worker sits
 // until the app's "Update ready" pill posts SKIP_WAITING, so a refresh is never yanked mid-set.
 self.addEventListener('message',event=>{if(event.data&&event.data.type==='SKIP_WAITING')self.skipWaiting();});
 const ASSETS=['./','./index.html','./styles.css','./build.js','./core.js','./exercises.js','./profiles.js','./sync.js','./coach.js','./app.js','./manifest.json','./icon.svg','./icon-180.png','./icon-512.png','./icon-maskable-512.png'];
@@ -8,7 +8,7 @@ self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return;
   // Only handle our OWN origin. Cross-origin requests (Google Identity script, Drive API) must go
-  // straight to the network — intercepting them broke the OAuth sign-in and Drive calls (v10 bug).
+  // straight to the network - intercepting them broke the OAuth sign-in and Drive calls (v10 bug).
   if(new URL(event.request.url).origin!==self.location.origin)return;
   // Cache only real successes: a transient 404/500 for an un-precached asset would otherwise be
   // frozen into this cache version and served until the next build id (audit 2026-07-22).

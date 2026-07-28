@@ -1,5 +1,5 @@
 // The catalogue spells things "Pull-Up"; people type "pull up" and "pullup". Before 2026-07-22 a
-// raw substring match meant the app's most common searches returned ZERO results — found when a
+// raw substring match meant the app's most common searches returned ZERO results - found when a
 // friend of Mark's went looking for an exercise and concluded it wasn't in the app.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,7 +11,7 @@ const CAT = [
   ex('a', 'Pull-Up'),
   ex('b', 'Band-Assisted Pull-Up'),
   ex('c', 'Push-Up'),
-  ex('d', 'Parallette L-Sit', { equipment: 'Parallettes / dip bars / floor — support hold' }),
+  ex('d', 'Parallette L-Sit', { equipment: 'Parallettes / dip bars / floor - support hold' }),
   ex('e', 'Hanging Tuck L-Sit'),
   ex('f', 'Barbell Bench Press'),
   ex('g', 'Goblet Squat')
@@ -48,7 +48,7 @@ test('kit named only in the human-readable equipment string is searchable', () =
   assert.deepEqual(names('parallettes'), ['Parallette L-Sit']);
 });
 
-test('search stays selective — it did not become a match-everything', () => {
+test('search stays selective - it did not become a match-everything', () => {
   assert.deepEqual(names('goblet'), ['Goblet Squat']);
   assert.deepEqual(names('zzzz'), []);
   assert.equal(names('push up').includes('Goblet Squat'), false);

@@ -64,7 +64,7 @@ test('planVolume: default 3 sets per exercise, same two ledgers', () => {
   assert.equal(pv.Shoulders.direct, 0);
 });
 
-test('a blank done-tick mints no muscle volume (not evidence — Codex P1)', () => {
+test('a blank done-tick mints no muscle volume (not evidence - Codex P1)', () => {
   const blankSession = { started: now - 500, exercises: [
     { exerciseId: 'bench', sets: [{ done: true }, { weight: '', reps: '', done: true }] },
     { exerciseId: 'squat', sets: [{ weight: 100, reps: 5, done: true }, { weight: '', reps: '', done: true }] }

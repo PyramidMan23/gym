@@ -187,14 +187,14 @@ test('coachEligible gates the coach card on skin-in-the-game (Track B scoping)',
 });
 
 test('carryForward: set 1 never prefills; completion prefills the next set; per-exercise isolated', () => {
-  // Set 1 (index 0) always returns null — a conscious load choice, never assumed.
+  // Set 1 (index 0) always returns null - a conscious load choice, never assumed.
   const bench = { exerciseId: 'bench', sets: [{ weight: '', reps: '', done: false }] };
   assert.equal(Core.carryForward(bench, 0), null);
   // A completed set 1 pre-fills set 2 with its ACTUAL numbers (from this session, not history).
   bench.sets = [{ weight: '80', reps: '8', done: true }, { weight: '', reps: '', done: false }];
   assert.deepEqual(Core.carryForward(bench, 1), { weight: '80', reps: '8' });
   // Edit override: the completed set's edited value is exactly what carries forward.
-  // (Destination must be a real set — index 2 requires a third set to exist.)
+  // (Destination must be a real set - index 2 requires a third set to exist.)
   bench.sets[0].weight = '85';
   bench.sets.push({ weight: '', reps: '', done: false });
   assert.deepEqual(Core.carryForward(bench, 2), { weight: '85', reps: '8' });
@@ -242,7 +242,7 @@ test('per-profile backup round-trips a profile state without bleeding into anoth
   assert.equal(restored.history.length, 1);
   assert.equal(restored.routines[0].name, 'Upper');
   assert.equal(restored.preferences.restSeconds, 120);
-  // Deep copy — importing into one profile can't mutate the exported object shared with another.
+  // Deep copy - importing into one profile can't mutate the exported object shared with another.
   restored.history.push({ id: 's2' });
   assert.equal(profileA.history.length, 1);
 });
@@ -269,8 +269,8 @@ test('routinesDoneThisWeek counts only linked sessions inside the current local 
   const history = [
     { id: 's1', routineId: 'rPush', started: monday },        // this week, linked
     { id: 's2', routineId: 'rLegs', started: now - 3600000 }, // this week, linked
-    { id: 's3', routineId: 'rPull', started: lastWeek },      // LAST week — must not count
-    { id: 's4', routineId: null,    started: monday }         // unlinked quick workout — must not count
+    { id: 's3', routineId: 'rPull', started: lastWeek },      // LAST week - must not count
+    { id: 's4', routineId: null,    started: monday }         // unlinked quick workout - must not count
   ];
   const done = Core.routinesDoneThisWeek(history, now);
   assert.ok(done.has('rPush') && done.has('rLegs'));

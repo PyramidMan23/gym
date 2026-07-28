@@ -1,6 +1,6 @@
 // Machine contrast guard (standing rule: both colour modes must pass, always).
 // Sweeps every rendered text element in BOTH prefers-color-scheme modes, resolves the EFFECTIVE
-// background by walking ancestors and alpha-compositing (including gradient cards — worst/least
+// background by walking ancestors and alpha-compositing (including gradient cards - worst/least
 // opaque stop is used), and computes real WCAG ratios. Fails on anything under the size-aware bar.
 //
 // Why a sweep rather than a list: the bug class is a surface whose bg and ink don't flip together,
@@ -41,7 +41,7 @@ async function waitFor(expr, timeout = 8000) {
 // delays (un-started = opacity 0), and cards transition in from opacity .6. Both read as phantom
 // failures. Drive every FINITE animation/transition to its end and wait for the UI to go quiet, so
 // the sweep measures the settled pixels a human actually reads. The ambient background drift is
-// infinite by design — it can never finish, so it is excluded from the quiet test.
+// infinite by design - it can never finish, so it is excluded from the quiet test.
 const FINITE_RUNNING = `(()=>{
   const finite = document.getAnimations().filter(a => {
     try { return a.effect && a.effect.getTiming().iterations !== Infinity; } catch (e) { return false; }
@@ -58,7 +58,7 @@ async function settle() {
     }
     await sleep(80);
   }
-  throw new Error('UI never went quiet — cannot measure contrast reliably');
+  throw new Error('UI never went quiet - cannot measure contrast reliably');
 }
 
 // The in-page auditor. Returns every visible text element with its computed ratio.
@@ -109,7 +109,7 @@ const SWEEP = `(() => {
     const fgRaw = parse(cs.color); if (!fgRaw) continue;
     // Inherited opacity dims the ink against whatever shows through.
     let opa = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) opa *= parseFloat(getComputedStyle(n).opacity || '1');
-    if (opa < 0.08) continue; // effectively invisible — not something a reader can misread
+    if (opa < 0.08) continue; // effectively invisible - not something a reader can misread
     const bg = effectiveBg(el);
     const fg = over({ ...fgRaw, a: fgRaw.a * opa }, bg);
     const size = parseFloat(cs.fontSize), weight = parseInt(cs.fontWeight, 10) || 400;
@@ -167,7 +167,7 @@ try {
     let rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout+toast+rir', ...r }); });
 
-    // --- State A2: the SAME workout, paused — reveals the PAUSED flag and dims the clock.
+    // --- State A2: the SAME workout, paused - reveals the PAUSED flag and dims the clock.
     // Its own sweep, not folded into State A: pausing re-renders and would drop A's RIR row.
     await evaluate(`toggleWorkoutPause(); true`);
     await settle();
@@ -181,7 +181,7 @@ try {
     await settle();
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'exercise-menu', ...r }); });
-    // Disabled controls are WCAG-exempt, but they must still READ as dead — check the alpha gap.
+    // Disabled controls are WCAG-exempt, but they must still READ as dead - check the alpha gap.
     const dim = await evaluate(`(()=>{const bs=[...document.querySelectorAll('#sheetContent .sheet-actions button')];
       const d=bs.find(b=>b.disabled), e=bs.find(b=>!b.disabled);
       return d&&e?{disabled:parseFloat(getComputedStyle(d).opacity),enabled:parseFloat(getComputedStyle(e).opacity)}:null;})()`);
@@ -190,7 +190,7 @@ try {
     await evaluate(`closeSheet(); true`);
     await sleep(120);
 
-    // --- State C: the "why this target" sheet (.why-foot — the token that was failing) ---
+    // --- State C: the "why this target" sheet (.why-foot - the token that was failing) ---
     await evaluate(`(()=>{ state.history.unshift({id:'sX',name:'Prior',started:Date.now()-86400000,finished:Date.now()-82800000,
       checkin:{pre:2,post:'same',flare:false},prs:[],
       exercises:[{exerciseId:'ch1',notes:'',rir:3,sets:[{weight:'80',reps:'8',done:true}]}]});
@@ -207,12 +207,12 @@ try {
 
     // --- State D: finished-session receipt + progress view ---
     await evaluate(`finishWorkout(); true`);
-    // The receipt card fades in from opacity .6 — wait for the real reading state, not the fade.
+    // The receipt card fades in from opacity .6 - wait for the real reading state, not the fade.
     await waitFor(`document.getElementById('receiptOverlay').classList.contains('show') && parseFloat(getComputedStyle(document.getElementById('receiptCard')).opacity) === 1`);
     await settle();
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'receipt', ...r }); });
-    await evaluate(`closeReceipt(); true`); // the app's own close path — never tear its nodes out
+    await evaluate(`closeReceipt(); true`); // the app's own close path - never tear its nodes out
     // Seed goals so the goal board, the achieved state and the Today strip are all measured.
     await evaluate(`(()=>{
       const now=Date.now();
@@ -243,7 +243,7 @@ try {
 
     // --- State D4: Train, with a routine already ticked off for the week.
     // The "Done this week" badge only exists once a logged session is linked to a routine, so the
-    // state has to be built — an unlinked app would sweep the card and never see the badge.
+    // state has to be built - an unlinked app would sweep the card and never see the badge.
     await evaluate(`(()=>{
       applyPlan('plan-ty-ppl');
       if(state.history[0]) state.history[0].routineId = state.routines[0].id;
@@ -312,7 +312,7 @@ try {
     const seen = new Set();
     const unique = failures.filter(f => { const k = f.scheme + f.sel + f.text; if (seen.has(k)) return false; seen.add(k); return true; });
     console.error('CONTRAST FAILURES:\n' + unique.map(f =>
-      `  [${f.scheme}] ${f.state} ${f.sel} "${f.text}" — ${f.ratio}:1 (needs ${f.bar}:1, ${f.size}px/${f.weight})`).join('\n'));
+      `  [${f.scheme}] ${f.state} ${f.sel} "${f.text}" - ${f.ratio}:1 (needs ${f.bar}:1, ${f.size}px/${f.weight})`).join('\n'));
     throw new Error(`${unique.length} contrast failure(s) across ${sweptModes} colour modes`);
   }
   console.log(`contrast-guard-ok modes=${sweptModes} elementsChecked=${sampled} failures=0`);

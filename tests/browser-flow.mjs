@@ -37,7 +37,7 @@ async function evaluate(expression) {
   if (result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.text);
   return result.result?.result?.value;
 }
-// Trusted hit-tested click via CDP — an invisible blocking layer makes this fail where element.click() would pass.
+// Trusted hit-tested click via CDP - an invisible blocking layer makes this fail where element.click() would pass.
 async function realClick(selector) {
   const rect = await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()`);
   if (!rect) throw new Error(`realClick: no element for ${selector}`);
@@ -143,6 +143,12 @@ try {
   await realClick('#confirmDialog .primary-button');
   await waitFor(`!JSON.parse(localStorage.getItem(stateKey)).activeSession && JSON.parse(localStorage.getItem(stateKey)).history.length === 1`);
   await waitFor(`!document.getElementById('receiptOverlay').hidden && document.querySelectorAll('.receipt-line').length === 4`);
+  // Verdict layer (council 2026-07-28): a first-exposure session must read as a baseline, in words.
+  const verdict = await evaluate(`(()=>{const v=document.querySelector('.receipt-verdict');
+    return v?{text:v.querySelector('strong').textContent,proof:v.querySelector('small')?.textContent||''}:null;})()`);
+  assert.ok(verdict, 'the receipt must carry a verdict block');
+  assert.equal(verdict.text, 'Baseline set.', 'first exposure must be a baseline, not a fake win');
+  assert.match(verdict.proof, /Progression starts next time/);
   await realClick('#receiptCard .primary-button');
   await waitFor(`document.getElementById('receiptOverlay').hidden`);
   // Hit-test guard: hidden overlays must not eat taps (regression: receipt-overlay display:grid beat [hidden]).
@@ -238,7 +244,7 @@ try {
     try{returned=saveState()}finally{Storage.prototype.setItem=original}
     return {returned,toast:document.getElementById('toast').textContent};
   })()`);
-  assert.deepEqual(storageFailureHandled, { returned: false, toast: 'Could not save — browser storage is full' });
+  assert.deepEqual(storageFailureHandled, { returned: false, toast: 'Could not save - browser storage is full' });
 
   const pwa = await evaluate(`(async()=>{await navigator.serviceWorker.ready;return {controlled:!!navigator.serviceWorker.controller,keys:await caches.keys()}})()`);
   assert.equal(pwa.controlled, true, 'Service worker must control the app');

@@ -1,5 +1,5 @@
 // Headless layout audit: opens every screen and overlay at multiple widths and asserts
-// nothing is cut off, clipped, or overflowing — the "everything fits / billion-dollar finish" gate.
+// nothing is cut off, clipped, or overflowing - the "everything fits / billion-dollar finish" gate.
 // Zero-dependency CDP driver (same pattern as browser-flow.mjs). Keep the local server on :4173.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -42,7 +42,7 @@ async function setWidth(width, height = 820) {
   await sleep(90);
 }
 
-// Injected page helpers — returns any element (in normal flow, not inside a horizontal scroller)
+// Injected page helpers - returns any element (in normal flow, not inside a horizontal scroller)
 // whose right edge is cut off by the viewport, plus the document horizontal-overflow delta.
 const PAGE_HELPERS = `
 window.__leaks=(root)=>{
@@ -55,13 +55,13 @@ window.__leaks=(root)=>{
     if(r.width===0&&r.height===0)continue;
     if(r.right<=vw+1&&r.left>=-1)continue;
     // Allowed: the element sits inside a DESIGNATED horizontal scroller (chips/quick-picks/trend rows).
-    // Codex P2: do NOT excuse generic overflow-x:auto ancestors — .sheet-scroll computes overflow-x:auto
+    // Codex P2: do NOT excuse generic overflow-x:auto ancestors - .sheet-scroll computes overflow-x:auto
     // and would blanket-excuse every leak inside a sheet. Only these classes scroll sideways by design.
     const HSCROLLERS=['filter-row','quick-row','trend-picker','picker-filters'];
     let p=el.parentElement, excused=false;
     while(p){const cl=p.classList, pox=getComputedStyle(p).overflowX;
       // designated horizontal scrollers scroll by design; overflow-x:hidden/clip ancestors truly clip
-      // (a raw rect past the viewport behind a clip can't be seen or scrolled to — not a leak).
+      // (a raw rect past the viewport behind a clip can't be seen or scrolled to - not a leak).
       if((cl&&HSCROLLERS.some(c=>cl.contains(c)))||pox==='hidden'||pox==='clip'){excused=true;break;}
       p=p.parentElement;}
     if(!excused)bad.push((el.id||el.className||el.tagName)+' L'+Math.round(r.left)+' R'+Math.round(r.right)+'/'+vw);
@@ -103,12 +103,12 @@ async function auditSheet(where, shellSel, scrollSel) {
   // Concentric radius scale (council 2026-07-23): control 4 / row 10 / card 14 / sheet 18.
   assert.equal(info.radius, 'ok', `${where}: shell radius must be on the concentric scale 0/4/10/14/18px, got ${info.radius}`);
   assert.ok(info.padBottom >= 22, `${where}: scroller needs a safe-area bottom pad >=22px, got ${info.padBottom}`);
-  assert.ok(info.lastBottom <= info.vh + 1, `${where}: last control (${info.lastBottom}) sits below the viewport (${info.vh}) — under the gesture bar`);
+  assert.ok(info.lastBottom <= info.vh + 1, `${where}: last control (${info.lastBottom}) sits below the viewport (${info.vh}) - under the gesture bar`);
   // UA dialog max-width regression guard: bottom sheets must reach both screen edges on mobile.
   if (shellSel !== '#confirmDialog') {
     const edge = await evaluate(`(()=>{const s=document.querySelector(${JSON.stringify(shellSel)});const r=s.getBoundingClientRect();return {l:Math.round(r.left),r:Math.round(r.right),vw:window.innerWidth}})()`);
     if (edge.vw < 650) {
-      assert.ok(edge.l <= 1 && edge.r >= edge.vw - 1, `${where}: sheet not edge-to-edge (left=${edge.l}, right=${edge.r}, vw=${edge.vw}) — UA dialog max-width leaking back`);
+      assert.ok(edge.l <= 1 && edge.r >= edge.vw - 1, `${where}: sheet not edge-to-edge (left=${edge.l}, right=${edge.r}, vw=${edge.vw}) - UA dialog max-width leaking back`);
     }
   }
   await auditActive(where);
@@ -139,7 +139,7 @@ try {
   await waitFor(`document.readyState==='complete' && typeof startQuickWorkout==='function'`);
   await evaluate(PAGE_HELPERS);
 
-  // 0) Track B: a clean boot opens the first-run "Who's training?" sheet — audit it, then name the
+  // 0) Track B: a clean boot opens the first-run "Who's training?" sheet - audit it, then name the
   // profile to dismiss it, then audit the profile switcher. Same clipped-shell / edge-to-edge rules.
   await setWidth(390);
   await waitFor(`document.getElementById('sheet').open && typeof submitFirstRun === 'function'`);
@@ -159,7 +159,7 @@ try {
   }
 
   const WIDTHS = [320, 360, 390, 430];
-  // 1) Every primary screen at every width — no horizontal overflow, nothing cut off.
+  // 1) Every primary screen at every width - no horizontal overflow, nothing cut off.
   for (const view of ['today', 'train', 'library', 'progress']) {
     for (const w of WIDTHS) {
       await setWidth(w);
@@ -191,7 +191,7 @@ try {
     assert.deepEqual(await evaluate(`window.__closedHidden()`), [], 'closed dialog still painting (display must be none when not [open])');
   }
 
-  // 4) Exercise picker sheet — sticky search must stay put while the list scrolls.
+  // 4) Exercise picker sheet - sticky search must stay put while the list scrolls.
   for (const w of [360, 390]) {
     await setWidth(w);
     await evaluate(`navigate('today'); startQuickWorkout(); openExercisePicker('workout'); true`);
@@ -211,7 +211,7 @@ try {
     await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
   }
 
-  // 4b) Numeric pad sheet — opened by tapping a weight/reps cell. Same clipped-shell / edge-to-edge
+  // 4b) Numeric pad sheet - opened by tapping a weight/reps cell. Same clipped-shell / edge-to-edge
   // rules as every other sheet, and it MUST be display:none when closed (dialog [open] scoping).
   for (const w of [320, 360, 390]) {
     await setWidth(w);
@@ -250,7 +250,7 @@ try {
   }
 
   // Concentric radius law (council 2026-07-23): every rounded element must sit on the scale
-  // {0,4,10,14,18}, and a rounded child must never be LOOSER than its rounded parent — that is
+  // {0,4,10,14,18}, and a rounded child must never be LOOSER than its rounded parent - that is
   // what makes nested corners read as machined rather than merely "rounded".
   await setWidth(390);
   await evaluate(`navigate('progress'); true`);
@@ -266,7 +266,7 @@ try {
       // Pills are intentionally fully-round; 50%/999px round shapes are exempt from the scale.
       const raw=cs.borderTopLeftRadius;
       if(raw.includes('%')||v>=100)continue;
-      // The concentric law governs SURFACES. Data-viz marks are strokes, not surfaces — their
+      // The concentric law governs SURFACES. Data-viz marks are strokes, not surfaces - their
       // corner is a softening, not a shape. Two exemptions, both by codebase convention:
       //   <i> is used throughout this app ONLY as a bar/dot/pip mark (.bar-col i, .day-dot i,
       //   .lock-progress i, .goal-bar i), and those carry deliberate asymmetric caps;
