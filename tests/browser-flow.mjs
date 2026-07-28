@@ -25,20 +25,27 @@ async function retry(fn, timeout = 10000) {
 let socket;
 let nextId = 0;
 const pending = new Map();
-function command(method, params = {}) {
+function command(method, params = {}, tmo = 30000) {
   const id = ++nextId;
+  // 30s watchdog on every CDP command: a renderer wedge or dropped response otherwise hangs the
+  // whole run SILENTLY until the outer process timeout - a named timeout is diagnosable, a silent
+  // hang is not (2026-07-28, found while chasing a stall that produced zero output for 7 minutes).
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
+    const watchdog = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, tmo);
+    pending.set(id, { resolve: v => { clearTimeout(watchdog); resolve(v); }, reject: e => { clearTimeout(watchdog); reject(e); } });
     socket.send(JSON.stringify({ id, method, params }));
   });
 }
-async function evaluate(expression) {
-  const result = await command('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+async function evaluate(expression, tmo = 30000) {
+  let result;
+  try { result = await command('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, tmo); }
+  catch (e) { throw new Error(`${e.message} :: ${String(expression).slice(0, 90).replace(/\s+/g, ' ')}`); }
   if (result.result?.exceptionDetails) throw new Error(result.result.exceptionDetails.text);
   return result.result?.result?.value;
 }
 // Trusted hit-tested click via CDP - an invisible blocking layer makes this fail where element.click() would pass.
 async function realClick(selector) {
+  console.error('>>rc-eval1 ', selector);
   const rect = await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el)return null;el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()`);
   if (!rect) throw new Error(`realClick: no element for ${selector}`);
   const onTarget = await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});const hit=document.elementFromPoint(${rect.x},${rect.y});return !!hit&&(hit===el||el.contains(hit)||hit.contains(el));})()`);
@@ -47,8 +54,12 @@ async function realClick(selector) {
   await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 }
 async function waitFor(expression, timeout = 8000) {
+  // Short per-poll timeout: an evaluate issued mid-navigation can have its response dropped when
+  // the context is destroyed - with the default 30s watchdog one dropped poll eats the whole retry
+  // window and the run dies. 1.2s polls fail fast and the fresh context answers the retry
+  // (2026-07-28, the "silent 7-minute hang" root cause).
   return retry(async () => {
-    const value = await evaluate(expression);
+    const value = await evaluate(expression, 1200);
     if (!value) throw new Error(`Waiting for: ${expression}`);
     return value;
   }, timeout);
@@ -81,6 +92,11 @@ try {
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   socket.onmessage = event => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Page.javascriptDialogOpening') {
+      // A surprise dialog wedges headless Chrome forever if unhandled - accept it and say so loudly.
+      console.error('!!DIALOG auto-accepted:', (message.params && message.params.message) || '');
+      command('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
+    } else if (message.method && /crashed|detached/i.test(message.method)) console.error('!!EVENT', message.method);
     if (!message.id || !pending.has(message.id)) return;
     const task = pending.get(message.id); pending.delete(message.id);
     message.error ? task.reject(new Error(message.error.message)) : task.resolve(message);
@@ -89,7 +105,8 @@ try {
   await command('Page.enable');
   await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function'`);
 
-  await evaluate(`localStorage.clear(); location.reload()`);
+  await evaluate(`window.__preReload=1;localStorage.clear();setTimeout(()=>location.reload(),60);true`);
+  await waitFor(`!window.__preReload`);
   await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function'`);
   // Track B: a clean boot opens the first-run "Who's training?" sheet. Name the migrated/created
   // profile programmatically so the modal doesn't block hit-tested clicks later (does not weaken any guard).
@@ -117,6 +134,21 @@ try {
   assert.equal(await evaluate(`getComputedStyle(document.getElementById('main')).outlineStyle`), 'none', 'Programmatically focused main landmark must not draw a page-sized outline');
   await capture('active-workout', 390, 844);
 
+  // Mid-workout tab switch (2026-07-28): NO confirm() dialog may gate it (the browser-chrome
+  // "thesolvagroup.com says" popup was the most webpage-looking moment in the app), and the return
+  // chip must appear on the other tab and lead straight back to the running session.
+  await evaluate(`navigate('today'); true`);
+  const chip = await evaluate(`(()=>{const c=document.getElementById('returnChip');
+    return {visible:!!c&&!c.hidden,onWorkout:document.body.classList.contains('workout-active'),
+      text:c?c.textContent:''};})()`);
+  assert.equal(chip.onWorkout, false, 'tab switch mid-workout must actually leave the workout view - no confirm gate');
+  assert.equal(chip.visible, true, 'the return chip must show on other tabs while a session runs');
+  assert.match(chip.text, /On the clock|Paused/, 'chip must state the session state in words');
+  await realClick('#returnChip');
+  await waitFor(`document.body.classList.contains('workout-active')`);
+  assert.equal(await evaluate(`document.getElementById('returnChip').hidden`), true, 'chip hides on the workout screen itself');
+
+
   const draft = await evaluate(`JSON.parse(localStorage.getItem(stateKey)).activeSession`);
   assert.equal(draft.exercises[0].sets[0].weight, '80');
   assert.equal(draft.exercises[0].sets[0].reps, '8');
@@ -133,7 +165,8 @@ try {
   })()`);
   assert.deepEqual(replacementGuard, {same:true,name:'Quick workout',toast:'You already have a workout running'});
 
-  await evaluate(`location.reload()`);
+  await evaluate(`window.__preReload=1;setTimeout(()=>location.reload(),60);true`);
+  await waitFor(`!window.__preReload`);
   await waitFor(`document.readyState === 'complete' && document.querySelector('#resumeSlot .resume-card button')`);
   await realClick('#resumeSlot .resume-card button');
   await waitFor(`document.body.classList.contains('workout-active') && document.querySelector('.set-row.completed')`);
@@ -171,7 +204,6 @@ try {
   assert.deepEqual(hiddenBlockers, [], `[hidden] elements must actually be display:none: ${hiddenBlockers}`);
   const activeViewOutline = await evaluate(`getComputedStyle(document.querySelector('.view.active')).outlineStyle`);
   assert.equal(activeViewOutline, 'none', 'Programmatically focused screen must not draw a page-sized outline');
-
   const result = await evaluate(`(() => {
     const saved=JSON.parse(localStorage.getItem(stateKey));
     return {
@@ -230,7 +262,6 @@ try {
   assert.ok(deskAndRoutines.seedOptions > 1, 'the routine editor must offer plans/templates/logged workouts to start from');
   assert.ok(deskAndRoutines.seededCount > 0, 'picking a seed must populate the draft');
   assert.equal(deskAndRoutines.nameOpensMenu, true, 'a routine name must be its own tap target for options');
-
   const invalidImport = await evaluate(`(async()=>{
     const malformed=new File([JSON.stringify({version:2,routines:[],history:[],customExercises:[],activeSession:'bad',preferences:{}})],'bad-duck-gym.json',{type:'application/json'});
     await importBackup(malformed);
@@ -245,7 +276,6 @@ try {
     return {returned,toast:document.getElementById('toast').textContent};
   })()`);
   assert.deepEqual(storageFailureHandled, { returned: false, toast: 'Could not save - browser storage is full' });
-
   const pwa = await evaluate(`(async()=>{await navigator.serviceWorker.ready;return {controlled:!!navigator.serviceWorker.controller,keys:await caches.keys()}})()`);
   assert.equal(pwa.controlled, true, 'Service worker must control the app');
   const expectedCache = /CACHE='([^']+)'/.exec(readFileSync(new URL('../sw.js', import.meta.url), 'utf8'))[1];
@@ -259,7 +289,8 @@ try {
 
   // Codex P0-1: a LOCKED profile's cold boot must gate behind a non-dismissible PIN sheet with
   // ZERO profile data rendered behind it, and Escape/cancel must not close the gate.
-  await evaluate(`DuckGymProfiles.setPin(localStorage, activeProfileId, '4321').then(()=>location.reload())`);
+  await evaluate(`window.__preReload=1;DuckGymProfiles.setPin(localStorage, activeProfileId, '4321').then(()=>setTimeout(()=>location.reload(),60));true`);
+  await waitFor(`!window.__preReload`);
   await sleep(400);
   await waitFor(`document.readyState === 'complete' && typeof pinKey === 'function' && document.getElementById('sheet').open`);
   const lockedBoot = await evaluate(`(() => {

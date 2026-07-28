@@ -141,7 +141,9 @@ function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
 function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}
 try{if(state.preferences.navCondense===true)document.body.classList.add('nav-condense');}catch{}
 function navigate(view){
-  if(state.activeSession&&view!=='workout'&&!confirm('Leave the workout screen? Your workout will keep running.')) return;
+  // No confirm() gate (Mark, 2026-07-28): the browser-chrome "thesolvagroup.com says" dialog on
+  // every mid-workout tab switch was the most webpage-looking moment in the app. Tabs just swap -
+  // the session keeps running and the return chip below is the always-visible way back.
   // A fresh Library open always starts unfiltered - a stale filter must never silently hide exercises (council 2026-07-19).
   if(view==='library')libraryFilter=newFilterState();
   currentView=view;
@@ -163,11 +165,27 @@ function navigate(view){
   if(ORDER[view]!==undefined)document.body.dataset.navDir=ORDER[view]>=from?'fwd':'back';
   swap();
   if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
+  renderReturnChip();
   const navIdx={today:0,train:1,library:2,progress:3}[view];
   const navCursor=document.getElementById('navCursor');
   if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
   window.scrollTo(0,0);
   document.getElementById('main').focus({preventScroll:true});
+}
+// Persistent way back to a live session from ANY tab - replaces the confirm() gate. Shows name +
+// live clock; paused sessions say so. Hidden on the workout screen itself (nav is hidden there too).
+let returnChipTimer=null;
+function renderReturnChip(){
+  const el=document.getElementById('returnChip');if(!el)return;
+  const s=state.activeSession;
+  const show=!!s&&currentView!=='workout';
+  el.hidden=!show;
+  if(returnChipTimer){clearInterval(returnChipTimer);returnChipTimer=null;}
+  if(!show)return;
+  const paint=()=>{const paused=!!s.pausedAt;
+    el.innerHTML=`<span class="rc-dot${paused?' rc-paused':''}" aria-hidden="true"></span><span class="rc-text"><strong>${esc(s.name)}</strong><small>${paused?'Paused':'On the clock'} · ${Core.formatDuration(Core.sessionElapsedMs(s)/1000)}</small></span><b aria-hidden="true">›</b>`;};
+  paint();
+  returnChipTimer=setInterval(()=>{if(!state.activeSession||currentView==='workout'){renderReturnChip();return;}paint();},1000);
 }
 function renderView(view){
   if(view==='today')renderToday();
@@ -1669,7 +1687,9 @@ window.addEventListener('load',()=>{setTimeout(()=>{
   }
 },600);});
 window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstall=event;});
-window.addEventListener('beforeunload',event=>{if(state.activeSession){event.preventDefault();event.returnValue='';}});
+// No beforeunload guard (2026-07-28, same class as the tab-switch confirm): every tap is already
+// persisted, so "changes may not be saved" was a lie - closing mid-workout loses nothing and the
+// session resumes on next open. The browser dialog it raised also wedged headless test renderers.
 // Release truth (Wave 0): register the SW, then watch for a waiting/installed worker and surface the
 // user-controlled "Update ready" pill. Tapping posts SKIP_WAITING; controllerchange → one reload.
 let waitingWorker=null;
@@ -1970,7 +1990,7 @@ saveState();
 renderProfileChip();
 // Render the active profile's data - UNLESS it's locked and not yet unlocked this page-load, in which
 // case its data is never rendered until the PIN clears (council: locked = data hidden).
-function renderAllViews(){renderToday();renderTrain();renderLibrary();renderProgress();}
+function renderAllViews(){renderToday();renderTrain();renderLibrary();renderProgress();renderReturnChip();}
 function afterUnlockBoot(){
   renderAllViews();
   // Flush any queued sessions and pull the latest coach plan on launch - silent, deferred, never blocking.

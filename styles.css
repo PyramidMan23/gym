@@ -931,3 +931,25 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .starter-row strong{display:block;font-size:14px;margin:0;color:var(--cream)}
 .starter-row small{display:block;margin-top:2px;color:var(--taupe);font-size:12px;line-height:1.35}
 .starter-row b{flex:none;color:var(--taupe);font-size:19px;font-weight:700;line-height:1}
+
+/* Return chip (2026-07-28): the always-there way back to a live session, replacing the confirm()
+   dialog that fired on every mid-workout tab switch. Rides above the nav on every tab; amber dot
+   pulses while the clock runs, goes still + labelled when paused (never hue alone). */
+.return-chip{position:fixed;z-index:19;left:50%;transform:translateX(-50%);
+  bottom:calc(max(10px,env(safe-area-inset-bottom)) + var(--nav-height) + 8px);
+  width:calc(100vw - 24px);max-width:736px;min-height:52px;
+  display:flex;align-items:center;gap:11px;padding:9px 15px;text-align:left;
+  border:1px solid var(--card-hair);border-radius:var(--r2);color:var(--cream);
+  background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  box-shadow:var(--glass-edge),var(--shadow);transition:transform .12s var(--ease)}
+.return-chip:active{transform:translateX(-50%) scale(.98)}
+.return-chip[hidden]{display:none}
+.rc-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 8px rgba(224,110,31,.7)}
+@media (prefers-reduced-motion: no-preference){.rc-dot{animation:rc-pulse 1.6s ease-in-out infinite}}
+.rc-dot.rc-paused{background:var(--taupe);box-shadow:none;animation:none}
+.rc-text{flex:1;min-width:0}
+.rc-text strong{display:block;font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-text small{display:block;margin-top:1px;color:var(--taupe);font-size:11.5px;font-variant-numeric:tabular-nums lining-nums}
+.return-chip b{flex:none;color:var(--taupe);font-size:19px;font-weight:700;line-height:1}
+@keyframes rc-pulse{0%,100%{opacity:1}50%{opacity:.45}}
