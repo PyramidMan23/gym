@@ -23,6 +23,7 @@ function bootProfiles(){
   if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(activeProfileId));
 }
 let currentView = 'today';
+let currentBuzzView = 'today'; // last tab that ticked - one haptic per change, never per render
 let activeTimer = null;
 let restTimer = null;
 let restRemaining = 0;
@@ -152,12 +153,16 @@ function navigate(view){
     document.body.classList.toggle('workout-active',view==='workout');
     renderView(view);
   };
-  // Navigating again before a transition settles SKIPS it, rejecting these promises. Nothing awaits
-  // them, so an unhandled rejection lands in the console on any fast nav tap (audit 2026-07-22).
-  if(!REDUCED_MOTION&&document.startViewTransition){
-    const vt=document.startViewTransition(swap);
-    vt.finished?.catch(()=>{});vt.ready?.catch(()=>{});vt.updateCallbackDone?.catch(()=>{});
-  }else swap();
+  // Nav motion (council 2026-07-28): View Transitions are GONE from tab swaps - snapshotting a
+  // chart-heavy page for a cross-fade is the jank risk, per Codex. Instead the INCOMING view runs a
+  // pure-CSS 150ms fade+6px directional slide (data-nav-dir below): no snapshots, no JS animation
+  // handlers, so a rapid tab-tap can never fire a stale completion callback - the bug class is
+  // removed by construction, not guarded against. Reduced-motion zeroes it in CSS.
+  const ORDER={today:0,train:1,library:2,progress:3};
+  const from=ORDER[Object.keys(ORDER).find(k=>document.querySelector(`#view-${k}.active`)?.id===`view-${k}`)]??0;
+  if(ORDER[view]!==undefined)document.body.dataset.navDir=ORDER[view]>=from?'fwd':'back';
+  swap();
+  if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
   const navIdx={today:0,train:1,library:2,progress:3}[view];
   const navCursor=document.getElementById('navCursor');
   if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
