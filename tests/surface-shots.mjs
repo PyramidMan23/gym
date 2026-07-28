@@ -58,7 +58,7 @@ try {
   await evaluate(`(() => {
     const DAY=86400000, now=Date.now();
     const mk=(daysAgo,name,exs)=>({id:'s'+daysAgo,name,started:now-daysAgo*DAY,finished:now-daysAgo*DAY+3900000,exercises:exs});
-    const ex=(id,sets)=>({id,sets:sets.map(([w,r],i)=>({weight:String(w),reps:String(r),done:true,rir:i===sets.length-1?2:null}))});
+    const ex=(exerciseId,sets)=>({exerciseId,sets:sets.map(([w,r],i)=>({weight:String(w),reps:String(r),done:true,rir:i===sets.length-1?2:null}))});
     const hist=[
       mk(1,'Day A · Squat pattern',[ex('lg1',[[80,8],[85,8],[90,6]]),ex('ch1',[[60,10],[62.5,9],[65,8]]),ex('ba4',[[50,12],[55,10]])]),
       mk(3,'Day B · Hinge + pull',[ex('lg5',[[100,6],[105,5],[110,5]]),ex('ba3',[[0,10],[0,9],[0,8]]),ex('sh1',[[22.5,10],[22.5,9]])]),
@@ -81,6 +81,16 @@ try {
     saveState(); renderAllViews(); return true;
   })()`);
   await sleep(400);
+  // Codex hard rule (council 2026-07-28): never screenshot fiction again. The seeded history MUST
+  // produce live boards - the {id}-vs-{exerciseId} seeder bug had every board shooting its empty
+  // state and the design audit critiqued screens no real user sees.
+  const seeded = await evaluate(`(()=>{navigate('progress');renderAllViews();
+    return {mv:!document.querySelector('#muscleVolume .starter-row'),
+      trend:!!document.querySelector('#strengthTrend svg, #strengthTrend canvas, #strengthTrend .trend-card'),
+      recap:!!document.querySelector('#weeklyRecap .recap-card, #weeklyRecap [class*=recap]')};})()`);
+  if (!seeded.mv) throw new Error('surface-shots: seeded history rendered an EMPTY muscle board - seeder shape broke again');
+  if (!seeded.trend) throw new Error('surface-shots: seeded history did not unlock the strength trend');
+
 
   for (const view of ['today', 'train', 'library', 'progress']) {
     await evaluate(`navigate('${view}'); window.scrollTo(0,0); true`);

@@ -921,3 +921,13 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 }
 @keyframes view-in-fwd{from{opacity:.25;transform:translateX(6px)}to{opacity:1;transform:none}}
 @keyframes view-in-back{from{opacity:.25;transform:translateX(-6px)}to{opacity:1;transform:none}}
+
+/* Starter rows (council 2026-07-28): a module with no evidence keeps its address but compresses to
+   one quiet line - it stops impersonating valuable content before any exists. Actionable ones are
+   real buttons with the chevron; density returns the moment real data arrives. */
+.starter-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+  padding:13px 16px;text-align:left;min-height:52px}
+.starter-row span{min-width:0}
+.starter-row strong{display:block;font-size:14px;margin:0;color:var(--cream)}
+.starter-row small{display:block;margin-top:2px;color:var(--taupe);font-size:12px;line-height:1.35}
+.starter-row b{flex:none;color:var(--taupe);font-size:19px;font-weight:700;line-height:1}

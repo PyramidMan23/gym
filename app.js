@@ -606,7 +606,7 @@ function renderGoals(){
   const active=state.goals.filter(g=>!g.achievedAt),done=state.goals.filter(g=>g.achievedAt);
   board.innerHTML=(active.length||done.length)
     ?active.map(goalCardMarkup).join('')+(done.length?`<details class="goal-done"><summary>${done.length} achieved</summary>${done.map(goalCardMarkup).join('')}</details>`:'')
-    :`<div class="empty-card card"><strong>No goals yet</strong>Name one thing you're chasing - a lift, a bodyweight, or a number of sessions a week - and every workout is measured against it.</div>`;
+    :`<button class="empty-card card starter-row" onclick="openGoalSheet()"><span><strong>No goals yet</strong><small>Name one thing you're chasing and every workout measures against it</small></span><b aria-hidden="true">›</b></button>`;
   renderTodayGoal();
 }
 // Today shows the single nearest-to-done active goal: a reminder of why you're here, not a list.
@@ -700,7 +700,7 @@ function renderMuscleVolume(){
   const mv=Core.muscleVolume(state.history,muscleLookup);
   const ranges=state.preferences.muscleRanges||{};
   const rows=MUSCLE_GROUPS.map(m=>({m,d:mv[m]?.direct||0,a:mv[m]?.assisting||0})).sort((x,y)=>y.d-x.d||y.a-x.a);
-  if(rows.every(r=>!r.d&&!r.a)){el.innerHTML=`<div class="empty-card card"><strong>No sets this week yet</strong>Complete a set and your per-muscle count starts here.</div>`;return;}
+  if(rows.every(r=>!r.d&&!r.a)){el.innerHTML=`<div class="empty-card card starter-row"><span><strong>No sets this week yet</strong><small>Complete a set and the per-muscle count starts here</small></span></div>`;return;}
   const max=Math.max(1,...rows.map(r=>Math.max(r.d,r.a)));
   el.innerHTML=rows.map(r=>{
     const range=ranges[r.m];
@@ -813,7 +813,7 @@ function renderPrFeed(){
     const item=exerciseById(pr.exerciseId);
     const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
     return `<div class="pr-row"><span class="pr-mark notched">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
-  }).join(''):`<div class="empty-card card"><strong>No records yet</strong>Beat a previous best and it lands here automatically.</div>`;
+  }).join(''):`<div class="empty-card card starter-row"><span><strong>No records yet</strong><small>Beat a previous best and it lands here automatically</small></span></div>`;
 }
 function renderWeekChart(){
   const now=Date.now(),weeks=[];
@@ -866,7 +866,7 @@ function renderBalance(){
   const el=document.getElementById('balanceBoard');if(!el)return;
   const bal=Core.sideBalance(state.history);
   const entries=Object.entries(bal);
-  if(!entries.length){el.innerHTML=`<div class="empty-card card"><strong>No side-tagged sets yet</strong>Tap a set's number during a workout to tag it Left or Right, and the comparison builds here.</div>`;return;}
+  if(!entries.length){el.innerHTML=`<div class="empty-card card starter-row"><span><strong>No side-tagged sets yet</strong><small>Tap a set's number mid-workout to tag it Left or Right</small></span></div>`;return;}
   // Mirrored comparison only for exercises with BOTH sides; one-sided data gets a truthful partial
   // row instead of a misleading "no data" empty state (Codex P3).
   const both=entries.filter(([,b])=>b.left.sets>0&&b.right.sets>0);
@@ -889,7 +889,7 @@ function renderBalance(){
 function renderBodyweight(){
   const el=document.getElementById('bodyweightCard');if(!el)return;
   const log=Core.bodyweightTrend(state.bodyweight,90);
-  if(!log.length){el.innerHTML=`<div class="empty-card card"><strong>No weigh-ins yet</strong>Tap “Log weight” to start your trend.</div>`;return;}
+  if(!log.length){el.innerHTML=`<button class="empty-card card starter-row" onclick="openBodyweightLog()"><span><strong>No weigh-ins yet</strong><small>Log your first weight to start the trend</small></span><b aria-hidden="true">›</b></button>`;return;}
   const latest=log.at(-1),first=log[0],d=Math.round((latest.kg-first.kg)*10)/10;
   const chart=log.length>=2?chartSvg(log.map(p=>({t:p.t,v:p.kg})),'Bodyweight trend, last 90 days'):'';
   el.innerHTML=`<div class="bw-card card"><div class="bw-head"><strong class="hero-num">${latest.kg}</strong><span>kg${d?` · ${d>0?'+':''}${d} kg over ${log.length} weigh-in${log.length===1?'':'s'}`:''}</span></div>${chart}</div>`;
