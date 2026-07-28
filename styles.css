@@ -840,14 +840,20 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .deload-card .kicker{color:var(--teal)}
 .deload-card p:last-child{margin:5px 0 0;color:var(--cream-dim);font-size:13px;line-height:1.45}
 
-/* Desk Reset: one tap, no plan install. Row shape, not a hero: it must not outrank the coach. */
-.desk-card{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;
-  margin:12px 0 0;padding:15px 18px;text-align:left;color:var(--cream);
-  border-left:3px solid var(--teal);transition:transform .14s var(--ease)}
-.desk-card:active{transform:scale(.985)}
+/* Desk Reset: Start to run it, ••• to see it as a plan and add it to your routines. Row shape, not
+   a hero, so it never outranks the coach. The bottom margin is load-bearing: without it the row sat
+   flush against the activity card below and the two read as one broken surface (Mark, 2026-07-28).
+   Matches the routine card's ••• + Start layout, because it IS the same kind of object. */
+.desk-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;
+  margin:12px 0;padding:15px 15px 15px 18px;border-left:3px solid var(--teal)}
+.desk-text{min-width:0}
 .desk-text strong{display:block;font-weight:800;font-size:16px}
 .desk-text small{display:block;margin-top:3px;color:var(--taupe);font-size:12px}
-.desk-go{color:var(--taupe);font-size:20px;font-weight:700;line-height:1}
+.desk-actions{display:flex;gap:7px}
+.desk-menu,.desk-start{min-height:44px;border-radius:var(--r1);font-weight:800}
+.desk-menu{min-width:44px;border:1px solid var(--hair);background:var(--glass-2);color:var(--cream);letter-spacing:2px}
+.desk-start{padding:0 15px;border:0;background:var(--teal);color:var(--teal-ink-on);transition:transform .12s var(--ease)}
+.desk-start:active{transform:scale(.98)}
 
 /* Warm-up / cool-down strip inside the workout. Sits above the exercises, disappears once taken. */
 .bookend-strip{display:flex;align-items:center;justify-content:space-between;gap:14px;
@@ -864,3 +870,11 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
   text-transform:uppercase;color:var(--teal);cursor:pointer;min-height:44px;display:flex;align-items:center}
 .coach-notes ul{margin:0;padding:0 14px 12px 30px}
 .coach-notes li{color:var(--cream-dim);font-size:12.5px;line-height:1.5;margin-bottom:6px}
+
+/* The routine name is a tap target for the options sheet, not just decoration. Editing a routine
+   was reachable only through an unlabelled ••• and went unfound for weeks (Mark, 2026-07-28). */
+.routine-open{border:0;background:transparent;padding:0;margin:0;text-align:left;color:inherit;
+  min-width:0;font:inherit;transition:opacity .12s var(--ease)}
+.routine-open:active{opacity:.65}
+.routine-open h3{margin:0;font-weight:800;font-size:17px}
+.routine-open p{margin:4px 0 0;color:var(--taupe);font-size:12px}

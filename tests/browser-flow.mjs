@@ -177,6 +177,54 @@ try {
   })()`);
   assert.deepEqual(result, { history: 1, completed: 1, volume: 640, progressVisible: true });
   await capture('progress', 500, 900);
+  // ---- Routine plumbing + Desk Reset (2026-07-28). All three were Mark's own report: no gap under
+  // the Desk Reset row, no way to save the workout he was doing, and a Desk Reset that "stayed a
+  // workout" with no sign it was a plan. These assert the WIRING, which the unit tests cannot see.
+  const deskAndRoutines = await evaluate(`(() => {
+    navigate('today'); renderToday();
+    const desk=document.querySelector('.desk-card');
+    const gap=desk?parseFloat(getComputedStyle(desk).marginBottom):0;
+    const hasPlanEntry=!!document.querySelector('.desk-menu');
+    // Starting a Desk Reset must NOT offer a warm-up: the session already is mobility work.
+    if(state.activeSession) state.activeSession=null;
+    startDeskReset();
+    const deskStrip=!!document.querySelector('.bookend-strip');
+    // A mix by design: the three holds log SECONDS, the three slow rep drills log reps. Assert the
+    // seconds axis actually reaches the logger, or a hold silently records reps again.
+    // A mix by design: the three holds log SECONDS, the three slow rep drills log reps. Assert the
+    // seconds axis actually reaches the logger, or a hold silently records reps again.
+    const deskSecs=state.activeSession.exercises.some(e=>DuckGymCore.isTimed(e.exerciseId))
+      && [...document.querySelectorAll('.set-grid.header span')].some(s=>s.textContent==='Sec');
+    // A loaded session still gets one.
+    state.activeSession=null; startQuickWorkout(); addExerciseToWorkout('lg4');
+    const loadedStrip=!!document.querySelector('.bookend-strip');
+    // Save the RUNNING workout as a routine.
+    const before=state.routines.length;
+    saveActiveAsRoutine();
+    const saved=state.routines[0];
+    // Seeding a brand-new routine from a plan day.
+    openRoutineEditor();
+    const seedOptions=document.querySelectorAll('#routineSeed option').length;
+    const firstSeed=document.querySelectorAll('#routineSeed option')[1];
+    seedRoutine(firstSeed.value);
+    const seededCount=routineDraft.exerciseIds.length;
+    closeSheet();
+    state.activeSession=null; saveState();
+    return {gap,hasPlanEntry,deskStrip,deskSecs,loadedStrip,
+      addedRoutine:state.routines.length-before,savedIds:saved?saved.exerciseIds.length:0,
+      seedOptions,seededCount,nameOpensMenu:!!document.querySelector('.routine-open')};
+  })()`);
+  assert.ok(deskAndRoutines.gap >= 8, `Desk Reset row must clear the card below it, got ${deskAndRoutines.gap}px`);
+  assert.equal(deskAndRoutines.hasPlanEntry, true, 'Desk Reset must offer a way to see it as a plan');
+  assert.equal(deskAndRoutines.deskStrip, false, 'a drill-only session must not propose a warm-up');
+  assert.equal(deskAndRoutines.deskSecs, true, 'every Desk Reset drill must log in seconds');
+  assert.equal(deskAndRoutines.loadedStrip, true, 'a loaded session must still propose a warm-up');
+  assert.equal(deskAndRoutines.addedRoutine, 1, 'saving the running workout must add exactly one routine');
+  assert.ok(deskAndRoutines.savedIds > 0, 'the saved routine must carry the workout exercises');
+  assert.ok(deskAndRoutines.seedOptions > 1, 'the routine editor must offer plans/templates/logged workouts to start from');
+  assert.ok(deskAndRoutines.seededCount > 0, 'picking a seed must populate the draft');
+  assert.equal(deskAndRoutines.nameOpensMenu, true, 'a routine name must be its own tap target for options');
+
   const invalidImport = await evaluate(`(async()=>{
     const malformed=new File([JSON.stringify({version:2,routines:[],history:[],customExercises:[],activeSession:'bad',preferences:{}})],'bad-duck-gym.json',{type:'application/json'});
     await importBackup(malformed);

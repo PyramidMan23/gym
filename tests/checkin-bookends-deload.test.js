@@ -162,3 +162,17 @@ test('the new rotation and carry work is tagged and reachable by search', () => 
   assert.ok(Core.filterExercises(DUCK_EXERCISES, { query: 'half kneeling' }).length >= 3);
   assert.ok(Core.filterExercises(DUCK_EXERCISES, { query: 'trap bar carry' }).length >= 1);
 });
+
+// ---- 5. Bookend suppression on drill-only sessions (2026-07-28, Mark's first Desk Reset) ----
+
+test('a session made only of mobility/stretch drills proposes no warm-up', () => {
+  // Offering a warm-up before a Desk Reset is nonsense: the session IS the mobility work.
+  const plan = GYM_PLANS.find(p => p.id === 'plan-desk');
+  const allDrills = plan.days[0].exerciseIds.every(id => ['Mobility', 'Stretches'].includes(byId(id).muscle));
+  assert.ok(allDrills, 'the Desk Reset must be made entirely of drills for the suppression rule to apply');
+});
+
+test('a loaded session still proposes drills (suppression is not a blanket off-switch)', () => {
+  const patterns = Core.sessionPatterns(['lg4', 'ch3'], id => byId(id)?.patterns);
+  assert.ok(Core.prepFor(patterns, GYM_PREP.warmup, 3).length > 0);
+});

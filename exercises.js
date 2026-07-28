@@ -380,7 +380,7 @@ const GYM_PLANS = [
   {
     id:'plan-desk', tag:'DESK RESET', name:'Desk Reset', goal:5,
     blurb:'5 min · undo the laptop day',
-    note:'Not a workout: the counter-dose to sitting. Five minutes, no kit beyond a wall and the bench, run it on training days or rest days. Everything here is a hold: log the seconds, not reps. Order matters: open the front of the hips and chest first, then ask the upper back to rotate and the neck to stack.',
+    note:'Not a workout: the counter-dose to sitting. Five minutes, no kit beyond a wall and the bench, run it on training days or rest days. Three of these are holds and log in SECONDS (Couch Stretch, Doorway Pec, Chin Tuck); the other three are slow rep drills. Order matters: open the front of the hips and chest first, then ask the upper back to rotate and the neck to stack.',
     days:[
       { name:'Desk Reset', exerciseIds:['mo6','st4','mo10','mo15','mo13','mo14'] }
     ]

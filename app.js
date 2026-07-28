@@ -208,7 +208,10 @@ function renderDeskReset(){
   const slot=document.getElementById('deskSlot');if(!slot||!DESK_PLAN)return;
   const day=DESK_PLAN.days[0];
   const done=Core.routinesDoneThisWeek(state.history).has('plan-desk');
-  slot.innerHTML=`<button class="desk-card card" onclick="startDeskReset()"><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-go" aria-hidden="true">›</span></button>`;
+  // ••• opens it as a PLAN (what it is), Start runs it (what it is for). Mark tapped the old
+  // whole-row button, landed straight in a workout, and asked why he could not see it as a plan or
+  // template. It was one, but nothing on this row said so (2026-07-28).
+  slot.innerHTML=`<div class="desk-card card"><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-actions"><button class="desk-menu" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details">•••</button><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></span></div>`;
 }
 function startDeskReset(){
   const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
@@ -246,7 +249,10 @@ function renderWeekDots(){
 function routineCard(routine,done){
   const names=routine.exerciseIds.map(id=>exerciseById(id)?.name).filter(Boolean);
   const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done this week</span> · ':'';
-  return `<article class="routine-card"><div><h3>${esc(routine.name)}</h3><p>${tick}${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></div><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
+  // The name itself opens the options sheet, not just the ••• glyph. Editing a routine has been
+  // possible since day one and Mark never found it, because the only way in was an unlabelled
+  // three-dot button (2026-07-28). Same handler, one much larger target.
+  return `<article class="routine-card"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><h3>${esc(routine.name)}</h3><p>${tick}${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></button><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
 }
 // Today's horizontal quick-start strip — same onclick contracts as routineCard (start + options menu).
 function routineStripCard(routine,done){
@@ -387,7 +393,7 @@ function openPlan(id){
   const pv=Core.planVolume(plan.days,muscleLookup);
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
   const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board — direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div>${planned}<div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routines</button></div>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div>${planned}<div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routine${plan.days.length===1?'':'s'}</button></div>`;
   document.getElementById('sheet').showModal();
 }
 function applyPlan(id){
@@ -896,9 +902,13 @@ function renderWorkout(){
 // sequenced, so they only got used by someone who already knew what to look for. The strip proposes
 // drills for the patterns THIS session actually trains: warm-up while nothing is logged yet,
 // cool-down once real work is done. One control, contextual: skipping costs nothing.
+const PREP_MUSCLES=new Set(['Mobility','Stretches']);
 function bookendFor(session){
   const ids=(session?.exercises||[]).map(e=>e.exerciseId);
   const phase=(session?.exercises||[]).some(e=>Core.doneSets(e).length)?'cooldown':'warmup';
+  // Offering a warm-up before a Desk Reset is nonsense: the session IS mobility work. A session made
+  // only of drills needs no bookends (Mark hit this the first time he ran one, 2026-07-28).
+  if(ids.length&&ids.every(id=>PREP_MUSCLES.has(exerciseById(id)?.muscle)))return {phase,picks:[]};
   const patterns=Core.sessionPatterns(ids,id=>exerciseById(id)?.patterns);
   const present=new Set(ids);
   return {phase,picks:Core.prepFor(patterns,prepMap[phase],3).filter(id=>!present.has(id)&&exerciseById(id))};
@@ -1401,9 +1411,31 @@ function openRoutineEditor(id){
 }
 function renderRoutineEditor(){
   pickerTarget='routine';
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${state.routines.some(r=>r.id===routineDraft.id)?'Edit':'New'} routine</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>ROUTINE NAME</label><input id="routineName" value="${esc(routineDraft.name)}" placeholder="Example: Monday upper" oninput="routineDraft.name=this.value"></div><div class="section-heading"><div><p class="kicker">EXERCISES</p><h2>${routineDraft.exerciseIds.length} selected</h2></div><button class="text-button" onclick="openExercisePicker('routine')">+ Add</button></div><div class="selected-list">${routineDraft.exerciseIds.length?routineDraft.exerciseIds.map((id,index)=>`<div class="selected-row"><span><strong>${index+1}. ${esc(exerciseById(id)?.name||'Missing exercise')}</strong></span><button onclick="removeRoutineExercise(${index})">Remove</button></div>`).join(''):'<div class="empty-card card">Add exercises in the order you want to train.</div>'}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="saveRoutine()">Save routine</button></div>`;
+  // Offered only while the draft is EMPTY, so picking a seed can never wipe work already done.
+  const seeds=routineDraft.exerciseIds.length?[]:routineSeeds();
+  const seedBlock=seeds.length?`<div class="field"><label>START FROM (OPTIONAL)</label><select id="routineSeed" onchange="seedRoutine(this.value)"><option value="">Build from scratch</option>${seeds.map(s=>`<option value="${esc(s.key)}">${esc(s.label)} (${s.ids.length})</option>`).join('')}</select></div>`:'';
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${state.routines.some(r=>r.id===routineDraft.id)?'Edit':'New'} routine</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>ROUTINE NAME</label><input id="routineName" value="${esc(routineDraft.name)}" placeholder="Example: Monday upper" oninput="routineDraft.name=this.value"></div>${seedBlock}<div class="section-heading"><div><p class="kicker">EXERCISES</p><h2>${routineDraft.exerciseIds.length} selected</h2></div><button class="text-button" onclick="openExercisePicker('routine')">+ Add</button></div><div class="selected-list">${routineDraft.exerciseIds.length?routineDraft.exerciseIds.map((id,index)=>`<div class="selected-row"><span><strong>${index+1}. ${esc(exerciseById(id)?.name||'Missing exercise')}</strong></span><button onclick="removeRoutineExercise(${index})">Remove</button></div>`).join(''):'<div class="empty-card card">Add exercises in the order you want to train.</div>'}</div><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="saveRoutine()">Save routine</button></div>`;
 }
 function removeRoutineExercise(index){routineDraft.exerciseIds.splice(index,1);renderRoutineEditor();}
+// Building a routine from an empty list means naming 6 exercises from memory. Every list worth
+// starting from already exists in the app: a plan's days, a template, and the workouts already
+// logged. Offered only while the draft is EMPTY, so it never silently overwrites real work.
+function routineSeeds(){
+  const seeds=[];
+  for(const plan of plans) for(const day of plan.days)
+    seeds.push({key:`plan:${plan.id}:${day.name}`,label:`${plan.name} · ${day.name}`,ids:day.exerciseIds});
+  for(const t of templates) seeds.push({key:`tpl:${t.id}`,label:`Template · ${t.name}`,ids:t.exerciseIds});
+  for(const s of state.history.slice(0,5))
+    seeds.push({key:`hist:${s.id}`,label:`Logged · ${s.name} (${formatDate(s.started)})`,
+      ids:[...new Set((s.exercises||[]).map(e=>e.exerciseId))]});
+  return seeds.filter(s=>s.ids.some(id=>exerciseById(id)));
+}
+function seedRoutine(key){
+  const seed=routineSeeds().find(s=>s.key===key);if(!seed)return;
+  routineDraft.exerciseIds=[...new Set(seed.ids.filter(id=>exerciseById(id)))];
+  if(!routineDraft.name.trim())routineDraft.name=seed.label.split(' · ').pop();
+  renderRoutineEditor();showToast(`Started from ${seed.label}`);
+}
 function saveRoutine(){
   routineDraft.name=routineDraft.name.trim();if(!routineDraft.name)return showToast('Name your routine');if(!routineDraft.exerciseIds.length)return showToast('Add at least one exercise');
   const index=state.routines.findIndex(r=>r.id===routineDraft.id);if(index>=0)state.routines[index]=routineDraft;else state.routines.unshift(routineDraft);saveState();closeSheet();renderTrain();showToast('Routine saved');
@@ -1490,14 +1522,33 @@ function linkHistoryToRoutine(sessionId,routineId){
 }
 // A routine IS just a named, ordered exercise list — so any logged workout can become one.
 // To merge two workouts into a single routine, save one here then ••• → Edit and add the rest.
+// A routine is just a named, ordered exercise list, so ANY source of one can become a routine:
+// a finished workout, the workout running right now, a plan day, a template. One helper, so the
+// dedupe-the-name rule and the "did anything actually save" check can't drift between callers.
+function saveIdsAsRoutine(rawIds,baseName){
+  const exerciseIds=[...new Set((rawIds||[]).filter(x=>exerciseById(x)))];
+  if(!exerciseIds.length){showToast('Nothing here to save');return null;}
+  const base=(baseName||'Saved workout').trim()||'Saved workout';
+  let name=base,n=2;
+  while(state.routines.some(r=>r.name===name))name=`${base} ${n++}`; // two identical names in the list help nobody
+  const routine={id:`r${Date.now()}`,name,exerciseIds};
+  state.routines.unshift(routine);
+  saveState();renderTrain();renderToday();showToast(`Saved as routine · ${name}`);
+  return routine;
+}
 function saveHistoryAsRoutine(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;
-  const exerciseIds=[...new Set((session.exercises||[]).map(ex=>ex.exerciseId).filter(x=>exerciseById(x)))];
-  if(!exerciseIds.length)return showToast('Nothing in this workout to save');
-  let name=session.name||'Saved workout',n=2;
-  while(state.routines.some(r=>r.name===name))name=`${session.name} ${n++}`; // two identical names in the list help nobody
-  state.routines.unshift({id:`r${Date.now()}`,name,exerciseIds});
-  saveState();closeSheet();renderTrain();renderToday();showToast(`Saved as routine · ${name}`);
+  if(saveIdsAsRoutine((session.exercises||[]).map(ex=>ex.exerciseId),session.name))closeSheet();
+}
+// Save the workout RUNNING RIGHT NOW. Previously a session could only become a routine after it was
+// finished and filed in history, which is the wrong moment: the ordering you want to keep is the one
+// you just built on the gym floor (Mark, 2026-07-28).
+function saveActiveAsRoutine(){
+  const session=state.activeSession;if(!session)return;
+  const routine=saveIdsAsRoutine(session.exercises.map(ex=>ex.exerciseId),session.name);
+  if(!routine)return;
+  // Stamping routineId makes this session count toward "Done this week" for the routine it just became.
+  if(!session.routineId){session.routineId=routine.id;saveState();}
 }
 function deleteHistory(id){
   state.history=state.history.filter(s=>s.id!==id);
