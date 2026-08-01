@@ -225,6 +225,35 @@ try {
     await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
   }
 
+  // 4c) Mid-workout list with the reorder grip. The grip eats 44px off the head row, so the narrowest
+  // width is the one that would push a long exercise name past the edge.
+  for (const w of [320, 390]) {
+    await setWidth(w);
+    await evaluate(`(()=>{if(state.activeSession){state.activeSession=null;saveState();} navigate('today'); startQuickWorkout();
+      addExerciseToWorkout('ch1'); addExerciseToWorkout('ch2'); addExerciseToWorkout('ch3');})(); true`);
+    await waitFor(`document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
+    await evaluate(PAGE_HELPERS);
+    await auditActive(`workout-grips@${w}`);
+    const grips = await evaluate(`(()=>{
+      const out=[];
+      for(const g of document.querySelectorAll('.exercise-grip')){
+        const r=g.getBoundingClientRect(), head=g.closest('.exercise-head').getBoundingClientRect();
+        const title=g.closest('.exercise-head').querySelector('.exercise-title').getBoundingClientRect();
+        out.push({w:Math.round(r.width),h:Math.round(r.height),touch:getComputedStyle(g).touchAction,
+          inside:r.left>=head.left-1&&r.right<=head.right+1, clear:Math.round(title.left-r.right)});
+      }
+      return out;
+    })()`);
+    assert.equal(grips.length, 3, `workout-grips@${w}: every exercise card needs a grip`);
+    for (const g of grips) {
+      assert.ok(g.w >= 44 && g.h >= 44, `workout-grips@${w}: grip must be a 44px touch target, got ${g.w}x${g.h}`);
+      assert.equal(g.touch, 'none', `workout-grips@${w}: touch-action:none must be scoped to the grip`);
+      assert.ok(g.inside, `workout-grips@${w}: grip escapes its card header`);
+      assert.ok(g.clear >= 0, `workout-grips@${w}: grip overlaps the exercise title by ${-g.clear}px`);
+    }
+    await evaluate(`if(state.activeSession){state.activeSession=null;saveState();navigate('today');} true`);
+  }
+
   // 5) Finish-workout confirm dialog + session receipt.
   for (const w of [360, 390]) {
     await setWidth(w);
@@ -287,7 +316,7 @@ try {
   assert.deepEqual(radii.bad, [], `radius off the concentric scale {0,4,10,14,18}: ${radii.bad.join(' | ')}`);
   assert.deepEqual(radii.loose, [], `child corner looser than its parent (breaks concentricity): ${radii.loose.join(' | ')}`);
 
-  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok radii∈{0,8,12,16,20} concentric=ok');
+  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok grips=ok radii∈{0,8,12,16,20} concentric=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

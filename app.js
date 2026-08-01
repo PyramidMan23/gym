@@ -132,14 +132,13 @@ function animateNumbers(scope){
 }
 
 // Material-only scroll response (council 2026-07-20): chrome deepens, geometry never moves.
-// Optional nav-condense flag (the council's disputed scroll-shrink, opt-in): height compresses,
-// buttons keep their horizontal geometry, labels tuck away.
+// Nav condenses on scroll for EVERYONE (Mark, 2026-08-01): height compresses, buttons keep
+// their horizontal geometry, labels tuck away. Was an opt-in preference; the stale
+// preferences.navCondense key is simply never read again.
 addEventListener('scroll',()=>document.body.classList.toggle('scrolled',scrollY>10),{passive:true});
-function toggleNavCondense(on){state.preferences.navCondense=!!on;saveState();document.body.classList.toggle('nav-condense',!!on);}
 function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
 // Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
 function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}
-try{if(state.preferences.navCondense===true)document.body.classList.add('nav-condense');}catch{}
 function navigate(view){
   // No confirm() gate (Mark, 2026-07-28): the browser-chrome "thesolvagroup.com says" dialog on
   // every mid-workout tab switch was the most webpage-looking moment in the app. Tabs just swap -
@@ -961,7 +960,10 @@ function addBookend(){
   const session=state.activeSession;if(!session)return;
   const {phase,picks}=bookendFor(session);
   if(!picks.length)return;
-  for(const id of picks)session.exercises.push({exerciseId:id,notes:'',sets:[{weight:'',reps:'',done:false}]});
+  const rows=picks.map(id=>({exerciseId:id,notes:'',sets:[{weight:'',reps:'',done:false}]}));
+  // Warm-ups belong BEFORE the work (Mark, 2026-08-01); cool-downs still append.
+  if(phase==='warmup'){session.exercises.unshift(...rows);if(restExerciseIndex>=0)restExerciseIndex+=rows.length;}
+  else session.exercises.push(...rows);
   saveState();renderWorkout();
   showToast(`${picks.length} ${phase==='warmup'?'warm-up':'cool-down'} drill${picks.length===1?'':'s'} added`);
 }
@@ -1057,7 +1059,7 @@ function workoutExerciseMarkup(exercise,index){
   const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
   const rirDone=workingPlanned.length>0&&workingPlanned.every(s=>s.done);
   const rirRow=rirRowMarkup(exercise,index,rirDone);
-  return `<article class="workout-exercise" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
+  return `<article class="workout-exercise" data-index="${index}" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false">${GRIP_ICON}</button><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
 }
 // RIR (reps-in-reserve) capture on the finished exercise. One tap → stored on the session exercise,
 // chips collapse to a small confirmed note. 'skip' is an honest non-answer (keeps progression conservative).
@@ -1520,16 +1522,119 @@ function removeWorkoutExercise(index){
   else if(restExerciseIndex>index)restExerciseIndex--;
   saveState();closeSheet();renderWorkout();
 }
-// Reorder: swap with the neighbour. supersetWithNext travels with its exercise, so a moved pair-first
-// simply pairs with its new neighbour - visible immediately, one more tap fixes it if unwanted.
+// Reorder commit. supersetWithNext travels with its exercise, so a moved pair-first simply pairs with
+// its new neighbour - visible immediately, one more tap fixes it if unwanted. Core.moveExercise also
+// re-anchors the running rest timer, which is held by INDEX and would otherwise point at a new row.
+function commitReorder(from,to){
+  const session=state.activeSession;if(!session||from===to)return false;
+  const moved=Core.moveExercise(session.exercises,from,to,restExerciseIndex);
+  session.exercises=moved.list;restExerciseIndex=moved.tracked;
+  saveState();renderWorkout();return true;
+}
+// The ••• menu keeps the adjacent move: it is the keyboard, assistive-tech and no-pointer route.
 function moveWorkoutExercise(index,delta){
   const exs=state.activeSession?.exercises;if(!exs)return;
   const j=index+delta;if(j<0||j>=exs.length)return;
-  [exs[index],exs[j]]=[exs[j],exs[index]];
-  // Follow the moved exercise so a rest timer started before the move still lands on it.
-  if(restExerciseIndex===index)restExerciseIndex=j;
-  else if(restExerciseIndex===j)restExerciseIndex=index;
-  saveState();closeSheet();renderWorkout();
+  closeSheet();commitReorder(index,j);
+}
+
+// ---- Drag to reorder (2026-08-01). The card body keeps its taps and the page keeps its scroll
+// because the ONLY drag surface is the grip: touch-action:none lives on that button and nowhere else.
+const GRIP_ICON='<svg viewBox="0 0 10 16" aria-hidden="true"><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/><circle cx="8" cy="14" r="1.5"/></svg>';
+const DRAG_EDGE=72,DRAG_SPEED=14,DRAG_SLOP=4; // autoscroll band px / max px per frame / px before a press counts as a drag
+let drag=null;
+function gripDown(event,index){
+  if(drag||event.button>0||!state.activeSession)return;
+  const handle=event.currentTarget,card=handle.closest('.workout-exercise');if(!card)return;
+  drag={index,to:index,handle,card,id:event.pointerId,startY:event.clientY+scrollY,lastY:event.clientY,lifted:false,frame:0,
+    // Listeners on document, not the handle: pointer capture retargets to the handle and they still
+    // bubble here, so the gesture survives even where setPointerCapture is refused.
+    off:[[document,'pointermove',gripMove],[document,'pointerup',gripUp],[document,'pointercancel',gripCancel],[document,'keydown',gripKey],[document,'visibilitychange',gripHide]]};
+  try{handle.setPointerCapture(event.pointerId);}catch{}
+  drag.off.forEach(([el,type,fn])=>el.addEventListener(type,fn));
+}
+function gripMove(event){
+  if(!drag||event.pointerId!==drag.id)return;
+  drag.lastY=event.clientY;
+  if(!drag.lifted&&Math.abs(event.clientY+scrollY-drag.startY)>DRAG_SLOP)liftDrag();
+}
+// Geometry is measured ONCE, at lift: every frame after that is transform-only, so the drag never
+// re-lays-out and never re-renders. ponytail: a re-render mid-drag (nothing triggers one today
+// without a tap) would leave the cached rects stale - if one ever does, cancel the drag on render.
+function liftDrag(){
+  const cards=[...document.querySelectorAll('#workoutExercises .workout-exercise')];
+  if(cards.length<2||cards[drag.index]!==drag.card)return endDrag(false);
+  drag.units=cards.map(card=>{const rect=card.getBoundingClientRect(),next=card.nextElementSibling;
+    return {els:next&&next.classList.contains('ss-link')?[card,next]:[card],top:rect.top+scrollY,h:rect.height};});
+  const n=drag.units.length,tail=drag.units[n-1].top-(drag.units[n-2].top+drag.units[n-2].h);
+  // Span = the room an exercise occupies including its grid gap and superset link, so displaced
+  // siblings shift by EXACTLY the hole the lifted card leaves, whatever the card heights are.
+  drag.units.forEach((unit,i)=>{unit.span=i<n-1?drag.units[i+1].top-unit.top:unit.h+tail;});
+  drag.lifted=true;
+  document.body.classList.add('reordering');
+  drag.card.classList.add('drag-lift');
+  if(!REDUCED_MOTION)drag.units.forEach((unit,i)=>{if(i!==drag.index)unit.els.forEach(el=>el.style.transition='transform .18s var(--ease)');});
+  buzz(15);
+  drag.frame=requestAnimationFrame(dragTick);
+}
+function dragTick(){
+  if(!drag||!drag.lifted)return;
+  const nav=document.querySelector('.bottom-nav'),head=document.querySelector('.workout-header');
+  const top=head?Math.max(0,head.getBoundingClientRect().bottom):0;
+  const bottom=innerHeight-(nav?nav.getBoundingClientRect().height:0); // hidden nav measures 0, so the band follows what is actually visible
+  const y=drag.lastY;
+  let speed=0;
+  if(y<top+DRAG_EDGE)speed=-DRAG_SPEED*Math.min(1,(top+DRAG_EDGE-y)/DRAG_EDGE);
+  else if(y>bottom-DRAG_EDGE)speed=DRAG_SPEED*Math.min(1,(y-(bottom-DRAG_EDGE))/DRAG_EDGE);
+  if(speed)scrollBy({top:speed,behavior:'instant'}); // html{scroll-behavior:smooth} would queue an animation per frame and fight the drag
+  // Document-space maths: the offset survives autoscroll, so the card stays under the finger.
+  const from=drag.index,units=drag.units,delta=y+scrollY-drag.startY;
+  const centre=units[from].top+delta+units[from].h/2;
+  let to=0;
+  units.forEach((unit,j)=>{if(j!==from&&unit.top-(j>from?units[from].span:0)+unit.h/2<centre)to++;});
+  if(to!==drag.to){drag.to=to;buzz(8);slotDrag();}
+  drag.card.style.transform=`translateY(${delta}px) scale(1.02)`;
+  drag.frame=requestAnimationFrame(dragTick);
+}
+function slotDrag(){
+  const from=drag.index,to=drag.to,span=drag.units[from].span;
+  drag.units.forEach((unit,j)=>{if(j===from)return;
+    const shift=(from<j&&j<=to)?-span:(to<=j&&j<from)?span:0;
+    unit.els.forEach(el=>el.style.transform=shift?`translateY(${shift}px)`:'');});
+}
+function gripUp(event){
+  if(!drag||event.pointerId!==drag.id)return;
+  if(!drag.lifted)return endDrag(false); // a real tap: let the click through to the move options
+  const from=drag.index,to=drag.to,units=drag.units;
+  cancelAnimationFrame(drag.frame);drag.frame=0;
+  const rest=to>from?units[to].top+units[to].span-units[from].span:units[to].top;
+  // The gesture's own ghost click must not fall through onto whatever now sits under the finger.
+  document.addEventListener('click',swallowClick,true);setTimeout(()=>document.removeEventListener('click',swallowClick,true),0);
+  if(REDUCED_MOTION)return endDrag(true);
+  drag.card.classList.add('drag-settle');
+  drag.card.style.transform=`translateY(${rest-units[from].top}px) scale(1)`;
+  drag.settle=setTimeout(()=>endDrag(true),220);
+}
+function swallowClick(event){event.stopPropagation();event.preventDefault();document.removeEventListener('click',swallowClick,true);}
+function gripCancel(event){if(drag&&event.pointerId===drag.id)endDrag(false);}
+function gripKey(event){if(event.key==='Escape')endDrag(false);}
+function gripHide(){if(document.hidden)endDrag(false);}
+// One exit for every path (drop, pointercancel, Escape, tab hidden): styles are always stripped
+// before anything else, so no cancel can leave a zombie transform behind.
+function endDrag(commit){
+  if(!drag)return;
+  const d=drag;drag=null;
+  if(d.frame)cancelAnimationFrame(d.frame);
+  clearTimeout(d.settle);
+  d.off.forEach(([el,type,fn])=>el.removeEventListener(type,fn));
+  try{d.handle.releasePointerCapture(d.id);}catch{}
+  document.body.classList.remove('reordering');
+  d.card.classList.remove('drag-lift','drag-settle');
+  d.card.style.transform='';d.card.style.transition='';
+  (d.units||[]).forEach(unit=>unit.els.forEach(el=>{el.style.transform='';el.style.transition='';}));
+  if(!commit)return;
+  buzz(15);
+  commitReorder(d.index,d.to);
 }
 
 function openCustomExercise(){
@@ -1620,7 +1725,7 @@ function saveRingGoals(){
 function openSettings(){
   // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
   if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Nav condenses on scroll</strong><small>The bottom bar shrinks as you scroll down - buttons never move sideways.</small></span><input type="checkbox" ${state.preferences.navCondense===true?'checked':''} onchange="toggleNavCondense(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.

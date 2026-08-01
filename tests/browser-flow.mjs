@@ -115,6 +115,92 @@ try {
   await waitFor(`!document.getElementById('sheet').open && typeof stateKey === 'string' && !!stateKey`);
   await capture('today', 320, 800);
   await capture('today', 390, 844);
+
+  // ---- Drag to reorder (2026-08-01). Runs BEFORE the reduced-motion override so the animated path
+  // (FLIP gap + settle) is the one under test. A trusted CDP mouse drag on the grip: element.click()
+  // and synthetic events would both miss the pointer-capture + autoscroll machinery entirely.
+  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();
+    addExerciseToWorkout('ch1');addExerciseToWorkout('ch2');addExerciseToWorkout('ch3');})();true`);
+  await waitFor(`document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
+  assert.deepEqual(await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId)`), ['ch1', 'ch2', 'ch3']);
+  // Index mapping must come from the stamped attribute: check-in and bookend cards share the container.
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('#workoutExercises .workout-exercise')].map(c=>c.dataset.index)`), ['0', '1', '2']);
+  // html{scroll-behavior:smooth}: scroll first, settle, THEN measure, or every coordinate is pre-scroll.
+  await evaluate(`document.querySelector('#workoutExercises .workout-exercise[data-index="2"]').scrollIntoView({block:'center',behavior:'instant'});true`);
+  await sleep(150);
+  const grip = await evaluate(`(()=>{
+    const card=document.querySelector('#workoutExercises .workout-exercise[data-index="2"]');
+    const g=card.querySelector('.exercise-grip').getBoundingClientRect();
+    const head=document.querySelector('.workout-header').getBoundingClientRect();
+    return {x:Math.round(g.left+g.width/2), y:Math.round(g.top+g.height/2), top:Math.round(head.bottom)+20,
+      touch:getComputedStyle(card.querySelector('.exercise-grip')).touchAction, w:Math.round(g.width), h:Math.round(g.height)};
+  })()`);
+  assert.ok(grip.w >= 44 && grip.h >= 44, `the grip must be a 44px touch target, got ${grip.w}x${grip.h}`);
+  assert.equal(grip.touch, 'none', 'touch-action:none must be scoped to the grip');
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: grip.x, y: grip.y, button: 'left', clickCount: 1 });
+  // Steps first (the lift needs a move past the slop), then park in the top autoscroll band and hold:
+  // the rAF loop drives the page to the top, which is what puts the card in slot 0.
+  for (const y of [grip.y - 10, grip.y - 80, grip.y - 200, grip.top]) {
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: grip.x, y: Math.max(grip.top, y), button: 'left', buttons: 1 });
+    await sleep(90);
+  }
+  await sleep(1200);
+  const midDrag = await evaluate(`(()=>{const c=document.querySelector('.workout-exercise.drag-lift');
+    return {lifted:!!c, ink:document.body.classList.contains('reordering'), scroll:window.scrollY,
+      shifted:[...document.querySelectorAll('#workoutExercises .workout-exercise')].filter(e=>e.style.transform.includes('translateY(')).length};})()`);
+  assert.equal(midDrag.lifted, true, 'the dragged card must be lifted mid-gesture');
+  assert.equal(midDrag.ink, true, 'the body must be in the reordering state mid-gesture');
+  assert.equal(midDrag.scroll, 0, `autoscroll must have driven the page to the top, still at ${midDrag.scroll}`);
+  assert.equal(midDrag.shifted, 3, 'the lifted card plus both displaced siblings must all be transformed');
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: grip.x, y: grip.top, button: 'left', clickCount: 1 });
+  await waitFor(`JSON.parse(localStorage.getItem(stateKey)).activeSession.exercises.map(e=>e.exerciseId).join() === 'ch3,ch1,ch2'`);
+  const dropped = await evaluate(`({
+    order:state.activeSession.exercises.map(e=>e.exerciseId),
+    sheetOpen:document.getElementById('sheet').open,
+    stray:[...document.querySelectorAll('#workoutExercises *')].filter(e=>e.style.transform||e.style.transition).map(e=>e.className),
+    classes:document.querySelectorAll('.drag-lift,.drag-settle').length,
+    body:document.body.classList.contains('reordering')
+  })`);
+  assert.deepEqual(dropped.order, ['ch3', 'ch1', 'ch2'], 'a drag must MOVE the exercise, not swap it');
+  assert.equal(dropped.sheetOpen, false, 'the drop must not leak a ghost click into the grip menu');
+  assert.deepEqual(dropped.stray, [], `no zombie inline transforms may survive the drop: ${JSON.stringify(dropped.stray)}`);
+  assert.equal(dropped.classes, 0, 'no drag classes may survive the drop');
+  assert.equal(dropped.body, false, 'the reordering state must be cleared after the drop');
+  // A plain tap on the grip is the no-pointer fallback: it must still open the move options.
+  await realClick('#workoutExercises .workout-exercise[data-index="0"] .exercise-grip');
+  await waitFor(`document.getElementById('sheet').open`);
+  await evaluate(`closeSheet();true`);
+  // Cancel paths leave the state alone and the DOM clean.
+  for (const [name, cancel] of [
+    ['Escape', `document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`],
+    ['hidden tab', `Object.defineProperty(document,'hidden',{value:true,configurable:true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden`]
+  ]) {
+    const cancelled = await evaluate(`(()=>{
+      const card=document.querySelector('#workoutExercises .workout-exercise[data-index="0"]');
+      const g=card.querySelector('.exercise-grip');
+      g.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:7,clientY:100,button:0}));
+      document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:7,clientY:400,button:0}));
+      const lifted=!!document.querySelector('.workout-exercise.drag-lift');
+      ${cancel};
+      return {lifted, order:state.activeSession.exercises.map(e=>e.exerciseId),
+        stray:[...document.querySelectorAll('#workoutExercises *')].filter(e=>e.style.transform||e.style.transition).length,
+        classes:document.querySelectorAll('.drag-lift,.drag-settle').length,
+        body:document.body.classList.contains('reordering')};
+    })()`);
+    assert.equal(cancelled.lifted, true, `${name}: the drag must have been live before cancelling`);
+    assert.deepEqual(cancelled.order, ['ch3', 'ch1', 'ch2'], `${name}: a cancelled drag must not change the order`);
+    assert.equal(cancelled.stray, 0, `${name}: a cancelled drag must leave no zombie transforms`);
+    assert.equal(cancelled.classes, 0, `${name}: a cancelled drag must leave no drag classes`);
+    assert.equal(cancelled.body, false, `${name}: a cancelled drag must clear the reordering state`);
+  }
+  await evaluate(`window.__preReload=1;setTimeout(()=>location.reload(),60);true`);
+  await waitFor(`!window.__preReload`);
+  await waitFor(`document.readyState === 'complete' && typeof startQuickWorkout === 'function'`);
+  assert.deepEqual(await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId)`), ['ch3', 'ch1', 'ch2'],
+    'the reordered list must survive a reload - the drop has to have committed through saveState');
+  await evaluate(`state.activeSession=null;saveState();navigate('today');true`);
+  await waitFor(`!document.body.classList.contains('workout-active')`);
+
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
 
@@ -262,6 +348,37 @@ try {
   assert.ok(deskAndRoutines.seedOptions > 1, 'the routine editor must offer plans/templates/logged workouts to start from');
   assert.ok(deskAndRoutines.seededCount > 0, 'picking a seed must populate the draft');
   assert.equal(deskAndRoutines.nameOpensMenu, true, 'a routine name must be its own tap target for options');
+  // Reduced motion (emulated since the top of this run): the drag still reorders, it just skips the
+  // FLIP transitions and the settle, and commits the moment the finger lifts.
+  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();
+    addExerciseToWorkout('ch1');addExerciseToWorkout('ch2');addExerciseToWorkout('ch3');})();true`);
+  await waitFor(`document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
+  // Pinned at scrollY 0 so the maths is fixed: synthetic pointer events need no hit-test, and with
+  // nothing left to scroll the autoscroll cannot move the target under us.
+  await evaluate(`(()=>{
+    window.scrollTo(0,0);
+    const cards=[...document.querySelectorAll('#workoutExercises .workout-exercise')];
+    const g=cards[2].querySelector('.exercise-grip'),r=g.getBoundingClientRect();
+    g.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:9,button:0,clientY:Math.round(r.top+r.height/2)}));
+    document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:9,button:0,
+      clientY:Math.round(cards[0].getBoundingClientRect().top)-20}));
+  })();true`);
+  await sleep(400); // let the rAF loop pick a slot and run the autoscroll
+  const reducedDrag = await evaluate(`(()=>{
+    const lifted=!!document.querySelector('.workout-exercise.drag-lift');
+    const flip=[...document.querySelectorAll('#workoutExercises .workout-exercise')].some(e=>e.style.transition);
+    document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:9,button:0,clientY:0}));
+    return {lifted,flip,order:state.activeSession.exercises.map(e=>e.exerciseId),
+      settling:document.querySelectorAll('.drag-settle').length,
+      stray:[...document.querySelectorAll('#workoutExercises *')].filter(e=>e.style.transform||e.style.transition).length};
+  })()`);
+  assert.equal(reducedDrag.lifted, true, 'reduced motion must still lift the card');
+  assert.equal(reducedDrag.flip, false, 'reduced motion must move the gap instantly, with no FLIP transition');
+  assert.deepEqual(reducedDrag.order, ['ch3', 'ch1', 'ch2'], 'reduced motion must commit the same MOVE on pointerup');
+  assert.equal(reducedDrag.settling, 0, 'reduced motion must skip the settle animation entirely');
+  assert.equal(reducedDrag.stray, 0, 'reduced motion drop must leave no zombie transforms');
+  await evaluate(`state.activeSession=null;saveState();navigate('today');true`);
+
   const invalidImport = await evaluate(`(async()=>{
     const malformed=new File([JSON.stringify({version:2,routines:[],history:[],customExercises:[],activeSession:'bad',preferences:{}})],'bad-duck-gym.json',{type:'application/json'});
     await importBackup(malformed);
@@ -318,7 +435,7 @@ try {
   }))()`);
   assert.deepEqual(unlocked, { saveWorks: true, removedWithoutPin: false, removedWithPin: true });
 
-  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'offline=ok', 'pin-gate=ok');
+  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

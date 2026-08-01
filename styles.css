@@ -482,12 +482,12 @@ button.mv-row:active{transform:scale(.985)}
 .mv-spark{height:128px;padding:14px 10px 10px}
 /* Plate math line under the pad numeral. */
 .pad-plates{margin:-8px 0 14px;text-align:center;color:var(--teal);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums;min-height:18px}
-/* Opt-in nav condense: height compresses on scroll, labels tuck, buttons never move sideways. */
-body.nav-condense .bottom-nav{transition:height .32s var(--ease),box-shadow .25s var(--ease)}
-body.nav-condense .bottom-nav button small{transition:opacity .2s var(--ease),transform .2s var(--ease)}
-body.nav-condense.scrolled .bottom-nav{height:54px}
-body.nav-condense.scrolled .bottom-nav button small{opacity:0;transform:translateY(8px);position:absolute;pointer-events:none}
-body.nav-condense.scrolled .nav-cursor{height:calc(54px - 16px)}
+/* Nav condense, always on (Mark 2026-08-01): height compresses on scroll, labels tuck, buttons never move sideways. */
+.bottom-nav{transition:height .32s var(--ease),box-shadow .25s var(--ease)}
+.bottom-nav button small{transition:opacity .2s var(--ease),transform .2s var(--ease)}
+body.scrolled .bottom-nav{height:54px}
+body.scrolled .bottom-nav button small{opacity:0;transform:translateY(8px);position:absolute;pointer-events:none}
+body.scrolled .nav-cursor{height:calc(54px - 16px)}
 /* Soul: a slow light sheen across the Train hero (killed by the global reduced-motion rule). */
 .train-hero::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.22) 46%,transparent 60%);background-size:260% 100%;background-position:180% 0;animation:sheen 7s var(--ease) 1.2s infinite}
 @keyframes sheen{0%,55%{background-position:180% 0}100%{background-position:-80% 0}}
@@ -953,3 +953,15 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .rc-text small{display:block;margin-top:1px;color:var(--taupe);font-size:11.5px;font-variant-numeric:tabular-nums lining-nums}
 .return-chip b{flex:none;color:var(--taupe);font-size:19px;font-weight:700;line-height:1}
 @keyframes rc-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* Drag to reorder (2026-08-01). The grip is the ONLY drag surface: touch-action:none is scoped to it
+   so the card body keeps its taps and the page keeps its scroll. Neutral ink, never a hue signal. */
+.exercise-head{gap:4px}
+.exercise-head>div{flex:1;min-width:0}
+.exercise-grip{flex:none;width:44px;height:44px;margin:-6px 0 0 -10px;display:grid;place-content:center;
+  border:0;border-radius:var(--r1);background:transparent;color:var(--taupe);touch-action:none}
+.exercise-grip svg{width:10px;height:16px;display:block;fill:currentColor}
+body.reordering{-webkit-user-select:none;user-select:none}
+.workout-exercise.drag-lift{z-index:30;transition:none;box-shadow:var(--glass-edge),0 22px 44px -14px rgba(0,0,0,.55)}
+/* Slight overshoot on the settle: --ease has no bounce, and a dead-stop drop reads as a glitch. */
+.workout-exercise.drag-settle{transition:transform .22s cubic-bezier(.2,1.12,.34,1)}

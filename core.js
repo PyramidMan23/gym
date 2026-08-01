@@ -888,6 +888,22 @@
     return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
   }
 
-  return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight,
+  // Reorder = splice MOVE, never a swap: dragging exercise 1 to the end must leave 2,3,4 in their own
+  // order, which a swap does not. `tracked` is one index held against the OLD array (the running rest
+  // timer is anchored by exercise INDEX, so it has to follow its exercise across the move). Pure so
+  // the remap is testable without a DOM: a wrong remap points rest-end progression at the wrong row.
+  function moveExercise(list, from, to, tracked = -1) {
+    const out = (list || []).slice();
+    const ok = Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= 0 && from < out.length && to < out.length;
+    if (!ok || from === to) return { list: out, tracked };
+    out.splice(to, 0, out.splice(from, 1)[0]);
+    const next = tracked === from ? to
+      : (from < tracked && tracked <= to) ? tracked - 1
+        : (to <= tracked && tracked < from) ? tracked + 1
+          : tracked;
+    return { list: out, tracked: next };
+  }
+
+  return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });
