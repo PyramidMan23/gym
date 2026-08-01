@@ -14,7 +14,7 @@
   --r0:0;--r1:4px;--r2:10px;--radius:10px;--radius-sm:4px;--ease:cubic-bezier(.16,1,.3,1);
   --glass-blur:blur(30px) saturate(1.6);
   --bloom-amber:224,110,31;--bloom-teal:11,110,119;--bloom-op:.10;
-  --nav-height:74px;
+  --nav-height:56px;/* permanently compact (Mark 2026-08-02): the bar never grows, labels never show */
 }
 @media(prefers-color-scheme:dark){:root{
   --page:#0D0E10;--ink-1:#121316;--ink-2:#1A1D21;
@@ -180,7 +180,7 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
   .sheet,.confirm-dialog,.toast{background:var(--glass-solid)}
 }
 @media(min-width:650px){.app-shell{padding-left:28px;padding-right:28px}.template-grid{grid-template-columns:repeat(3,1fr)}.sheet{left:50%;transform:translateX(-50%);border-radius:10px 10px 0 0}.sheet[open]{animation:none}.metric-grid{gap:12px}}
-@media(max-width:390px){.page-lead h1{font-size:31px}.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:36px 1fr 1fr 48px;padding-left:7px;padding-right:7px}.arc-value strong{font-size:19px}}
+@media(max-width:390px){.page-lead h1{font-size:31px}.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}#workoutList{grid-template-columns:1fr 1fr;gap:10px}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:36px 1fr 1fr 48px;padding-left:7px;padding-right:7px}.arc-value strong{font-size:19px}}
 /* ---- Exercise catalogue picker (council 2026-07-19): Quick Picks + one muscle row + Filters control + stable list ---- */
 .quick-picks:not(:empty){margin:6px 0 4px}
 .quick-kicker{margin:0 2px 8px;color:var(--amber-deep)}
@@ -295,7 +295,7 @@ button:disabled,button[disabled]{opacity:.38;cursor:default;box-shadow:none;filt
 /* Bars scale to 72% max so the count label + day label never force flex-shrink distortion (Codex verify 2026-07-20). */
 /* Nav: floating pill, glowing sculpted indicator, geometry fixed. */
 .bottom-nav{border-radius:var(--nav-radius);padding:8px;box-shadow:var(--glass-edge),var(--shadow),0 -1px 0 rgba(255,255,255,.04)}
-.nav-cursor{top:8px;left:8px;height:calc(var(--nav-height) - 16px);width:calc((100% - 16px)/4);border-radius:calc(var(--nav-radius) - 8px);background:linear-gradient(180deg,rgba(var(--bloom-amber),.28),rgba(var(--bloom-amber),.14));box-shadow:0 0 14px rgba(var(--bloom-amber),.35),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .38s cubic-bezier(.3,1.4,.4,1)}
+.nav-cursor{top:8px;left:8px;height:calc(var(--nav-height) - 16px);width:calc((100% - 16px)/4);border-radius:calc(var(--nav-radius) - 8px);background:linear-gradient(180deg,rgba(var(--bloom-amber),.28),rgba(var(--bloom-amber),.14));box-shadow:0 0 14px rgba(var(--bloom-amber),.35),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .3s cubic-bezier(.3,1.18,.4,1)}
 .bottom-nav button{transition:color .2s var(--ease)}
 .bottom-nav button svg{transition:transform .3s cubic-bezier(.3,1.6,.4,1)}
 .bottom-nav button.active svg{transform:translateY(-1px) scale(1.12)}
@@ -305,9 +305,8 @@ button:disabled,button[disabled]{opacity:.38;cursor:default;box-shadow:none;filt
 .app-header{transition:box-shadow .25s var(--ease),border-color .25s var(--ease)}
 body.scrolled .app-header{border-bottom-color:var(--hair-bright);box-shadow:var(--glass-edge),0 8px 24px -12px rgba(0,0,0,.18)}
 body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px var(--hair)}
-/* Pane cross-fade: the view itself breathes in; child stagger kept. */
-.view.active{animation:viewIn .3s var(--ease)}
-@keyframes viewIn{from{opacity:0;transform:translateY(4px) scale(.995)}to{opacity:1;transform:none}}
+/* View entrance lives in ONE place: the tab-swap rule near the end of this file. Two competing
+   grammars (this crossfade-scale + the directional slide) is exactly what read as unclean. */
 /* Rings: gradient-lit arcs with an ambient glow per channel. */
 .arc-fill{stroke-width:10}
 .arc-track{stroke-width:10}
@@ -482,12 +481,11 @@ button.mv-row:active{transform:scale(.985)}
 .mv-spark{height:128px;padding:14px 10px 10px}
 /* Plate math line under the pad numeral. */
 .pad-plates{margin:-8px 0 14px;text-align:center;color:var(--teal);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums lining-nums;min-height:18px}
-/* Nav condense, always on (Mark 2026-08-01): height compresses on scroll, labels tuck, buttons never move sideways. */
-.bottom-nav{transition:height .32s var(--ease),box-shadow .25s var(--ease)}
-.bottom-nav button small{transition:opacity .2s var(--ease),transform .2s var(--ease)}
-body.scrolled .bottom-nav{height:54px}
-body.scrolled .bottom-nav button small{opacity:0;transform:translateY(8px);position:absolute;pointer-events:none}
-body.scrolled .nav-cursor{height:calc(54px - 16px)}
+/* Nav is compact ALWAYS (Mark 2026-08-02): 56px icon bar, stable geometry, nothing to transition.
+   Labels stay in the DOM for screen readers but never paint. */
+.bottom-nav{transition:box-shadow .25s var(--ease)}
+.bottom-nav button small{opacity:0;transform:translateY(8px);position:absolute;pointer-events:none}
+.bottom-nav button svg{width:24px;height:24px}
 /* Soul: a slow light sheen across the Train hero (killed by the global reduced-motion rule). */
 .train-hero::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.22) 46%,transparent 60%);background-size:260% 100%;background-position:180% 0;animation:sheen 7s var(--ease) 1.2s infinite}
 @keyframes sheen{0%,55%{background-position:180% 0}100%{background-position:-80% 0}}
@@ -913,14 +911,13 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .bottom-nav button.active svg{filter:drop-shadow(0 0 5px rgba(255,138,61,.45))}
 .bottom-nav button{transition:color .2s var(--ease),transform .12s var(--ease)}
 .bottom-nav button:active{transform:scale(.97)}
-/* Incoming-view slide: 150ms fade + 6px directional travel. Runs on the class toggle alone, so a
-   rapid tab-tap simply starts the next animation - there is no completion handler to go stale. */
+/* THE tab-swap grammar (Mark 2026-08-02): one incoming settle - fade + 8px rise on a standard
+   decel curve, no direction, no scale. Runs on the class toggle alone, so a rapid tab-tap simply
+   restarts it - no completion handler to go stale. The nav cursor's spring carries the character. */
 @media (prefers-reduced-motion: no-preference){
-  body[data-nav-dir="fwd"] .view.active{animation:view-in-fwd .15s ease-out}
-  body[data-nav-dir="back"] .view.active{animation:view-in-back .15s ease-out}
+  .view.active{animation:view-in .2s cubic-bezier(.2,0,0,1)}
 }
-@keyframes view-in-fwd{from{opacity:.25;transform:translateX(6px)}to{opacity:1;transform:none}}
-@keyframes view-in-back{from{opacity:.25;transform:translateX(-6px)}to{opacity:1;transform:none}}
+@keyframes view-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* Starter rows (council 2026-07-28): a module with no evidence keeps its address but compresses to
    one quiet line - it stops impersonating valuable content before any exists. Actionable ones are
@@ -969,10 +966,17 @@ body.reordering{-webkit-user-select:none;user-select:none}
 /* ---- Curated workouts (council 2026-08-01) ----
    Card = one surface, two targets: the body opens the detail sheet, the amber pill starts it in one
    tap. Amber is effort (Start); the goal tag, blurb and meta line stay neutral structure. */
-.workout-card{display:flex;flex-direction:column;justify-content:space-between;padding:0;overflow:hidden}
-.workout-open{flex:1;text-align:left;color:inherit;background:transparent;border:0;padding:18px 18px 8px}
-.workout-meta{margin-top:9px;color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
-.workout-start{margin:0 18px 16px;min-height:44px;border:0;border-radius:var(--r1);background:var(--amber);color:var(--on-amber);font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase}
+/* Compact workout cards (Mark 2026-08-02): goal + name + meta only, Start as a 44px corner glyph.
+   Two columns even on small phones - the whole point is less scrolling. */
+.workout-card{position:relative;display:block;min-height:0;padding:0;overflow:hidden}
+.workout-open{width:100%;text-align:left;color:inherit;background:transparent;border:0;padding:13px 50px 12px 14px}
+.workout-card .workout-start{position:absolute;top:6px;right:6px;width:44px;height:44px;margin:0;display:grid;place-items:center;border:0;border-radius:var(--r1);background:transparent;color:var(--amber-deep)}
+.workout-card .workout-start svg{width:20px;height:20px}
+/* Plans ride a horizontal shelf: one row of swipeable posters instead of a stack of full cards. */
+#planList{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:min(76%,290px);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -18px;padding:2px 18px 6px}
+#planList::-webkit-scrollbar{display:none}
+#planList .plan-card{scroll-snap-align:start;min-height:118px}
+.workout-meta{margin-top:7px;color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
 .workout-mins{margin:6px 0 10px;color:var(--taupe);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
 /* Quiet, permanent, never a warning: structure copy, not a disclaimer banner. */
 .workout-disclaimer{margin:14px 0 0;color:var(--taupe);font-size:11px;line-height:1.5}

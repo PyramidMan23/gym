@@ -159,14 +159,10 @@ function navigate(view){
     document.body.classList.toggle('workout-active',view==='workout');
     renderView(view);
   };
-  // Nav motion (council 2026-07-28): View Transitions are GONE from tab swaps - snapshotting a
-  // chart-heavy page for a cross-fade is the jank risk, per Codex. Instead the INCOMING view runs a
-  // pure-CSS 150ms fade+6px directional slide (data-nav-dir below): no snapshots, no JS animation
-  // handlers, so a rapid tab-tap can never fire a stale completion callback - the bug class is
-  // removed by construction, not guarded against. Reduced-motion zeroes it in CSS.
+  // Nav motion: ONE incoming settle, pure CSS on the class toggle (view-in in styles.css) - no
+  // snapshots, no JS animation handlers, so a rapid tab-tap can never fire a stale callback.
+  // The old directional fwd/back slide is gone (Mark 2026-08-02: two grammars read as unclean).
   const ORDER={today:0,train:1,library:2,progress:3};
-  const from=ORDER[Object.keys(ORDER).find(k=>document.querySelector(`#view-${k}.active`)?.id===`view-${k}`)]??0;
-  if(ORDER[view]!==undefined)document.body.dataset.navDir=ORDER[view]>=from?'fwd':'back';
   swap();
   if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
   renderReturnChip();
@@ -428,7 +424,9 @@ function renderWorkouts(){
   const chips=document.getElementById('workoutGoals');
   if(chips)chips.innerHTML=WORKOUT_GOALS.map(g=>`<button class="filter-chip ${workoutGoalFilter===g?'active':''}" onclick="setWorkoutGoal('${esc(g)}')" aria-pressed="${workoutGoalFilter===g}">${esc(g)}</button>`).join('');
   const shown=workouts.filter(w=>workoutGoalFilter==='ALL'||w.goal===workoutGoalFilter);
-  document.getElementById('workoutList').innerHTML=shown.map(w=>`<article class="template-card workout-card"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><span>${esc(w.goal)}</span><strong>${esc(w.name)}</strong><small>${esc(w.blurb)}</small><small class="workout-meta">${w.mins} min · ${w.exercises.length} exercises</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now">Start</button></article>`).join('');
+  // Compact cards (Mark 2026-08-02: Train was one long scroll): blurb lives in the detail sheet,
+  // the card carries only goal + name + meta, and Start is a corner glyph, not a full-width bar.
+  document.getElementById('workoutList').innerHTML=shown.map(w=>`<article class="template-card workout-card"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><span>${esc(w.goal)}</span><strong>${esc(w.name)}</strong><small class="workout-meta">${w.mins} min · ${w.exercises.length} exercises</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join('');
 }
 function setWorkoutGoal(goal){workoutGoalFilter=goal;renderWorkouts();}
 function openWorkoutDetail(id){
