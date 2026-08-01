@@ -70,8 +70,9 @@ test('createSession builds blank set rows from a scheme and stamps the plan', ()
   assert.deepEqual(session.exercises.map(e => e.targetReps), ['10-12', '3-5', '6-8', '6-10']);
   assert.deepEqual(session.exercises.map(e => e.restSeconds), [30, 180, 120, 120]);
   // Loads are NEVER invented - every row opens blank and fills from the lifter's own history.
+  // planned:true marks the row as intended work (Codex gate 2026-08-02).
   for (const exercise of session.exercises)
-    for (const set of exercise.sets) assert.deepEqual(set, { weight: '', reps: '', done: false });
+    for (const set of exercise.sets) assert.deepEqual(set, { weight: '', reps: '', done: false, planned: true });
   // Distinct objects, not a shared row.
   session.exercises[1].sets[0].weight = '80';
   assert.equal(session.exercises[1].sets[1].weight, '');
@@ -87,4 +88,21 @@ test('the exerciseIds path is unchanged: one blank set, no plan stamps', () => {
   const quick = Core.createSession({ id: null, name: 'Quick workout', exerciseIds: [] }, 3000);
   assert.deepEqual(quick.exercises, []);
   assert.equal(quick.routineId, null);
+});
+
+// Codex gate 2026-08-02: scheme rows are PLANNED work, and the choices survive their round-trips.
+test('scheme-created sets carry planned:true; exerciseIds sets do not', () => {
+  const session = Core.createSession({ id: 'w1', name: 'W', exercises: [{ id: 'ch1', sets: 3, reps: '5-8', rest: 120 }] }, 4000);
+  assert.equal(session.exercises[0].sets.length, 3);
+  assert.ok(session.exercises[0].sets.every(s => s.planned === true && s.weight === '' && !s.done));
+  const plain = Core.createSession({ id: 'r', name: 'R', exerciseIds: ['ch1'] }, 5000);
+  assert.ok(!('planned' in plain.exercises[0].sets[0]));
+});
+
+test('workoutVolume preference survives a backup round-trip; junk values are dropped', () => {
+  const base = { version: 2, routines: [], history: [], customExercises: [], activeSession: null };
+  const ok = Core.validateBackup({ ...base, preferences: { restSeconds: 90, workoutVolume: 'expanded' } }, new Set());
+  assert.equal(ok.preferences.workoutVolume, 'expanded');
+  const junk = Core.validateBackup({ ...base, preferences: { restSeconds: 90, workoutVolume: 'mega' } }, new Set());
+  assert.ok(!('workoutVolume' in junk.preferences));
 });

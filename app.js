@@ -110,8 +110,9 @@ function contextLine(){
         if(top>conf.topWeight)return `Above your last confirmed load on ${exerciseById(ex.exerciseId)?.name||'this lift'}.`;
       }
     }
-    // A pending set only counts as planned once it has data - the auto-added trailing set doesn't block "all complete".
-    const planned=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done||x.weight!==''||x.reps!=='').length,0);
+    // A pending set counts once it has data OR was born planned by a workout scheme - only the
+    // auto-added trailing set doesn't block "all complete".
+    const planned=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done||x.planned||x.weight!==''||x.reps!=='').length,0);
     const done=s.exercises.reduce((n,ex)=>n+ex.sets.filter(x=>x.done).length,0);
     const remaining=planned-done;
     if(planned&&remaining<=0)return 'All sets complete. Finish when ready.';
@@ -442,7 +443,7 @@ function renderWorkoutSheet(){
   const w=workouts.find(x=>x.id===workoutSheetId);if(!w)return;
   const variant=workoutVariant(),list=Core.workoutScheme(w,variant,workoutMuscle);
   const seg=VOLUME_SEGMENTS.map(([v,label])=>`<button class="filter-chip ${v===variant?'active':''}" onclick="setWorkoutVolume('${v}')" aria-pressed="${v===variant}">${v===variant?'✓ ':''}${label}</button>`).join('');
-  const rows=list.map(e=>`<div class="selected-row"><span><strong>${esc(exerciseById(e.id)?.name||e.id)}</strong><small style="display:block;color:var(--taupe)">${e.sets} × ${esc(e.reps)} reps · rest ${restLabel(e.rest)}</small></span></div>`).join('');
+  const rows=list.map(e=>`<div class="selected-row"><span><strong>${esc(exerciseById(e.id)?.name||e.id)}</strong><small style="display:block;color:var(--taupe)">${e.sets} × ${esc(e.reps)} ${exerciseById(e.id)?.timed?'s':'reps'} · rest ${restLabel(e.rest)}</small></span></div>`).join('');
   // Same planned-volume model as a plan (direct + assisting, never summed) but at this workout's
   // REAL per-exercise set counts, so the board changes when the variant does.
   const pv={};
@@ -1104,18 +1105,18 @@ function workoutExerciseMarkup(exercise,index){
   // A workout scheme's plan, restated as neutral structure (never amber - it is not a target and
   // not a load). Set count is deliberately absent: the rail already counts sets, and +Add Set would
   // make any stamped number a lie.
-  const planLine=exercise.targetReps?`<span class="plan-line">Plan: ${esc(exercise.targetReps)} reps${exercise.restSeconds?` · rest ${esc(restLabel(exercise.restSeconds))}`:''}</span>`:'';
+  const planLine=exercise.targetReps?`<span class="plan-line">Plan: ${esc(exercise.targetReps)} ${timed?'s':'reps'}${exercise.restSeconds?` · rest ${esc(restLabel(exercise.restSeconds))}`:''}</span>`:'';
   const cue=state.exerciseCues?.[exercise.exerciseId];
   // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) -
   // otherwise finishing every intended set still reads as incomplete (Codex verify 2026-07-20).
   const sets=exercise.sets,last=sets[sets.length-1];
-  const total=sets.length-((sets.length>1&&last&&!last.done&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
+  const total=sets.length-((sets.length>1&&last&&!last.done&&!last.planned&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
   // Blank done-ticks are not evidence - completion counts route through the same doneSets rule (Codex P1).
   const doneCount=Core.doneSets(exercise).length,doneFrac=total?Math.min(1,doneCount/total):0;
   // RIR capture - one optional tap once the last NON-DROP set is done. A drop set's RIR must never
   // progress the heavy set, so drops neither trigger nor satisfy the ask (Codex P1).
   // "Planned" mirrors the rail denominator: a not-done set that is prefilled-or-blank isn't intended yet.
-  const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
+  const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||s.planned||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
   const rirDone=workingPlanned.length>0&&workingPlanned.every(s=>s.done);
   const rirRow=rirRowMarkup(exercise,index,rirDone);
   return `<article class="workout-exercise" data-index="${index}" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false">${GRIP_ICON}</button><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
@@ -1608,7 +1609,7 @@ let drag=null;
 function gripDown(event,index){
   if(drag||event.button>0||!state.activeSession)return;
   const handle=event.currentTarget,card=handle.closest('.workout-exercise');if(!card)return;
-  drag={index,to:index,handle,card,id:event.pointerId,startY:event.clientY+scrollY,lastY:event.clientY,lifted:false,frame:0,
+  drag={index,to:index,handle,card,id:event.pointerId,sid:state.activeSession.id,startY:event.clientY+scrollY,lastY:event.clientY,lifted:false,frame:0,
     // Listeners on document, not the handle: pointer capture retargets to the handle and they still
     // bubble here, so the gesture survives even where setPointerCapture is refused.
     off:[[document,'pointermove',gripMove],[document,'pointerup',gripUp],[document,'pointercancel',gripCancel],[document,'keydown',gripKey],[document,'visibilitychange',gripHide]]};
@@ -1694,7 +1695,9 @@ function endDrag(commit){
   d.card.classList.remove('drag-lift','drag-settle');
   d.card.style.transform='';d.card.style.transition='';
   (d.units||[]).forEach(unit=>unit.els.forEach(el=>{el.style.transform='';el.style.transition='';}));
-  if(!commit)return;
+  // Session identity check (Codex P1): a storage-event profile/session swap mid-drag must never
+  // let stale indexes reorder whatever session is active NOW.
+  if(!commit||state.activeSession?.id!==d.sid)return;
   buzz(15);
   commitReorder(d.index,d.to);
 }

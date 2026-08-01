@@ -46,7 +46,10 @@
             notes: '',
             targetReps: item.reps,
             restSeconds: num(item.rest) || null,
-            sets: Array.from({ length: Math.max(1, num(item.sets)) }, blank)
+            // planned: a deliberately blank scheme row is INTENDED work - without the flag every
+            // blank-set consumer (rail denominator, RIR gate, sets-left) reads it as the
+            // auto-appended tail and a 4-set exercise says "complete" after one set (Codex P1).
+            sets: Array.from({ length: Math.max(1, num(item.sets)) }, () => ({ ...blank(), planned: true }))
           }))
         : (routine?.exerciseIds || []).map(exerciseId => ({
             exerciseId,
@@ -466,6 +469,9 @@
       restSeconds: num(data.preferences?.restSeconds) || 90,
       ...normalizeActivityGoals(data.preferences)
     };
+    // The chosen workout-volume variant survives the round-trip (Codex P3): silently falling back
+    // to the default changes how many sets a one-tap start generates.
+    if (['reduced', 'base', 'expanded'].includes(data.preferences?.workoutVolume)) preferences.workoutVolume = data.preferences.workoutVolume;
     return {
       version: 2,
       routines: JSON.parse(JSON.stringify(data.routines)),

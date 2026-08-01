@@ -44,6 +44,10 @@
         // downstream (the MarkOS brain ingest) has no access to the catalogue and would otherwise
         // record a 60-second hang as 60 reps forever (audit 2026-07-22).
         timed: !!(typeof DUCK_EXERCISES !== 'undefined' && (DUCK_EXERCISES.find(d => d.id === ex.exerciseId) || {}).timed),
+        // Planned-vs-performed (Codex P2): a curated workout's structure travels with the session
+        // so the snapshot is honestly full. Null for freeform sessions; downstream readers may ignore.
+        targetReps: ex.targetReps || null,
+        restSeconds: ex.restSeconds || null,
         notes: ex.notes || '',
         sets: (ex.sets || []).map(set => ({
           weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null
