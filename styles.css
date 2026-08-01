@@ -965,3 +965,18 @@ body.reordering{-webkit-user-select:none;user-select:none}
 .workout-exercise.drag-lift{z-index:30;transition:none;box-shadow:var(--glass-edge),0 22px 44px -14px rgba(0,0,0,.55)}
 /* Slight overshoot on the settle: --ease has no bounce, and a dead-stop drop reads as a glitch. */
 .workout-exercise.drag-settle{transition:transform .22s cubic-bezier(.2,1.12,.34,1)}
+
+/* ---- Curated workouts (council 2026-08-01) ----
+   Card = one surface, two targets: the body opens the detail sheet, the amber pill starts it in one
+   tap. Amber is effort (Start); the goal tag, blurb and meta line stay neutral structure. */
+.workout-card{display:flex;flex-direction:column;justify-content:space-between;padding:0;overflow:hidden}
+.workout-open{flex:1;text-align:left;color:inherit;background:transparent;border:0;padding:18px 18px 8px}
+.workout-meta{margin-top:9px;color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+.workout-start{margin:0 18px 16px;min-height:44px;border:0;border-radius:var(--r1);background:var(--amber);color:var(--on-amber);font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase}
+.workout-mins{margin:6px 0 10px;color:var(--taupe);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+/* Quiet, permanent, never a warning: structure copy, not a disclaimer banner. */
+.workout-disclaimer{margin:14px 0 0;color:var(--taupe);font-size:11px;line-height:1.5}
+/* The plan restated inside the teal previous-strip - neutral ink so it never reads as a target. */
+.plan-line{display:block;margin-top:5px;padding-top:5px;border-top:1px solid rgba(11,110,119,.18);color:var(--cream-dim);font-weight:600}
+/* Three fixed segments, no scroll: the row does not need the edge bleed or the fade mask. */
+.vol-seg{margin:10px 0 4px;padding:0;-webkit-mask-image:none;mask-image:none}

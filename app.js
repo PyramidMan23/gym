@@ -34,7 +34,7 @@ let routineDraft = null;
 let pickerTarget = null;
 let deferredInstall = null;
 
-const templates = (typeof GYM_TEMPLATES!=='undefined') ? GYM_TEMPLATES : [];
+const workouts = (typeof GYM_WORKOUTS!=='undefined') ? GYM_WORKOUTS : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 const prepMap = (typeof GYM_PREP!=='undefined') ? GYM_PREP : {warmup:{},cooldown:{}};
 
@@ -401,9 +401,60 @@ function renderTrain(){
   document.getElementById('planList').innerHTML=plans.map(p=>`<button class="template-card plan-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
   const doneThisWeek=Core.routinesDoneThisWeek(state.history);
   document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, or add a plan above.</div>`;
-  document.getElementById('templateList').innerHTML=templates.map(t=>`<button class="template-card" onclick="startTemplate('${t.id}')"><span>${t.label}</span><strong>${t.name}</strong><small>${t.exerciseIds.length} exercises · start now</small></button>`).join('');
+  workoutGoalFilter='ALL'; // a stale chip must never hide a workout from someone who just opened Train
+  renderWorkouts();
 }
-function startTemplate(id){ const template=templates.find(t=>t.id===id);if(template)beginSession(template); }
+// ---- Curated workouts (council 2026-08-01) ----
+// A workout is a STRUCTURE, not a prescription: set counts, rep RANGES and rest. Loads are never
+// invented - the weight fields stay blank and fill from the lifter's own history. The three volume
+// variants are COMPUTED from the Base data (Core.workoutScheme), never stored.
+const WORKOUT_GOALS=['ALL',...new Set(workouts.map(w=>w.goal))]; // data order, ALL first
+let workoutGoalFilter='ALL';
+function workoutMuscle(id){return exerciseById(id)?.muscle||'';}
+// Remembered per profile. The default applies SILENTLY so a one-tap start works with zero setup:
+// injured or nothing logged yet starts light, everyone else starts at the written volume.
+function workoutVariant(){
+  const saved=state.preferences.workoutVolume;
+  return saved==='reduced'||saved==='base'||saved==='expanded'?saved:((injuryMode()||state.history.length===0)?'reduced':'base');
+}
+// Rest reads in seconds until it stops being a number you can count, then in minutes.
+function restLabel(seconds){const s=Number(seconds)||0;return s<120?`${s}s`:`${Math.round(s/6)/10} min`;}
+function renderWorkouts(){
+  const chips=document.getElementById('workoutGoals');
+  if(chips)chips.innerHTML=WORKOUT_GOALS.map(g=>`<button class="filter-chip ${workoutGoalFilter===g?'active':''}" onclick="setWorkoutGoal('${esc(g)}')" aria-pressed="${workoutGoalFilter===g}">${esc(g)}</button>`).join('');
+  const shown=workouts.filter(w=>workoutGoalFilter==='ALL'||w.goal===workoutGoalFilter);
+  document.getElementById('workoutList').innerHTML=shown.map(w=>`<article class="template-card workout-card"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><span>${esc(w.goal)}</span><strong>${esc(w.name)}</strong><small>${esc(w.blurb)}</small><small class="workout-meta">${w.mins} min · ${w.exercises.length} exercises</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now">Start</button></article>`).join('');
+}
+function setWorkoutGoal(goal){workoutGoalFilter=goal;renderWorkouts();}
+function openWorkoutDetail(id){
+  workoutSheetId=id;renderWorkoutSheet();document.getElementById('sheet').showModal();
+}
+let workoutSheetId=null;
+const VOLUME_SEGMENTS=[['reduced','Reduced'],['base','Base'],['expanded','Expanded']];
+function setWorkoutVolume(variant){
+  state.preferences.workoutVolume=variant;saveState();renderWorkoutSheet();
+}
+function renderWorkoutSheet(){
+  const w=workouts.find(x=>x.id===workoutSheetId);if(!w)return;
+  const variant=workoutVariant(),list=Core.workoutScheme(w,variant,workoutMuscle);
+  const seg=VOLUME_SEGMENTS.map(([v,label])=>`<button class="filter-chip ${v===variant?'active':''}" onclick="setWorkoutVolume('${v}')" aria-pressed="${v===variant}">${v===variant?'✓ ':''}${label}</button>`).join('');
+  const rows=list.map(e=>`<div class="selected-row"><span><strong>${esc(exerciseById(e.id)?.name||e.id)}</strong><small style="display:block;color:var(--taupe)">${e.sets} × ${esc(e.reps)} reps · rest ${restLabel(e.rest)}</small></span></div>`).join('');
+  // Same planned-volume model as a plan (direct + assisting, never summed) but at this workout's
+  // REAL per-exercise set counts, so the board changes when the variant does.
+  const pv={};
+  for(const e of list) for(const [m,v] of Object.entries(Core.planVolume([{exerciseIds:[e.id]}],muscleLookup,e.sets))){
+    const slot=pv[m]=pv[m]||{direct:0,assisting:0};slot.direct+=v.direct;slot.assisting+=v.assisting;
+  }
+  const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
+  const scale=Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)));
+  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · this session</h2></div></div><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/scale*100}%"></i><i class="mv-assist" style="width:${r.a/scale*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">WORKOUT · ${esc(w.goal)}</p><h2>${esc(w.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p class="workout-mins">${w.mins} min · ${list.length} exercises</p><p style="color:var(--taupe);margin-top:-2px">${esc(w.note)}</p><div class="section-heading"><div><p class="kicker">VOLUME</p><h2>How much today</h2></div></div><div class="filter-row vol-seg" role="group" aria-label="Session volume">${seg}</div><div class="selected-list">${rows}</div>${planned}<p class="workout-disclaimer">General programming, not individualised advice. Loads come from your own history.</p><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="startWorkout('${esc(w.id)}')">Start workout</button></div>`;
+}
+function startWorkout(id,variant){
+  const w=workouts.find(x=>x.id===id);if(!w)return;
+  closeSheet(); // beginSession owns the already-running guard (toast + navigate)
+  beginSession({id:w.id,name:w.name,exercises:Core.workoutScheme(w,variant||workoutVariant(),workoutMuscle)});
+}
 function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(routine)beginSession(routine); }
 function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exerciseIds:[]}); }
 function beginSession(routine){
@@ -1046,6 +1097,10 @@ function workoutExerciseMarkup(exercise,index){
   const pg=sessionPainGate(),target=targetFor(exercise.exerciseId,pg);
   const blocked=target&&target.rule==='blocked';
   const targetLine=target?`<span class="target-line${blocked?' blocked':''}"><b aria-hidden="true">→</b> <span class="target-lead">Today:</span> <strong>${esc(formatTarget(target))}</strong> <button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></span>`:'';
+  // A workout scheme's plan, restated as neutral structure (never amber - it is not a target and
+  // not a load). Set count is deliberately absent: the rail already counts sets, and +Add Set would
+  // make any stamped number a lie.
+  const planLine=exercise.targetReps?`<span class="plan-line">Plan: ${esc(exercise.targetReps)} reps${exercise.restSeconds?` · rest ${esc(restLabel(exercise.restSeconds))}`:''}</span>`:'';
   const cue=state.exerciseCues?.[exercise.exerciseId];
   // Rail denominator excludes the auto-appended trailing set (empty/prefilled, not done) -
   // otherwise finishing every intended set still reads as incomplete (Codex verify 2026-07-20).
@@ -1059,7 +1114,7 @@ function workoutExerciseMarkup(exercise,index){
   const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
   const rirDone=workingPlanned.length>0&&workingPlanned.every(s=>s.done);
   const rirRow=rirRowMarkup(exercise,index,rirDone);
-  return `<article class="workout-exercise" data-index="${index}" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false">${GRIP_ICON}</button><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
+  return `<article class="workout-exercise" data-index="${index}" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false">${GRIP_ICON}</button><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
 }
 // RIR (reps-in-reserve) capture on the finished exercise. One tap → stored on the session exercise,
 // chips collapse to a small confirmed note. 'skip' is an honest non-answer (keeps progression conservative).
@@ -1155,7 +1210,8 @@ function toggleSet(exerciseIndex,setIndex){
       // Second of a pair rests, then progression scans from the pair's FIRST exercise so the
       // superset keeps alternating A1→B1→A2→B2 (Codex verify 2026-07-20).
       const prevPair=exerciseIndex>0&&state.activeSession.exercises[exerciseIndex-1].supersetWithNext;
-      startRest(state.preferences.restSeconds,prevPair?exerciseIndex-1:exerciseIndex);
+      // A workout scheme's own rest wins over the global default - the set just finished sets the clock.
+      startRest(state.activeSession.exercises[exerciseIndex].restSeconds||state.preferences.restSeconds,prevPair?exerciseIndex-1:exerciseIndex);
     }
     if(setIndex===state.activeSession.exercises[exerciseIndex].sets.length-1)addSet(exerciseIndex,true);carryForwardExercise(state.activeSession.exercises[exerciseIndex]);buzz(15);}
   else{ // un-complete: downstream prefills seeded by this set are stale - reset + re-derive (Codex)
@@ -1470,13 +1526,13 @@ function renderRoutineEditor(){
 }
 function removeRoutineExercise(index){routineDraft.exerciseIds.splice(index,1);renderRoutineEditor();}
 // Building a routine from an empty list means naming 6 exercises from memory. Every list worth
-// starting from already exists in the app: a plan's days, a template, and the workouts already
-// logged. Offered only while the draft is EMPTY, so it never silently overwrites real work.
+// starting from already exists in the app: a plan's days, a curated workout, and the sessions
+// already logged. Offered only while the draft is EMPTY, so it never silently overwrites real work.
 function routineSeeds(){
   const seeds=[];
   for(const plan of plans) for(const day of plan.days)
     seeds.push({key:`plan:${plan.id}:${day.name}`,label:`${plan.name} · ${day.name}`,ids:day.exerciseIds});
-  for(const t of templates) seeds.push({key:`tpl:${t.id}`,label:`Template · ${t.name}`,ids:t.exerciseIds});
+  for(const w of workouts) seeds.push({key:`wk:${w.id}`,label:`Workout · ${w.name}`,ids:w.exercises.map(e=>e.id)});
   for(const s of state.history.slice(0,5))
     seeds.push({key:`hist:${s.id}`,label:`Logged · ${s.name} (${formatDate(s.started)})`,
       ids:[...new Set((s.exercises||[]).map(e=>e.exerciseId))]});

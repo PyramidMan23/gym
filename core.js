@@ -28,18 +28,51 @@
         : doneSets(exercise).reduce((sum, set) => sum + num(set.weight) * num(set.reps), 0)), 0);
   }
 
+  // A curated workout arrives as a SCHEME - [{id,sets,reps,rest}] - so the session opens with the
+  // planned number of blank set rows and carries the rep RANGE and rest as facts. Loads are never
+  // invented: weight stays blank and fills from the lifter's own history like any other session.
+  // routine.exerciseIds (routines, plans, quick workouts) is untouched.
   function createSession(routine, now = Date.now()) {
+    const scheme = Array.isArray(routine?.exercises) ? routine.exercises : null;
+    const blank = () => ({ weight: '', reps: '', done: false });
     return {
       id: `s${now}`,
       routineId: routine?.id || null,
       name: routine?.name || 'Quick workout',
       started: now,
-      exercises: (routine?.exerciseIds || []).map(exerciseId => ({
-        exerciseId,
-        notes: '',
-        sets: [{ weight: '', reps: '', done: false }]
-      }))
+      exercises: scheme
+        ? scheme.map(item => ({
+            exerciseId: item.id,
+            notes: '',
+            targetReps: item.reps,
+            restSeconds: num(item.rest) || null,
+            sets: Array.from({ length: Math.max(1, num(item.sets)) }, blank)
+          }))
+        : (routine?.exerciseIds || []).map(exerciseId => ({
+            exerciseId,
+            notes: '',
+            sets: [blank()]
+          }))
     };
+  }
+
+  // Volume variants are COMPUTED from the Base scheme, never stored: reduced drops one set from
+  // every movement carrying 3+ (2s are already the floor); expanded adds one set to the first TWO
+  // movements that are real training - mobility and stretch work is dosed by quality, not padding.
+  // getMuscle(id) returns the catalogue muscle string. The workout data is never mutated.
+  function workoutScheme(workout, variant, getMuscle) {
+    const list = (workout?.exercises || []).map(e => ({ id: e.id, sets: num(e.sets), reps: e.reps, rest: num(e.rest) }));
+    if (variant === 'reduced') for (const e of list) if (e.sets >= 3) e.sets -= 1;
+    if (variant === 'expanded') {
+      let added = 0;
+      for (const e of list) {
+        if (added >= 2) break;
+        const muscle = getMuscle ? getMuscle(e.id) : '';
+        if (muscle === 'Mobility' || muscle === 'Stretches') continue;
+        e.sets += 1; added++;
+      }
+    }
+    return list;
   }
 
   function previousPerformance(history, exerciseId) {
@@ -905,5 +938,5 @@
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

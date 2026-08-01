@@ -323,15 +323,190 @@ const GYM_PREP = {
   }
 };
 
-// Single-day quick-starts (Train tab → "Templates"). Every id above.
-const GYM_TEMPLATES = [
-  { id:'tpl-full',  name:'Full body',    label:'BALANCED',         exerciseIds:['lg9','ch3','ba6','sh2','lg18'] },
-  { id:'tpl-upper', name:'Upper body',   label:'CHEST + BACK',     exerciseIds:['ch1','ba3','sh2','ba6','ar2'] },
-  { id:'tpl-lower', name:'Leg day',      label:'LOWER BODY',       exerciseIds:['lg7','lg4','lg13','lg18','lg17'] },
-  { id:'tpl-push',  name:'Push day',     label:'CHEST + SHOULDERS',exerciseIds:['ch1','sh1','ch6','sh4','ar6'] },
-  { id:'tpl-pull',  name:'Pull day',     label:'BACK + BICEPS',    exerciseIds:['ba1','ba4','ba5','sh7','ar2'] },
-  { id:'tpl-cond',  name:'Conditioning', label:'CARDIO',           exerciseIds:['ca1','fb1','lg16','gr7'] },
-  { id:'tpl-cali',  name:'Calisthenics full body', label:'BODYWEIGHT · PRE-WORKOUT', exerciseIds:['cs1','cs6','cs5','cs2','cs12','cs15','cs19'] }
+// GYM_WORKOUTS - curated single workouts (council 2026-08-01, replaces GYM_TEMPLATES).
+// Each is a STRUCTURE, not a prescription: set counts + rep RANGES + rest guidance.
+// Loads always come from the lifter's own history (or stay blank). Variants are computed
+// from this Base scheme, never stored: Reduced drops a set from everything 3+, Expanded
+// adds one set to the first two non-mobility movements. General programming, not
+// individualised advice.
+// Programming anchors (2026 consensus): strength = 3-6 heavy sets of 2-6, rest 2-3min,
+// compounds first. Hypertrophy = 6-20 reps taken close to failure, ~10-20 hard sets per
+// muscle per week, rest 90-180s, lengthened-position work favoured. Athletic = power
+// moves fresh and first, full recovery between efforts. Posture = 2:1 pull:push bias,
+// rear delts + thoracic + deep neck flexors. Mobility-lower = ATG-style full-range
+// loading, not passive stretching alone.
+const GYM_WORKOUTS = [
+  // STRENGTH
+  { id:'wk-str-lower', goal:'STRENGTH', name:'Lower Strength', mins:55,
+    blurb:'Squat + hinge, heavy and fresh',
+    note:'Two big lifts done fresh, then unilateral and core support. Warm up to your top sets; the rep range is the working range, not a target to grind. Rest fully: strength is a skill and fatigue steals it.',
+    exercises:[
+      {id:'lg1',  sets:4, reps:'3-5',  rest:180},
+      {id:'lg6',  sets:3, reps:'3-5',  rest:180},
+      {id:'lg7',  sets:3, reps:'6-8',  rest:120},
+      {id:'lg15', sets:3, reps:'6-8',  rest:120},
+      {id:'co16', sets:3, reps:'8-10', rest:90}
+    ]},
+  { id:'wk-str-upper', goal:'STRENGTH', name:'Upper Strength', mins:55,
+    blurb:'Press + pull, low reps, long rests',
+    note:'Bench and overhead press paired with heavy pulling to keep the shoulders honest. If pull-ups are easy at 6, add load with a dumbbell between the feet. Stop any pressing set the moment the shoulder complains.',
+    exercises:[
+      {id:'ch1',  sets:4, reps:'3-5',  rest:180},
+      {id:'ba3',  sets:4, reps:'4-6',  rest:150},
+      {id:'sh1',  sets:3, reps:'4-6',  rest:180},
+      {id:'ba13', sets:3, reps:'5-6',  rest:150},
+      {id:'gr7',  sets:3, reps:'20-30',rest:120}
+    ]},
+  { id:'wk-str-full', goal:'STRENGTH', name:'Full-Body Strength', mins:50,
+    blurb:'One session, every big pattern',
+    note:'Hinge, push, pull, then an overhead finisher and a loaded carry. The classic minimum-dose strength day when you can only train a couple of times a week.',
+    exercises:[
+      {id:'lg6',  sets:4, reps:'3-5',  rest:180},
+      {id:'ch1',  sets:3, reps:'4-6',  rest:150},
+      {id:'ba3',  sets:3, reps:'4-6',  rest:150},
+      {id:'sh17', sets:3, reps:'3-5',  rest:150},
+      {id:'co8',  sets:3, reps:'20-30',rest:90}
+    ]},
+  // AESTHETICS (hypertrophy)
+  { id:'wk-aes-upper', goal:'AESTHETICS', name:'Aesthetic Upper', mins:60,
+    blurb:'Chest, back, delts, arms: the mirror day',
+    note:'Compounds first, isolation after, every set within 1-3 reps of failure. The last rep of a set should be slow but clean. Lateral raises respond to higher reps: chase the burn, not the load.',
+    exercises:[
+      {id:'ch4',  sets:4, reps:'8-12',  rest:120},
+      {id:'ba4',  sets:4, reps:'10-12', rest:120},
+      {id:'ch6',  sets:3, reps:'12-15', rest:90},
+      {id:'sh4',  sets:4, reps:'12-20', rest:75},
+      {id:'ar2',  sets:3, reps:'10-15', rest:75},
+      {id:'ar17', sets:3, reps:'10-15', rest:75}
+    ]},
+  { id:'wk-aes-lower', goal:'AESTHETICS', name:'Aesthetic Lower', mins:60,
+    blurb:'Quads, hamstrings, glutes, calves',
+    note:'Squat pattern then hinge pattern, then machines to take each muscle to honest fatigue without loading the spine. Calves grow on full range and a pause at the stretch.',
+    exercises:[
+      {id:'lg28', sets:4, reps:'8-10',  rest:150},
+      {id:'lg5',  sets:4, reps:'8-12',  rest:150},
+      {id:'lg23', sets:3, reps:'12-15', rest:90},
+      {id:'lg14', sets:3, reps:'10-15', rest:90},
+      {id:'lg25', sets:3, reps:'12-15', rest:75},
+      {id:'lg17', sets:4, reps:'10-15', rest:75}
+    ]},
+  { id:'wk-aes-arms', goal:'AESTHETICS', name:'Arms & Delts', mins:45,
+    blurb:'Direct arm and shoulder volume',
+    note:'A specialisation day: everything here is isolation, so rests are short and the quality bar is strict range. Alternate a biceps and a triceps movement to keep moving without strength loss.',
+    exercises:[
+      {id:'sh2',  sets:4, reps:'8-12',  rest:120},
+      {id:'sh4',  sets:4, reps:'12-20', rest:75},
+      {id:'ar12', sets:3, reps:'10-12', rest:75},
+      {id:'ar8',  sets:3, reps:'10-12', rest:75},
+      {id:'ar3',  sets:3, reps:'10-15', rest:60},
+      {id:'ar7',  sets:3, reps:'12-15', rest:60}
+    ]},
+  // SPLIT DAYS
+  { id:'wk-push', goal:'SPLIT DAY', name:'Push Day', mins:55,
+    blurb:'Chest, shoulders, triceps',
+    note:'Heavy horizontal press, then vertical, then volume. If the right shoulder starts talking, cut the set, not the range of motion.',
+    exercises:[
+      {id:'ch1',  sets:4, reps:'5-8',   rest:150},
+      {id:'sh1',  sets:3, reps:'6-8',   rest:150},
+      {id:'ch4',  sets:3, reps:'8-12',  rest:120},
+      {id:'sh4',  sets:4, reps:'12-20', rest:75},
+      {id:'ch6',  sets:3, reps:'12-15', rest:90},
+      {id:'ar17', sets:3, reps:'10-15', rest:75}
+    ]},
+  { id:'wk-pull', goal:'SPLIT DAY', name:'Pull Day', mins:55,
+    blurb:'Back, rear delts, biceps',
+    note:'One heavy hinge, then vertical and horizontal pulling, then the small stuff. Face pulls are the cheapest shoulder insurance in the gym: do them every pull day.',
+    exercises:[
+      {id:'ba1',  sets:3, reps:'4-6',   rest:180},
+      {id:'ba3',  sets:4, reps:'6-10',  rest:120},
+      {id:'ba5',  sets:3, reps:'10-12', rest:105},
+      {id:'ba9',  sets:3, reps:'12-15', rest:75},
+      {id:'sh7',  sets:3, reps:'12-15', rest:75},
+      {id:'ar3',  sets:3, reps:'10-12', rest:60}
+    ]},
+  // ATHLETIC
+  { id:'wk-ath-power', goal:'ATHLETIC', name:'Athletic Power', mins:50,
+    blurb:'Jump, throw, sprint-adjacent strength',
+    note:'Power work only while fresh: jumps and cleans come first and every rep is fast and crisp. The moment reps slow down, the set is over. Finish with anti-rotation and an offset carry.',
+    exercises:[
+      {id:'cs24', sets:4, reps:'3-4',   rest:120},
+      {id:'fb6',  sets:4, reps:'3-4',   rest:180},
+      {id:'lg16', sets:4, reps:'8-10',  rest:90},
+      {id:'lg36', sets:3, reps:'6-8',   rest:105},
+      {id:'co5',  sets:3, reps:'10-12', rest:75},
+      {id:'gr11', sets:3, reps:'20-30', rest:90}
+    ]},
+  { id:'wk-ath-engine', goal:'ATHLETIC', name:'Athletic Engine', mins:35,
+    blurb:'Conditioning without a treadmill',
+    note:'Kettlebells and a rope: intervals, not a grind. Work hard, breathe, repeat. Scale by shortening the work, never by getting sloppy.',
+    exercises:[
+      {id:'ca2',  sets:4, reps:'45-60', rest:60},
+      {id:'fb1',  sets:4, reps:'6-8',   rest:90},
+      {id:'lg16', sets:5, reps:'10-12', rest:60},
+      {id:'ca4',  sets:3, reps:'10-15', rest:75},
+      {id:'cs22', sets:3, reps:'20-30', rest:60}
+    ]},
+  // POSTURE
+  { id:'wk-posture', goal:'POSTURE', name:'Posture Reset', mins:40,
+    blurb:'Undo the desk: pull bias + thoracic',
+    note:'Built on a 2:1 pull-to-push bias: rear delts, mid-back and deep neck flexors get the volume your desk stole. Nothing here should be heavy; position beats load on every movement.',
+    exercises:[
+      {id:'sh7',  sets:4, reps:'12-15', rest:75},
+      {id:'ba7',  sets:3, reps:'10-12', rest:105},
+      {id:'sh6',  sets:3, reps:'12-15', rest:75},
+      {id:'mo10', sets:2, reps:'8-10',  rest:45},
+      {id:'mo9',  sets:2, reps:'8-10',  rest:45},
+      {id:'mo14', sets:2, reps:'20-30', rest:30},
+      {id:'st4',  sets:2, reps:'30-45', rest:30}
+    ]},
+  // MOBILITY
+  { id:'wk-mob-lower', goal:'MOBILITY', name:'Mobility Lower', mins:40,
+    blurb:'ATG-style full-range leg work',
+    note:'Loaded mobility, knees-over-toes style: strength at end range beats passive stretching. Slow eccentrics, full depth, light load. The tibialis and Nordic work protect knees and hamstrings.',
+    exercises:[
+      {id:'lg11', sets:3, reps:'10-15', rest:90},
+      {id:'lg8',  sets:3, reps:'8-10',  rest:90},
+      {id:'lg13', sets:3, reps:'3-6',   rest:105},
+      {id:'lg18', sets:3, reps:'15-20', rest:60},
+      {id:'mo7',  sets:2, reps:'5-6',   rest:45},
+      {id:'mo5',  sets:2, reps:'30-45', rest:30},
+      {id:'st3',  sets:2, reps:'40-60', rest:30}
+    ]},
+  { id:'wk-mob-flow', goal:'MOBILITY', name:'Full-Body Flow', mins:25,
+    blurb:'Move everything, load nothing',
+    note:'A rest-day or morning flow: hips, thoracic, shoulders and ankles through full ranges with just bodyweight and a band. Breathe slowly through every hold.',
+    exercises:[
+      {id:'mo8',  sets:2, reps:'5-6',   rest:30},
+      {id:'cs12', sets:2, reps:'8-10',  rest:45},
+      {id:'cs15', sets:2, reps:'10-12', rest:45},
+      {id:'mo1',  sets:2, reps:'10-12', rest:30},
+      {id:'st7',  sets:2, reps:'30-40', rest:30},
+      {id:'st6',  sets:2, reps:'8-10',  rest:30},
+      {id:'st2',  sets:2, reps:'40-60', rest:30}
+    ]},
+  // FULL BODY + BODYWEIGHT
+  { id:'wk-full-45', goal:'FULL BODY', name:'Full Body 45', mins:45,
+    blurb:'Everything, once, in 45 minutes',
+    note:'The no-excuses session: six movements covering every pattern at moderate load. Perfect when life is busy; run it 2-3 times a week and it quietly builds everything.',
+    exercises:[
+      {id:'lg9',  sets:3, reps:'8-12',  rest:105},
+      {id:'ch3',  sets:3, reps:'8-12',  rest:105},
+      {id:'ba6',  sets:3, reps:'10-12', rest:105},
+      {id:'sh2',  sets:3, reps:'8-12',  rest:105},
+      {id:'lg5',  sets:3, reps:'8-12',  rest:120},
+      {id:'co2',  sets:3, reps:'30-45', rest:60}
+    ]},
+  { id:'wk-cali', goal:'BODYWEIGHT', name:'Calisthenics', mins:40,
+    blurb:'No plates, just gravity',
+    note:'Bodyweight strength with the rack and a bar: scapular control first, then pushing and pulling to honest fatigue. Too easy? Slow every rep down to a 3-second lower.',
+    exercises:[
+      {id:'cs1',  sets:3, reps:'6-8',   rest:75},
+      {id:'ch8',  sets:4, reps:'8-15',  rest:90},
+      {id:'cs5',  sets:4, reps:'8-12',  rest:90},
+      {id:'cs9',  sets:3, reps:'6-10',  rest:105},
+      {id:'cs19', sets:3, reps:'20-30', rest:60},
+      {id:'cs16', sets:3, reps:'10-12', rest:60}
+    ]}
 ];
 
 // Multi-day plans (Train tab → "Pick a plan"). Applying one installs each day as a ready-to-start routine.

@@ -256,6 +256,25 @@ try {
     rows = await evaluate(SWEEP);
     rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'train-routine-done', ...r }); });
 
+    // --- State D5: the curated-workout surfaces (council 2026-08-01). Train's goal chips and cards
+    // are already in the sweep above; this adds the detail sheet (variant segments, resolved rows,
+    // planned board, disclaimer) and the running card's neutral plan line. Each ASSERTS it rendered -
+    // a guard that silently skips a new state proves nothing.
+    const workoutInk = await evaluate(`({chips:document.querySelectorAll('#workoutGoals .filter-chip').length,
+      cards:document.querySelectorAll('#workoutList .workout-card').length})`);
+    assert.ok(workoutInk.chips > 1 && workoutInk.cards > 1, 'contrast guard must render the workouts section to audit it');
+    await evaluate(`openWorkoutDetail('wk-aes-upper'); true`);
+    await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.workout-disclaimer')`);
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout-sheet', ...r }); });
+    await evaluate(`(()=>{ if(state.activeSession) state.activeSession=null; startWorkout('wk-aes-upper'); })(); true`);
+    await waitFor(`document.querySelectorAll('#workoutExercises .plan-line').length > 0`);
+    await settle();
+    rows = await evaluate(SWEEP);
+    rows.forEach(r => { sampled++; if (!r.disabled && r.ratio < r.bar) failures.push({ scheme, state: 'workout-plan-line', ...r }); });
+    await evaluate(`state.activeSession=null; saveState(); navigate('train'); renderTrain(); true`);
+
     // --- State F: the 2026-07-28 surfaces: deload advisory, Desk Reset row, coach cue + plan notes.
     // All teal-on-card ink that had never been measured. Each block ASSERTS the element actually
     // rendered before sweeping: a guard that silently skips a new state proves nothing, which is

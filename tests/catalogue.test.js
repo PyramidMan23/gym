@@ -1,4 +1,4 @@
-// Referential integrity for the equipment catalogue + templates + plans.
+// Referential integrity for the equipment catalogue + workouts + plans.
 // exercises.js is plain global consts (loaded via <script> in the browser),
 // so eval it in a sandboxed function scope and pull the three arrays out.
 const test = require('node:test');
@@ -8,8 +8,8 @@ const path = require('node:path');
 const Core = require('../core.js');
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'exercises.js'), 'utf8');
-const { DUCK_EXERCISES, GYM_TEMPLATES, GYM_PLANS } =
-  new Function(`${src}; return { DUCK_EXERCISES, GYM_TEMPLATES, GYM_PLANS };`)();
+const { DUCK_EXERCISES, GYM_WORKOUTS, GYM_PLANS } =
+  new Function(`${src}; return { DUCK_EXERCISES, GYM_WORKOUTS, GYM_PLANS };`)();
 const ids = new Set(DUCK_EXERCISES.map(e => e.id));
 
 test('exercise ids are unique', () => {
@@ -49,10 +49,29 @@ test('every muscles / patterns / equip value is in the fixed vocab', () => {
   }
 });
 
-test('every template references real exercises', () => {
-  for (const t of GYM_TEMPLATES) {
-    assert.ok(t.exerciseIds.length, `${t.id} has no exercises`);
-    for (const x of t.exerciseIds) assert.ok(ids.has(x), `template ${t.id} references missing ${x}`);
+// ---- Curated workouts (council 2026-08-01) ----
+// A workout is a STRUCTURE: set counts and rep RANGES only, never a load. These bounds are the
+// contract the variant maths and the session builder both assume.
+test('every workout id is unique', () => {
+  const wids = GYM_WORKOUTS.map(w => w.id);
+  assert.equal(new Set(wids).size, wids.length);
+});
+
+test('every workout carries goal, name, blurb, note and minutes', () => {
+  for (const w of GYM_WORKOUTS) {
+    for (const key of ['id', 'goal', 'name', 'blurb', 'note'])
+      assert.ok(typeof w[key] === 'string' && w[key].trim(), `${w.id || '?'} missing ${key}`);
+    assert.ok(Number.isInteger(w.mins) && w.mins > 0, `${w.id} bad mins ${w.mins}`);
+    assert.ok(Array.isArray(w.exercises) && w.exercises.length, `${w.id} has no exercises`);
+  }
+});
+
+test('every workout exercise is a real id with sane sets, reps and rest', () => {
+  for (const w of GYM_WORKOUTS) for (const e of w.exercises) {
+    assert.ok(ids.has(e.id), `workout ${w.id} references missing ${e.id}`);
+    assert.ok(Number.isInteger(e.sets) && e.sets >= 1 && e.sets <= 6, `${w.id}/${e.id} bad sets ${e.sets}`);
+    assert.ok(/^\d+(-\d+)?$/.test(e.reps), `${w.id}/${e.id} bad reps "${e.reps}"`);
+    assert.ok(Number.isInteger(e.rest) && e.rest >= 15 && e.rest <= 300, `${w.id}/${e.id} bad rest ${e.rest}`);
   }
 });
 

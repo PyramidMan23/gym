@@ -345,9 +345,80 @@ try {
   assert.equal(deskAndRoutines.loadedStrip, true, 'a loaded session must still propose a warm-up');
   assert.equal(deskAndRoutines.addedRoutine, 1, 'saving the running workout must add exactly one routine');
   assert.ok(deskAndRoutines.savedIds > 0, 'the saved routine must carry the workout exercises');
-  assert.ok(deskAndRoutines.seedOptions > 1, 'the routine editor must offer plans/templates/logged workouts to start from');
+  assert.ok(deskAndRoutines.seedOptions > 1, 'the routine editor must offer plans/workouts/logged sessions to start from');
   assert.ok(deskAndRoutines.seededCount > 0, 'picking a seed must populate the draft');
   assert.equal(deskAndRoutines.nameOpensMenu, true, 'a routine name must be its own tap target for options');
+  // ---- Curated workouts (council 2026-08-01). A workout is a STRUCTURE, so the wiring that matters
+  // is: the section renders, the goal chips filter and RESET, the sheet offers the variant control
+  // and the disclaimer, and one tap opens a session whose set counts came from the scheme.
+  const workoutsUi = await evaluate(`(() => {
+    if(state.activeSession) state.activeSession=null;
+    navigate('train'); renderTrain();
+    const chips=[...document.querySelectorAll('#workoutGoals .filter-chip')].map(c=>c.textContent);
+    const cards=document.querySelectorAll('#workoutList .workout-card').length;
+    const starts=document.querySelectorAll('#workoutList .workout-start').length;
+    // A goal chip filters; a fresh Train render must clear it, or a stale chip hides 12 workouts.
+    setWorkoutGoal('STRENGTH');
+    const filtered=document.querySelectorAll('#workoutList .workout-card').length;
+    renderTrain();
+    return {chips,cards,starts,filtered,reset:document.querySelectorAll('#workoutList .workout-card').length,
+      seeds:routineSeeds().filter(s=>s.key.startsWith('wk:')).length};
+  })()`);
+  assert.equal(workoutsUi.cards, 15, 'Train must show all 15 curated workouts');
+  assert.equal(workoutsUi.starts, 15, 'every workout card needs its own one-tap Start');
+  assert.equal(workoutsUi.chips[0], 'ALL', 'the goal chip row must lead with ALL');
+  assert.equal(workoutsUi.chips.length, 9, 'ALL plus every distinct goal, in data order');
+  assert.equal(workoutsUi.filtered, 3, 'a goal chip must actually filter the list');
+  assert.equal(workoutsUi.reset, 15, 'a fresh Train render must reset the goal filter to ALL');
+  assert.equal(workoutsUi.seeds, 15, 'the routine editor must be able to start from any workout');
+  await evaluate(`openWorkoutDetail('wk-str-lower'); true`);
+  await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.vol-seg')`);
+  const workoutSheet = await evaluate(`(() => {
+    const seg=[...document.querySelectorAll('.vol-seg .filter-chip')];
+    const label=b=>b.textContent.replace('✓ ','');
+    return {segments:seg.map(label),active:seg.filter(b=>b.classList.contains('active')).map(label),
+      disclaimer:(document.querySelector('.workout-disclaimer')||{}).textContent||'',
+      rows:document.querySelectorAll('#sheetContent .selected-row').length,
+      planned:document.querySelectorAll('#sheetContent .mv-row').length};
+  })()`);
+  assert.deepEqual(workoutSheet.segments, ['Reduced', 'Base', 'Expanded'], 'the detail sheet must offer all three volume variants');
+  assert.deepEqual(workoutSheet.active, ['Base'], 'a profile with a logged session and no injury defaults to the written volume');
+  assert.equal(workoutSheet.disclaimer,
+    'General programming, not individualised advice. Loads come from your own history.',
+    'the workout sheet must carry the disclaimer verbatim');
+  assert.equal(workoutSheet.rows, 5, 'the sheet must list the resolved exercises');
+  assert.ok(workoutSheet.planned > 0, 'the sheet must show the planned per-muscle board');
+  const startedWorkout = await evaluate(`(() => {
+    startWorkout('wk-str-lower');
+    const ex=state.activeSession.exercises;
+    return {routineId:state.activeSession.routineId,name:state.activeSession.name,
+      first:ex[0].sets.length,reps:ex[0].targetReps,rest:ex[0].restSeconds,
+      blank:ex.every(e=>e.sets.every(s=>s.weight===''&&s.reps===''&&!s.done))};
+  })()`);
+  assert.equal(startedWorkout.routineId, 'wk-str-lower', 'the workout id must ride in routineId');
+  assert.equal(startedWorkout.name, 'Lower Strength');
+  assert.equal(startedWorkout.first, 4, 'base volume must open with the scheme set count');
+  assert.equal(startedWorkout.reps, '3-5');
+  assert.equal(startedWorkout.rest, 180);
+  assert.equal(startedWorkout.blank, true, 'a scheme must never invent a load');
+  await waitFor(`document.querySelectorAll('#workoutExercises .plan-line').length === 5`);
+  assert.equal(await evaluate(`document.querySelector('.plan-line').textContent`),
+    'Plan: 3-5 reps · rest 3 min', 'the running card must restate the plan as neutral structure');
+  // An EMPTY profile (nothing logged) must land on reduced with zero setup: 4 sets become 3.
+  const emptyProfileVolume = await evaluate(`(() => {
+    const history=state.history, saved=state.preferences.workoutVolume;
+    state.activeSession=null; state.history=[]; delete state.preferences.workoutVolume;
+    const variant=workoutVariant();
+    startWorkout('wk-str-lower');
+    const first=state.activeSession.exercises[0].sets.length;
+    state.activeSession=null; state.history=history;
+    if(saved!==undefined) state.preferences.workoutVolume=saved;
+    saveState();
+    return {variant,first};
+  })()`);
+  assert.equal(emptyProfileVolume.variant, 'reduced', 'a profile with nothing logged must default to reduced');
+  assert.equal(emptyProfileVolume.first, 3, 'reduced must open Lower Strength one set lighter than base');
+  await waitFor(`!document.getElementById('sheet').open`);
   // Reduced motion (emulated since the top of this run): the drag still reorders, it just skips the
   // FLIP transitions and the settle, and commits the moment the finger lifts.
   await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();
