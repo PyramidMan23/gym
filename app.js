@@ -71,7 +71,11 @@ function exerciseById(id){ return allExercises().find(exercise=>exercise.id===id
 function esc(value){ return String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function compact(number){ const n=Number(number)||0; return n>=1e6?(n/1e6).toFixed(1)+'m':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n)); }
 function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short'}).format(new Date(timestamp)); }
-function showToast(message,isPr=false){ const el=document.getElementById('toast');el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?3200:1900); }
+function showToast(message,isPr=false){ const el=document.getElementById('toast');
+  // Below the fixed chrome, never over it: the PR toast was landing on the workout clock + Finish.
+  const chrome=document.querySelector('body.workout-active .workout-header')||document.querySelector('.app-header');
+  el.style.top=chrome?`${Math.round(chrome.getBoundingClientRect().bottom)+10}px`:'18px';
+  el.textContent=message;el.classList.toggle('pr',isPr);el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),isPr?3200:1900); }
 const REDUCED_MOTION=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // PR moment (POLISH): celebrate a live PR at most once per exercise per session. Keyed on the
 // session object identity so a new session (or a boot-reloaded one) starts fresh. Transient - never persisted.
@@ -400,7 +404,7 @@ function exportLastSession(){
 function renderTrain(){
   document.getElementById('planList').innerHTML=plans.map(p=>`<button class="template-card plan-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
   const doneThisWeek=Core.routinesDoneThisWeek(state.history);
-  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, or add a plan above.</div>`;
+  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, save one from any workout, or install a plan below.</div>`;
   workoutGoalFilter='ALL'; // a stale chip must never hide a workout from someone who just opened Train
   renderWorkouts();
 }
@@ -447,7 +451,7 @@ function renderWorkoutSheet(){
   }
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
   const scale=Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)));
-  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · this session</h2></div></div><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/scale*100}%"></i><i class="mv-assist" style="width:${r.a/scale*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
+  const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · this session</h2></div></div><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks">${r.d?`<i class="mv-direct" style="width:${r.d/scale*100}%"></i>`:''}${r.a?`<i class="mv-assist" style="width:${r.a/scale*100}%"></i>`:''}</span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">WORKOUT · ${esc(w.goal)}</p><h2>${esc(w.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p class="workout-mins">${w.mins} min · ${list.length} exercises</p><p style="color:var(--taupe);margin-top:-2px">${esc(w.note)}</p><div class="section-heading"><div><p class="kicker">VOLUME</p><h2>How much today</h2></div></div><div class="filter-row vol-seg" role="group" aria-label="Session volume">${seg}</div><div class="selected-list">${rows}</div>${planned}<p class="workout-disclaimer">General programming, not individualised advice. Loads come from your own history.</p><div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="startWorkout('${esc(w.id)}')">Start workout</button></div>`;
 }
 function startWorkout(id,variant){
@@ -775,7 +779,7 @@ function renderMuscleVolume(){
     const band=range?(r.d<range[0]?'under':r.d>range[1]?'over':'in'):'';
     return `<button class="mv-row" onclick="openMuscleDetail('${r.m}')" aria-label="${r.m}: ${r.d} direct sets, ${r.a} assisting">
       <span class="mv-name">${r.m}${range?`<small class="mv-range ${band}">${r.d} of ${range[0]}–${range[1]}${band==='under'?' · below':band==='over'?' · above':' · in range'}</small>`:''}</span>
-      <span class="mv-tracks"><i class="mv-direct" style="width:${r.d/max*100}%"></i><i class="mv-assist" style="width:${r.a/max*100}%"></i></span>
+      <span class="mv-tracks">${r.d?`<i class="mv-direct" style="width:${r.d/max*100}%"></i>`:''}${r.a?`<i class="mv-assist" style="width:${r.a/max*100}%"></i>`:''}</span>
       <span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></button>`;
   }).join('');
 }
@@ -1242,7 +1246,9 @@ function celebratePR(exerciseIndex,setIndex,val){
   const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
   if(!row)return;
   row.classList.add('pr-hit');setTimeout(()=>row.classList.remove('pr-hit'),460);
-  if(val){const roll=document.createElement('div');roll.className='pr-roll';roll.innerHTML='<span class="roll-mask"><span class="roll-old">&nbsp;</span><span class="roll-new">'+esc(val)+' kg</span></span>';row.appendChild(roll);requestAnimationFrame(()=>{const m=roll.querySelector('.roll-mask');if(m)m.classList.add('go');});setTimeout(()=>roll.remove(),760);}
+  // The old centred "NN kg" roll overlay is gone: the row's centre is the gap between the kg and
+  // reps cells, so it painted as a stray amber digit sliver behind the inputs (audit 2026-08-02).
+  // Compress + rail spark + toast + double buzz already carry the moment.
   const card=row.closest('.workout-exercise');
   if(card){const spark=document.createElement('i');spark.className='pr-spark';card.appendChild(spark);const drop=()=>spark.remove();spark.addEventListener('animationend',drop);setTimeout(drop,700);}
 }
