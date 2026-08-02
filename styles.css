@@ -1121,14 +1121,25 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
       which is why it survived every previous cleanup.
    2. The incoming view was hard-swapped out of display:none with
       nothing covering the gap - one bare frame, read as a flash.
-   SliceCo does neither: it CROSS-DISSOLVES. The outgoing pane is
-   lifted to an absolute overlay (so layout cannot reflow) and
-   faded sideways in 260ms while the incoming slides 14px in over
-   300ms, as ONE object. Keyframes, distances, durations and the
-   curve below are copied from the live sliceco.app source
-   (paneIn/paneOut*, --ease-ios), not re-invented. Motion is on
-   the X axis on purpose: a vertical move on a vertically
-   scrolling page always reads as a jump.
+   REWRITTEN 2026-08-03 (council, Codex's design won): the first
+   port copied SliceCo's crossfade mechanism but not the conditions
+   that make it invisible there. With BOTH panes semi-transparent
+   over the page for ~200ms, two text-heavy screens whose headlines
+   sit in the same spot blended into legible text-over-text - Mark's
+   screenshot caught Library's search bar readable through Train's
+   cards. And because this app scrolls the PAGE (SliceCo scrolls an
+   inner container), a leaver pinned to top:0 teleported to its own
+   top when navigate() reset the scroll - a flash of content you
+   were not even looking at.
+   The fix eliminates blending entirely: the incoming pane paints
+   FULLY OPAQUE immediately and only SLIDES (14px, SliceCo's
+   distance/curve); the outgoing pane becomes an OPAQUE CURTAIN
+   (background:var(--page), offset by -scrollY in JS so it shows
+   exactly what was on screen) that fades over it in 160ms. At
+   every instant one complete surface is visible - a ghost blend
+   and a bare frame are both structurally impossible.
+   Plus the "water droplet": SliceCo's pressRing (scale .6 to 1.4,
+   fade, 550ms, fired on pointerdown), verbatim, on the nav tabs.
    Rollback: delete everything below this banner.
    ============================================================ */
 :root{--ease-ios:cubic-bezier(.22,1,.36,1)}
@@ -1137,24 +1148,33 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 #main{position:relative}
 .view.leaving{
   display:block!important;                 /* beats .view{display:none} */
-  position:absolute;top:0;left:0;right:0;z-index:2;   /* overlay: the page never reflows mid-swap */
+  position:absolute;left:0;right:0;z-index:2;   /* top set inline to -scrollY: the curtain shows what WAS on screen */
   pointer-events:none;
-  animation:paneOutLang .22s var(--ease-ios) forwards;
+  background:var(--page);                  /* opaque: the pane below never bleeds through as a double exposure */
+  min-height:100vh;                        /* a short leaver must still cover the incoming pane */
+  animation:curtainFade .16s ease-out forwards;
 }
 @media (prefers-reduced-motion: no-preference){
-  .view.active{animation:paneInLang .3s var(--ease-ios) forwards}
-  #main.pane-fwd  .view.active {animation:paneInRight .3s var(--ease-ios) forwards}
-  #main.pane-fwd  .view.leaving{animation:paneOutLeft .26s var(--ease-ios) forwards}
-  #main.pane-back .view.active {animation:paneInLeft  .3s var(--ease-ios) forwards}
-  #main.pane-back .view.leaving{animation:paneOutRight .26s var(--ease-ios) forwards}
+  /* Incoming: opacity 1 from the first frame - motion is slide-only, so nothing ever blends. */
+  #main.pane-fwd  .view.active {animation:paneSlideRight .3s var(--ease-ios)}
+  #main.pane-back .view.active {animation:paneSlideLeft  .3s var(--ease-ios)}
 }
-@keyframes paneInLang {from{opacity:0;transform:translate3d(0,0,0)}   to{opacity:1;transform:translate3d(0,0,0)}}
-@keyframes paneOutLang{from{opacity:1;transform:translate3d(0,0,0)}   to{opacity:0;transform:translate3d(0,-4px,0)}}
-@keyframes paneInRight{from{opacity:0;transform:translate3d(14px,0,0)} to{opacity:1;transform:translate3d(0,0,0)}}
-@keyframes paneOutLeft{from{opacity:1;transform:translate3d(0,0,0)}   to{opacity:0;transform:translate3d(-8px,0,0)}}
-@keyframes paneInLeft {from{opacity:0;transform:translate3d(-14px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
-@keyframes paneOutRight{from{opacity:1;transform:translate3d(0,0,0)}  to{opacity:0;transform:translate3d(8px,0,0)}}
+@keyframes curtainFade{from{opacity:1}to{opacity:0}}
+@keyframes paneSlideRight{from{transform:translate3d(14px,0,0)} to{transform:translate3d(0,0,0)}}
+@keyframes paneSlideLeft {from{transform:translate3d(-14px,0,0)}to{transform:translate3d(0,0,0)}}
 @media (prefers-reduced-motion: reduce){
   .view.active,.view.leaving{animation:none!important}
   .view.leaving{display:none!important}
 }
+/* The water droplet. SliceCo's pressRing verbatim (keyframes + .55s + fire-on-pointerdown);
+   ring is element-centred like SliceCo's, inset to hug the tab's pill. --ease IS SliceCo's
+   --ease-out curve (.16,1,.3,1) - same numbers, pre-existing token. The bar's overflow:hidden
+   clips the ring at the capsule edge exactly as SliceCo's tabbar does. */
+.bottom-nav button::after{
+  content:"";position:absolute;inset:5px 1px;z-index:-1;
+  border-radius:999px;border:1.5px solid var(--amber);
+  opacity:0;transform:scale(.6);pointer-events:none;
+}
+.bottom-nav button.ring::after{animation:pressRing .55s var(--ease) forwards}
+@keyframes pressRing{0%{transform:scale(.6);opacity:.55}100%{transform:scale(1.4);opacity:0}}
+@media (prefers-reduced-motion: reduce){.bottom-nav button.ring::after{animation:none}}

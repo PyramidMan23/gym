@@ -182,6 +182,14 @@ addEventListener('scroll',()=>{
   if(y<64){b.remove('nav-min');return;}
   if(dy>4)b.add('nav-min');else if(dy<-4)b.remove('nav-min');
 },{passive:true});
+// SliceCo's press ring ("water droplet"), same fire pattern as its global .tap handler: on
+// pointerdown (so the ring starts BEFORE the pane swap), restart via remove + reflow + add so a
+// rapid double-tap re-fires instead of silently reusing the finished animation.
+document.getElementById('bottomNav').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  b.classList.remove('ring');void b.offsetWidth;b.classList.add('ring');
+  setTimeout(()=>b.classList.remove('ring'),600);
+},{passive:true});
 function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
 // Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
 function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}
@@ -203,9 +211,11 @@ function navigate(view){
   // cause a block around the section and a flash?"). Two real causes. The incoming view was
   // hard-swapped out of display:none with NOTHING covering the gap, and every direct child then ran
   // its own staggered `rise` - 0.35s each on delays out to 0.2s, so 550ms of blocks punching in one
-  // at a time. SliceCo CROSS-DISSOLVES instead: the outgoing pane is lifted to an absolute overlay
-  // and faded sideways while the incoming slides in, so there is never a bare frame, the page never
-  // reflows, and the content moves as ONE object rather than N staggered rectangles.
+  // at a time. REWORKED 2026-08-03 (council, Codex's design): the crossfade itself was the next
+  // bug - two semi-transparent text panes blending for ~200ms read as legible text-over-text
+  // (Mark's screenshot). Now the incoming pane paints FULLY OPAQUE and only slides; the outgoing
+  // becomes an opaque CURTAIN, offset by -scrollY so it shows exactly what was on screen, fading
+  // over the finished pane in 160ms. One complete surface is visible at every instant.
   const ORDER={today:0,train:1,library:2,progress:3};
   const prev=document.querySelector('.view.active'), next=document.getElementById(`view-${view}`);
   const main=document.getElementById('main');
@@ -215,10 +225,13 @@ function navigate(view){
   if(cross){
     main.classList.add(ORDER[view]>ORDER[from]?'pane-fwd':'pane-back');
     // Retire any earlier leaver first, so a rapid tab-tap can never stack two overlays.
-    document.querySelectorAll('.view.leaving').forEach(el=>el.classList.remove('leaving'));
+    document.querySelectorAll('.view.leaving').forEach(el=>{el.classList.remove('leaving');el.style.top='';});
+    // The page scroll resets to 0 below; without this offset the curtain would teleport to its own
+    // top and fade out showing content the user was not even looking at (the second flash source).
+    prev.style.top=`${-scrollY}px`;
     prev.classList.add('leaving');
     clearTimeout(leaveTimer);
-    leaveTimer=setTimeout(()=>prev.classList.remove('leaving'),320);
+    leaveTimer=setTimeout(()=>{prev.classList.remove('leaving');prev.style.top='';},320);
   }
   swap();
   // Restart the incoming animation explicitly: without the reflow read the browser reuses the
@@ -229,7 +242,10 @@ function navigate(view){
   const navIdx={today:0,train:1,library:2,progress:3}[view];
   const navCursor=document.getElementById('navCursor');
   if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
-  window.scrollTo(0,0);
+  // instant, not the default: html{scroll-behavior:smooth} would ANIMATE this reset, so the new
+  // pane visibly scrolled up under the curtain and the curtain (absolute in #main) drifted with
+  // it - a third motion artifact hiding inside what looked like a plain reset.
+  window.scrollTo({top:0,behavior:'instant'});
   document.getElementById('main').focus({preventScroll:true});
 }
 // Persistent way back to a live session from ANY tab - replaces the confirm() gate. Shows name +
