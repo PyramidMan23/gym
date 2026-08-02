@@ -118,7 +118,22 @@
       </section>
 
       <section id="view-workout" class="view workout-view" aria-labelledby="workoutTitle">
-        <header class="workout-header"><div><h1 id="workoutTitle">Workout</h1><p class="workout-clock hero-num"><span id="workoutClock">00:00</span><span id="pausedFlag" class="paused-flag" hidden>PAUSED</span></p></div><div class="workout-actions"><button id="pauseButton" class="pause-button" onclick="toggleWorkoutPause()" aria-pressed="false">Pause</button><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></div></header>
+        <header class="workout-header">
+          <div class="wh-top">
+            <div class="wh-id">
+              <div class="wh-name-row">
+                <!-- v2: a running session can be minimised back to Today and resumed from the
+                     "Session in progress" card. Discard used to be the only way out. -->
+                <button class="wh-minimise" type="button" onclick="navigate('today')" aria-label="Back to Today, keep the session running"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+                <h1 id="workoutTitle">Workout</h1>
+                <span id="pausedFlag" class="paused-flag" hidden>PAUSED</span>
+              </div>
+              <p class="workout-clock hero-num"><span id="workoutClock">00:00</span><small id="workoutVolumeLine"></small></p>
+            </div>
+            <div class="workout-actions"><button id="pauseButton" class="pause-button" onclick="toggleWorkoutPause()" aria-pressed="false">Pause</button><button class="finish-button" onclick="requestFinishWorkout()">Finish</button></div>
+          </div>
+          <div class="wh-progress"><i aria-hidden="true"><b id="sessionBar"></b></i><small id="setsLeft"></small></div>
+        </header>
         <p id="workoutContext" class="workout-context"></p>
         <div id="workoutMetrics" class="live-metrics"></div>
         <div id="workoutExercises" class="workout-exercises"></div>
@@ -138,7 +153,9 @@
     </nav>
   </div>
 
-  <div id="restPill" class="rest-pill" aria-live="polite"><div class="rest-info"><span>Rest</span><strong id="restTime">01:30</strong></div><button class="rest-act" type="button" onclick="adjustRest(30)" aria-label="Add 30 seconds to rest">+30s</button><button class="rest-act rest-skip" type="button" onclick="skipRest()" aria-label="Skip rest and go to next set">Skip</button></div>
+  <!-- v2: full-width pill with a countdown ring. The label span stays a <span> because tickRest()
+       swaps its text between "Rest" and "Get ready" - a WORD change, not a hue change. -->
+  <div id="restPill" class="rest-pill" aria-live="polite"><svg class="rest-ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="rr-track" cx="22" cy="22" r="18"></circle><circle class="rr-arc" id="restRing" cx="22" cy="22" r="18"></circle></svg><div class="rest-info"><span>Rest</span><strong id="restTime">01:30</strong></div><button class="rest-act" type="button" onclick="adjustRest(30)" aria-label="Add 30 seconds to rest">+30s</button><button class="rest-act rest-skip" type="button" onclick="skipRest()" aria-label="Skip rest and go to next set">Skip</button></div>
 
   <div id="receiptOverlay" class="receipt-overlay" role="dialog" aria-modal="true" aria-label="Session receipt" hidden style="display:none"><div class="receipt-card notched" id="receiptCard"></div></div>
 

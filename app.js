@@ -586,6 +586,7 @@ function startWorkout(id,variant){
 function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(routine)beginSession(routine); }
 function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exerciseIds:[]}); }
 function beginSession(routine){
+  forcedOpen=new Set(); // reopened-card state never leaks between sessions
   if(state.activeSession){showToast('You already have a workout running');navigate('workout');return;}
   pickerFilterState=newFilterState(); // each workout's add-exercise flow starts clean, then persists across opens
   state.activeSession=Core.createSession(routine);
@@ -1104,16 +1105,41 @@ function saveBodyweight(){
   saveState();closeSheet();renderProgress();showToast('Weight logged');
   checkGoalAchievements(); // new evidence - a bodyweight goal may have just landed
 }
+// Exercises the lifter re-opened by tapping their done row. Session-scoped, deliberately not
+// persisted: reopening is a glance, not a state change worth surviving a reload.
+let forcedOpen=new Set();
+// The ACTIVE exercise = the first one with an unfinished set. Only it may own the NOW row, and only
+// it is lit; six cards each claiming "next" is no hierarchy at all.
+function activeExerciseIndex(session){
+  const i=(session?.exercises||[]).findIndex(ex=>ex.sets.some(s=>!s.done));
+  return i;
+}
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
-  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map(workoutExerciseMarkup).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
+  const activeIdx=activeExerciseIndex(session);
+  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map((ex,i)=>workoutExerciseMarkup(ex,i,activeIdx)).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
   btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
   document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue - the state must survive colour-blindness
   document.getElementById('view-workout').classList.toggle('paused',paused);
+  renderSessionProgress(session);
   startActiveClock();
+}
+// Sticky-header session progress: how much of the session's INTENDED work is logged, and how many
+// sets remain. Counts the same "planned" sets the per-exercise rail counts, so the two never disagree.
+function renderSessionProgress(session){
+  let done=0,total=0;
+  for(const ex of session.exercises||[]){
+    const sets=ex.sets||[],last=sets[sets.length-1];
+    const t=sets.length-((sets.length>1&&last&&!last.done&&!last.planned&&(last.prefilled||(!last.weight&&!last.reps)))?1:0);
+    total+=t;done+=Core.doneSets(ex).length;
+  }
+  const left=Math.max(0,total-done),pct=total?Math.min(100,Math.round(done/total*100)):0;
+  const bar=document.getElementById('sessionBar');if(bar)bar.style.width=pct+'%';
+  const label=document.getElementById('setsLeft');
+  if(label)label.textContent=total?(left?`${left} set${left===1?'':'s'} left`:'All sets logged'):'No sets yet';
 }
 // Session bookends (2026-07-28). The catalogue carried 31 mobility/stretch entries that nothing ever
 // sequenced, so they only got used by someone who already knew what to look for. The strip proposes
@@ -1180,6 +1206,18 @@ function dismissCheckin(){
   else saveState();
   renderWorkout();
 }
+// Just the safety branch of contextLine(): are we above the last CONFIRMED tolerated load?
+function aboveConfirmedLoadLine(){
+  const s=state.activeSession;if(!s)return '';
+  for(const ex of s.exercises){
+    const conf=Core.lastConfirmedExposure(state.history,ex.exerciseId);
+    if(conf&&conf.topWeight){
+      const top=Math.max(0,...ex.sets.filter(x=>x.done).map(x=>Number(x.weight)||0));
+      if(top>conf.topWeight)return `Above your last confirmed load on ${exerciseById(ex.exerciseId)?.name||'this lift'}.`;
+    }
+  }
+  return '';
+}
 function renderWorkoutMetrics(){
   const session=state.activeSession;if(!session)return;
   const summary=Core.summarizeSession({...session,finished:Date.now()});
@@ -1194,8 +1232,16 @@ function renderWorkoutMetrics(){
   }else{
     strongs.forEach((el,i)=>rollNumber(el,values[i]));
   }
+  // The sticky header now states live session progress, so this line keeps ONLY the safety
+  // message. Both used to render a sets-left count, computed differently, 40px apart - the header
+  // said "2 sets left" while this said "1 set left." contextLine() itself is untouched; Today
+  // still uses it.
   const ctx=document.getElementById('workoutContext');
-  if(ctx)ctx.textContent=contextLine();
+  if(ctx)ctx.textContent=aboveConfirmedLoadLine();
+  // Live volume beside the clock in the sticky header (v2). Same summary, no second computation.
+  const vol=document.getElementById('workoutVolumeLine');
+  if(vol)vol.textContent=summary.volume>0?`${compact(summary.volume)} kg lifted`:'no load yet';
+  if(state.activeSession)renderSessionProgress(state.activeSession);
 }
 // Wave 1: the session's pain controller and per-exercise progression target - pure Core, surfaced here.
 function sessionPainGate(){return Core.painGate(state.history,state.activeSession?.checkin?.pre);}
@@ -1213,7 +1259,20 @@ function formatTarget(t){
   return `${t.weight} kg × ${t.reps}`;
 }
 const RULE_WORD={'add-rep':'build reps','add-load':'load up','add-time':'add time','hold':'hold','repeat-no-rir':'repeat','step-down':'step-down','blocked':'blocked'};
-function workoutExerciseMarkup(exercise,index){
+// The delta chip on the target strip: what today's target changes versus the last confirmed set.
+// Derived purely from those two numbers - it never invents a direction the rule did not produce.
+function targetDelta(target,basis,timed){
+  if(!target||target.rule==='blocked')return '';
+  if(!basis)return 'first time';
+  const dw=Number(target.weight||0)-Number(basis.weight||0);
+  const dr=Number(target.reps||0)-Number(basis.reps||0);
+  if(dw>0)return `+${Math.round(dw*100)/100} kg`;
+  if(dw<0)return `${Math.round(dw*100)/100} kg`;
+  if(dr>0)return timed?`+${dr}s`:`+${dr} rep${dr===1?'':'s'}`;
+  if(dr<0)return timed?`${dr}s`:`${dr} reps`;
+  return 'hold';
+}
+function workoutExerciseMarkup(exercise,index,activeIdx){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const timed=!!item?.timed; // hold-type exercise: the "reps" field stores seconds
   const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>timed?`${s.weight?`${s.weight} kg × `:''}${s.reps} s`:`${s.weight||'-'} kg × ${s.reps}`).join(' · ')}`:'First time - set your benchmark';
@@ -1224,7 +1283,6 @@ function workoutExerciseMarkup(exercise,index){
   // Progression target line - a second line under "Last time", with a "why?" that opens the evidence sheet.
   const pg=sessionPainGate(),target=targetFor(exercise.exerciseId,pg);
   const blocked=target&&target.rule==='blocked';
-  const targetLine=target?`<span class="target-line${blocked?' blocked':''}"><b aria-hidden="true">→</b> <span class="target-lead">Today:</span> <strong>${esc(formatTarget(target))}</strong> <button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></span>`:'';
   // A workout scheme's plan, restated as neutral structure (never amber - it is not a target and
   // not a load). Set count is deliberately absent: the rail already counts sets, and +Add Set would
   // make any stamped number a lie.
@@ -1242,11 +1300,58 @@ function workoutExerciseMarkup(exercise,index){
   const working=sets.filter(s=>!s.drop),workingPlanned=working.filter(s=>s.done||s.planned||(!s.prefilled&&(s.weight!==''||s.reps!=='')));
   const rirDone=workingPlanned.length>0&&workingPlanned.every(s=>s.done);
   const rirRow=rirRowMarkup(exercise,index,rirDone);
-  return `<article class="workout-exercise" data-index="${index}" style="--done:${doneFrac.toFixed(3)}"><header class="exercise-head"><button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false">${GRIP_ICON}</button><div><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div><button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button></header>${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}<div class="previous-strip">${esc(prevText)}${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}${targetLine}</div><div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>${(()=>{const activeIdx=exercise.sets.findIndex(s=>!s.done);return exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeIdx,previous[0],timed)).join('');})()}${rirRow}<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div></article>${exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':''}`;
+  // v2 collapse rule (prototype parity): a finished exercise folds to a calm done row, but NEVER
+  // before its final-set RIR is answered or skipped - collapsing first put the RIR tap out of reach
+  // (BUILD-NEXT non-negotiable #3). Tapping the done row re-opens it for the rest of the session.
+  const allDone=sets.length>0&&sets.every(s=>s.done);
+  const collapsed=allDone&&exercise.rir!==undefined&&!forcedOpen.has(index);
+  const isActive=index===activeIdx;
+  const exVolume=Core.doneSets(exercise).reduce((a,x)=>a+(Number(x.weight)||0)*(Number(x.reps)||0),0);
+  const rirWord=exercise.rir===undefined?'':(exercise.rir==='skip'?' · RIR skipped':` · RIR ${exercise.rir==='4'||exercise.rir===4?'4+':exercise.rir}`);
+  const doneSummary=`${doneCount} set${doneCount===1?'':'s'}${exVolume?` · ${compact(exVolume)} kg`:''}${rirWord}`;
+  const ssLink=exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':'';
+  if(collapsed){
+    // The done row is draggable (same gripDown handler) but deliberately does NOT carry
+    // .exercise-grip: layout-check does closest('.exercise-head') on every grip it finds, and a
+    // collapsed card has no header. data-index, which the drag test selects, is unchanged.
+    return `<article class="workout-exercise done-card" data-index="${index}" style="--done:1">`
+      +`<button class="done-row" type="button" aria-label="${esc(item?.name||'Exercise')} finished: ${esc(doneSummary)}. Tap to reopen, or drag to reorder" onpointerdown="gripDown(event,${index})" onclick="reopenExercise(${index})" oncontextmenu="return false">`
+      +`<span class="done-mark" aria-hidden="true">✓</span>`
+      +`<span class="row-text"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(doneSummary)}</small></span>`
+      +`<span class="done-edit">Edit</span></button></article>${ssLink}`;
+  }
+  const lastLine=previous.length?`Last · ${timed?`${previous[0].reps}s hold`:`${previous[0].weight?`${previous[0].weight} kg × `:'bodyweight × '}${previous[0].reps}`}`:'Last · no history yet';
+  const basis=previous.length?previous[0]:null;
+  const delta=targetDelta(target,basis,timed);
+  // Graphic target strip: teal evidence line + amber delta chip, then TODAY at 20px with the why?.
+  const targetStrip=target?`<div class="target-strip${blocked?' blocked':''}">`
+      +`<div class="ts-top"><span class="ts-last">${esc(lastLine)}</span>${delta?`<span class="ts-delta">${esc(delta)}</span>`:''}</div>`
+      +`<div class="ts-bottom"><span class="ts-today"><small>TODAY</small><b>${esc(formatTarget(target))}</b></span>`
+      +`<button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></div>`
+    +`</div>`:`<div class="previous-strip">${esc(prevText)}</div>`;
+  const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
+  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed)).join('');
+  return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
+    +`<header class="exercise-head">`
+      +`<button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
+      +`<div class="ex-id"><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div>`
+      +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
+    +`</header>`
+    +`<div class="ex-rail" aria-hidden="true"><i style="width:${Math.round(doneFrac*100)}%"></i></div>`
+    +`<p class="ex-count">${doneCount}/${total} set${total===1?'':'s'}</p>`
+    +`${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}`
+    +`${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}`
+    +targetStrip
+    +`<div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>`
+    +setRows+rirRow
+    +`<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div>`
+  +`</article>${ssLink}`;
 }
 // RIR (reps-in-reserve) capture on the finished exercise. One tap → stored on the session exercise,
 // chips collapse to a small confirmed note. 'skip' is an honest non-answer (keeps progression conservative).
 const RIR_CHIPS=[['0','0'],['1','1'],['2','2'],['3','3'],['4','4+'],['skip','skip']];
+// Tapping a finished exercise's done row re-opens it for the rest of the session.
+function reopenExercise(index){forcedOpen.add(index);renderWorkout();}
 function rirRowMarkup(exercise,index,show){
   const has=exercise.rir!==undefined;
   if(has){
@@ -1298,7 +1403,31 @@ function openTargetWhy(index){
 // A cell input opens the numeric pad instead of the keyboard (readonly + role=button); the pad's
 // "Keyboard" button removes readonly for arbitrary entry. Prefilled (carry-forward) sets read muted
 // AND italic/lighter - a non-colour cue too, since Mark is colour-blind - until the lifter confirms them.
-function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed){const completion=Core.setCompletionState(set.done,setIndex+1);const pf=set.prefilled&&!set.done?' prefilled':'';const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;const adopt=Core.showAdoptAction(set,setIndex,!!firstPrev)?`<button class="adopt-last" onclick="adoptLast(${exerciseIndex})" aria-label="Use last session's ${firstPrev.weight||'-'} kilograms for ${firstPrev.reps} reps">Use last: ${esc(firstPrev.weight||'-')} kg × ${esc(firstPrev.reps)}</button>`:'';return `<div class="set-grid set-row ${completion.className}${isActive?' notched':''}${pf}${set.drop?' drop-set':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}"><button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side">${set.drop?'↓':setIndex+1}${set.side?`<em>${set.side}</em>`:''}</button><input class="set-input" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(set.weight)}" placeholder="${previous?.weight||'-'}" ${cellAttrs('weight')} onchange="updateSet(${exerciseIndex},${setIndex},'weight',this.value)" aria-label="Weight for set ${setIndex+1}"><input class="set-input" type="number" inputmode="numeric" min="0" step="1" value="${esc(set.reps)}" placeholder="${previous?.reps||'-'}" ${cellAttrs('reps')} onchange="updateSet(${exerciseIndex},${setIndex},'reps',this.value)" aria-label="${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}"><button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button></div>${adopt}`;}
+// v2 set row. Values are 52px cells with the unit hung outside the number so the digits stay
+// optically centred. The row carries its state as SHAPE + WORD, never hue alone: done = tick +
+// amber fill, next-up = amber rail + ring + the word NOW, prefilled = italic + muted, drop = DROP,
+// a set that beats last session = PR. Only the active exercise passes isActive, so exactly one NOW
+// row exists in the whole session.
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed){
+  const completion=Core.setCompletionState(set.done,setIndex+1);
+  const pf=set.prefilled&&!set.done?' prefilled':'';
+  const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;
+  const adopt=Core.showAdoptAction(set,setIndex,!!firstPrev)?`<button class="adopt-last" onclick="adoptLast(${exerciseIndex})" aria-label="Use last session's ${firstPrev.weight||'-'} kilograms for ${firstPrev.reps} reps">Use last: ${esc(firstPrev.weight||'-')} kg × ${esc(firstPrev.reps)}</button>`:'';
+  // "Beats last time" is a comparison of two logged numbers, never a guess: heavier than the last
+  // session's top set, or the same load carried for more reps/seconds.
+  const w=Number(set.weight)||0,r=Number(set.reps)||0;
+  const pw=Number(firstPrev?.weight)||0,pr=Number(firstPrev?.reps)||0;
+  const beats=!!(set.done&&firstPrev&&(w>pw||(w===pw&&r>pr)));
+  const tag=set.drop?'DROP':(beats?'PR':(isActive&&!set.done?'NOW':''));
+  const unitB=timed?'s':'reps';
+  const cell=(k,val,ph,unit,label)=>`<span class="set-cell"><input class="set-input" type="number" inputmode="${k==='weight'?'decimal':'numeric'}" min="0" step="${k==='weight'?'0.5':'1'}" value="${esc(val)}" placeholder="${ph}" ${cellAttrs(k)} onchange="updateSet(${exerciseIndex},${setIndex},'${k}',this.value)" aria-label="${label}"><small class="set-unit" aria-hidden="true">${unit}</small></span>`;
+  return `<div class="set-grid set-row ${completion.className}${isActive&&!set.done?' now':''}${pf}${set.drop?' drop-set':''}${beats?' beats':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}">`
+    +`<button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side"><b>${set.drop?'↓':setIndex+1}</b>${set.side?`<em>${set.side}</em>`:''}${tag?`<small class="set-tag">${tag}</small>`:''}</button>`
+    +cell('weight',set.weight,previous?.weight||'-','kg',`Weight for set ${setIndex+1}`)
+    +cell('reps',set.reps,previous?.reps||'-',unitB,`${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}`)
+    +`<button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button>`
+  +`</div>${adopt}`;
+}
 // Explicit set-1 adoption: fill (never auto) set 1 from last session's first set; the lifter can still edit.
 function adoptLast(exerciseIndex){
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
@@ -1435,8 +1564,10 @@ function settlePause(session,now=Date.now()){ // close any open pause so `finish
 // and a visibilitychange reconciliation fires the end path immediately when the tab wakes past it -
 // an OS-suspended interval can no longer resume stale.
 let restDeadline=0;
+let restTotalSeconds=90; // denominator for the countdown ring; +30s extends it so the arc never overflows
 function startRest(seconds,exerciseIndex=0){
-  restDeadline=Date.now()+(Number(seconds)||90)*1000;restExerciseIndex=exerciseIndex;
+  restTotalSeconds=Number(seconds)||90;
+  restDeadline=Date.now()+restTotalSeconds*1000;restExerciseIndex=exerciseIndex;
   clearInterval(restTimer);document.getElementById('restPill').classList.add('show');
   tickRest();restTimer=setInterval(tickRest,1000);
 }
@@ -1465,8 +1596,17 @@ function notifyRestDone(){
   if(state.preferences.restNotify!==true||typeof Notification==='undefined'||Notification.permission!=='granted'||document.visibilityState==='visible')return;
   try{navigator.serviceWorker?.ready.then(r=>r.showNotification('Rest done',{body:'Next set is up.',icon:'icon-180.png',badge:'icon-180.png',tag:'gym-rest'})).catch(()=>{});}catch{}
 }
-function adjustRest(seconds){restDeadline+=seconds*1000;tickRest();}
-function updateRest(){rollNumber(document.getElementById('restTime'),Core.formatDuration(restRemaining));}
+function adjustRest(seconds){restDeadline+=seconds*1000;restTotalSeconds+=seconds;tickRest();}
+const REST_RING_C=2*Math.PI*18; // r=18 in the 44x44 viewBox
+function updateRest(){
+  rollNumber(document.getElementById('restTime'),Core.formatDuration(restRemaining));
+  const ring=document.getElementById('restRing');
+  if(ring){
+    const frac=restTotalSeconds>0?Math.max(0,Math.min(1,restRemaining/restTotalSeconds)):0;
+    ring.style.strokeDasharray=REST_RING_C;
+    ring.style.strokeDashoffset=REST_RING_C*(1-frac);
+  }
+}
 // Skip clears the running rest and immediately hands off to the next-set progression.
 function skipRest(){clearInterval(restTimer);restRemaining=0;document.getElementById('restPill').classList.remove('show');progressToNextSet(restExerciseIndex);}
 // Rest-end "what's next": the next incomplete set (same exercise, else the next exercise with one)
@@ -1617,10 +1757,16 @@ function cancelWorkout(){
 function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
 function closeConfirm(){dismissDialog(document.getElementById('confirmDialog'));}
 
-function openExercisePicker(target){
+let swapTargetIndex=null; // set only for a workout SWAP; a plain add leaves it null
+function openExercisePicker(target,swapIndex){
   pickerTarget=target;
+  swapTargetIndex=(target==='workout'&&Number.isInteger(swapIndex))?swapIndex:null;
   if(target!=='workout')pickerFilterState=newFilterState(); // routine editing browses fresh; a workout's flow keeps its filters across opens
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Add exercise</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
+  const swapEx=swapTargetIndex!=null?state.activeSession?.exercises[swapTargetIndex]:null;
+  const swapName=swapEx?(exerciseById(swapEx.exerciseId)?.name||'this exercise'):'';
+  const swapSets=swapEx?swapEx.sets.length:0;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${swapEx?'Swap exercise':'Add exercise'}</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
+    +(swapEx?`<p class="swap-note">Replacing <strong>${esc(swapName)}</strong> · keeps ${swapSets} set${swapSets===1?'':'s'}</p>`:'')
     +`<div id="pk_quick" class="quick-picks"></div>`
     +`<div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pk_search" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('picker',this.value)" aria-label="Search exercises"></div>`
     +`<div id="pk_chips" class="filter-row" aria-label="Filter by muscle group"></div>`
@@ -1629,6 +1775,20 @@ function openExercisePicker(target){
   renderCatalogue('picker');document.getElementById('sheet').showModal();
 }
 function pickExercise(id){
+  // Swap replaces the lift IN PLACE and keeps the prescribed set count. Logged values are cleared
+  // because they belong to the old lift; the "last time -> target" strip then re-derives itself from
+  // the NEW lift's own confirmed history, so nothing is carried across exercises.
+  if(pickerTarget==='workout'&&swapTargetIndex!=null){
+    const ex=state.activeSession?.exercises[swapTargetIndex];
+    if(ex){
+      const keep=Math.max(1,ex.sets.length);
+      ex.exerciseId=id;ex.sets=Array.from({length:keep},()=>({weight:'',reps:'',done:false}));
+      delete ex.rir;delete ex.notes;
+      forcedOpen.delete(swapTargetIndex);
+      saveState();
+    }
+    swapTargetIndex=null;closeSheet();renderWorkout();showToast('Exercise swapped');return;
+  }
   if(pickerTarget==='workout'){addExerciseToWorkout(id);closeSheet();showToast('Exercise added');}
   else if(pickerTarget==='routine'){if(!routineDraft.exerciseIds.includes(id))routineDraft.exerciseIds.push(id);renderRoutineEditor();}
   // Picking for a goal returns to the goal sheet with the choice made - the draft is never lost.
@@ -1688,7 +1848,7 @@ function openWorkoutExerciseMenu(index){
   if(!state.activeSession?.exercises[index])return;
   const exercise=state.activeSession.exercises[index],name=exerciseById(exercise.exerciseId)?.name||'Exercise';
   const cue=state.exerciseCues?.[exercise.exerciseId];
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square - right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule - clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right - that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below - no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="removeWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square - right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule - clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right - that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below - no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="secondary-button" onclick="openExercisePicker('workout',${index})">⇄ Swap exercise</button></div><div class="sheet-actions"><button class="secondary-button" style="color:var(--danger)" onclick="confirmRemoveWorkoutExercise(${index})">Remove</button><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
 }
 function saveExerciseNote(index){
   const exercise=state.activeSession?.exercises[index];if(!exercise)return;
@@ -1699,8 +1859,19 @@ function saveExerciseNote(index){
   else delete state.exerciseCues[exercise.exerciseId];
   saveState();closeSheet();renderWorkout();showToast('Saved');
 }
+// Removing an exercise throws away every set logged against it, so it asks first (a bare tap 4px
+// from Swap used to delete the lot silently).
+function confirmRemoveWorkoutExercise(index){
+  const ex=state.activeSession?.exercises[index];if(!ex)return;
+  const name=exerciseById(ex.exerciseId)?.name||'this exercise';
+  const logged=Core.doneSets(ex).length;
+  closeSheet();
+  document.getElementById('confirmContent').innerHTML=`<h2>Remove ${esc(name)}?</h2><p>${logged?`${logged} logged set${logged===1?'':'s'} will be discarded.`:'It has no logged sets.'}</p><div class="sheet-actions"><button class="secondary-button" onclick="closeConfirm()">Keep</button><button class="primary-button" onclick="removeWorkoutExercise(${index})">Remove</button></div>`;
+  document.getElementById('confirmDialog').showModal();
+}
 function removeWorkoutExercise(index){
   if(!state.activeSession)return;
+  closeConfirm();
   state.activeSession.exercises.splice(index,1);
   // A running rest belongs to an exercise by INDEX - after a splice that index points at a different
   // exercise (or past the end), so rest-end would highlight the wrong row. Re-anchor it.
@@ -1747,6 +1918,14 @@ function gripMove(event){
 // Geometry is measured ONCE, at lift: every frame after that is transform-only, so the drag never
 // re-lays-out and never re-renders. ponytail: a re-render mid-drag (nothing triggers one today
 // without a tap) would leave the cached rects stale - if one ever does, cancel the drag on render.
+// TODO(design): HANDOFF also asks the whole list to collapse to ~68px rows on pick-up, so a 6-lift
+// session is reorderable in one short drag. Not done here on purpose: this implementation measures
+// each card's REAL span (incl. grid gap + superset link) at lift time, so displacement is already
+// correct at any card height, and v2 collapses finished exercises to a done row anyway - a late
+// session is already short. Collapsing on pick-up means re-rendering mid-drag and re-measuring,
+// which is the exact case HANDOFF warns loses a card-level pointerup. Worth doing only with the
+// window-level listeners it describes, and worth a fresh drag test. Behaviour today is unchanged
+// and green (browser-flow drag-reorder + reduced-motion).
 function liftDrag(){
   const cards=[...document.querySelectorAll('#workoutExercises .workout-exercise')];
   if(cards.length<2||cards[drag.index]!==drag.card)return endDrag(false);

@@ -1235,6 +1235,10 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
      --teal (#0B6E77) on that tint measures 4.29:1 in light - an AA fail the contrast guard caught.
      Same trick the amber pair already uses: the fill stays --teal, the INK goes darker. 5.53:1. */
   --teal-deep:#095C63;
+  /* Third ink step (the prototype's --ink3): quieter than --cream-dim, but legible on the AMBER-TINTED
+     set rows where --faint/--taupe fail. Worst surface is the PR row's 20%% amber wash:
+     light #5A5348 = 6.09:1, dark #A7AEB5 = 5.27:1. Used by the hung unit labels. */
+  --ink-quiet:#5A5348;
 }
 @media(prefers-color-scheme:dark){:root{
   --page:#0B0C0D;
@@ -1244,6 +1248,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   --hair:rgba(255,255,255,.06);
   --shadow:0 18px 40px -20px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.08);
   --teal-deep:#2EC5E0;   /* dark scheme: the bright teal already measures 7.49:1 on its own tint */
+  --ink-quiet:#A7AEB5;
 }}
 
 /* ============================================================
@@ -1324,3 +1329,166 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 /* A history row inside the group is a row, not a card: drop the card background/radius it
    inherits from the shared card rules above. */
 .group .history-card{background:transparent;border-radius:0;box-shadow:none;border:0}
+
+/* ============================================================
+   v2 WORKOUT COCKPIT (design/HANDOFF.md section 2 "Workout").
+   The screen you stare at for hours, so it carries the most life: the current
+   exercise is lit, everything finished recedes to a calm done row.
+   Every state is shape + word + colour (done = tick + amber fill, next = ring +
+   the word NOW, prefilled = italic + muted, drop = DROP, beat = PR, paused =
+   the word PAUSED). All motion is transform/opacity/stroke and dies under the
+   global prefers-reduced-motion rule. Rollback: delete to the next banner.
+   ============================================================ */
+
+/* ---- Sticky header: clock + live volume + session progress + sets-left ---- */
+.workout-header{display:block}
+.wh-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wh-id{min-width:0;flex:1}
+.wh-name-row{display:flex;align-items:center;gap:8px;min-width:0}
+.wh-minimise{width:44px;min-width:44px;height:44px;flex:none;margin:-11px -4px -11px -10px;
+  border:0;background:transparent;color:var(--taupe);display:grid;place-items:center;border-radius:var(--r-control)}
+.wh-minimise svg{width:16px;height:16px;display:block}
+.workout-header h1#workoutTitle{margin:0;min-width:0;font-size:11px;font-weight:800;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--taupe);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workout-clock{margin:2px 0 0;display:flex;align-items:baseline;gap:9px;font-size:36px;font-weight:800;
+  line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums lining-nums;color:var(--amber-deep)}
+.workout-clock small{flex:none;font-size:12px;font-weight:800;color:var(--taupe);letter-spacing:0;white-space:nowrap}
+.wh-progress{display:flex;align-items:center;gap:10px;margin-top:12px}
+.wh-progress i{flex:1;height:5px;border-radius:3px;background:var(--hair);position:relative;display:block;overflow:hidden}
+.wh-progress i b{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:3px;
+  background:linear-gradient(90deg,var(--amber-soft),var(--amber));transition:width .6s var(--ease)}
+.wh-progress small{color:var(--cream-dim);font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- Exercise cards: the active one is lit, the rest recede ---- */
+.workout-exercise{position:relative;overflow:hidden;transition:opacity .3s var(--ease),border-color .3s var(--ease)}
+/* Receding must NOT be done with opacity: fading the whole card fades its text against the page
+   too, and every muted ink inside dropped to ~3.3:1 in BOTH schemes (contrast-guard, 27 failures).
+   The hierarchy comes from the lit card GAINING (amber wash, amber border, elevation) while the
+   others sit flat and shadowless. Text stays at full strength everywhere. */
+.workout-exercise:not(.lit):not(.done-card){box-shadow:none;border-color:var(--hair)}
+.workout-exercise.lit{border-color:rgba(var(--bloom-amber),.34);
+  background:radial-gradient(130% 90% at 100% 0,rgba(var(--bloom-amber),.13),transparent 58%),var(--card-bg);
+  box-shadow:var(--shadow),0 0 0 1px rgba(var(--bloom-amber),.10)}
+.exercise-head{display:flex;align-items:flex-start;gap:9px;padding:14px 12px 10px}
+.exercise-grip{width:44px;min-width:44px;height:44px;flex:none;display:grid;place-items:center;
+  border:0;background:transparent;color:var(--taupe);border-radius:var(--r-control);touch-action:none}
+.ex-index{width:28px;height:28px;border-radius:var(--r-control);background:var(--group-bg);
+  border:1px solid var(--card-hair);display:grid;place-items:center;font-size:11px;font-weight:800;
+  font-variant-numeric:tabular-nums lining-nums;color:var(--taupe)}
+.workout-exercise.lit .ex-index{background:rgba(var(--bloom-amber),.16);color:var(--amber-deep);border-color:rgba(var(--bloom-amber),.3)}
+.ex-id{min-width:0;flex:1}
+.ex-id h2.exercise-title{margin:0;font-size:19px;font-weight:800;letter-spacing:-.028em;line-height:1.15}
+.ex-id p{margin:3px 0 0;color:var(--faint);font-size:12px}
+.exercise-more{width:44px;height:44px;flex:none;border:0;border-radius:var(--r-control);
+  background:var(--group-bg);color:var(--taupe);font-weight:800;letter-spacing:1.5px;font-size:13px;display:grid;place-items:center}
+.ex-rail{position:relative;margin:0 16px 6px;height:4px;border-radius:2px;background:var(--hair);overflow:hidden}
+.ex-rail i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;display:block;
+  background:linear-gradient(90deg,var(--amber-soft),var(--amber));transition:width .55s var(--ease)}
+.ex-count{margin:0 16px 12px;color:var(--faint);font-size:11px;font-weight:700;
+  letter-spacing:.06em;font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- Finished exercise collapses to a calm done row ---- */
+.workout-exercise.done-card{opacity:1}
+.done-row{width:100%;display:flex;align-items:center;gap:12px;min-height:56px;padding:13px 14px;
+  border:0;background:transparent;color:var(--cream);text-align:left;font:inherit;touch-action:none}
+.done-mark{width:34px;height:34px;flex:none;border-radius:var(--r-control);display:grid;place-items:center;
+  font-size:16px;font-weight:800;background:linear-gradient(135deg,var(--amber-soft),var(--amber));color:var(--on-amber)}
+.done-row .row-text strong{font-size:15.5px;font-weight:800;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.done-row .row-text small{color:var(--taupe);font-variant-numeric:tabular-nums lining-nums}
+.done-edit{flex:none;color:var(--faint);font-size:12px;font-weight:700}
+
+/* ---- last-to-target strip, with its delta chip ---- */
+.target-strip{margin:0 14px 12px;padding:13px 14px;border-radius:var(--r-group);
+  background:linear-gradient(135deg,rgba(var(--bloom-teal),.10),rgba(var(--bloom-teal),.035));
+  border:1px solid rgba(var(--bloom-teal),.22)}
+.ts-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ts-last{color:var(--teal-deep);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums lining-nums}
+.ts-delta{flex:none;padding:4px 8px;border-radius:var(--r-chip);background:rgba(var(--bloom-amber),.16);
+  color:var(--amber-deep);font-size:10.5px;font-weight:800;letter-spacing:.03em;font-variant-numeric:tabular-nums lining-nums}
+.ts-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;
+  padding-top:11px;border-top:1px solid rgba(var(--bloom-teal),.2)}
+.ts-today{display:flex;align-items:baseline;gap:8px;min-width:0}
+.ts-today small{color:var(--taupe);font-size:10.5px;font-weight:800;letter-spacing:.11em}
+.ts-today b{color:var(--amber-deep);font-weight:800;font-size:20px;letter-spacing:-.025em;font-variant-numeric:tabular-nums lining-nums}
+.target-strip.blocked{background:var(--danger-soft);border-color:var(--danger)}
+.target-strip.blocked .ts-today b{color:var(--danger)}
+.why-target{flex:none;min-width:56px;min-height:44px;padding:0 12px;border:1px solid var(--card-hair);
+  border-radius:var(--r-control);background:var(--group-bg);color:var(--cream-dim);font-size:12px;font-weight:700}
+
+/* ---- Set rows: 52px values, hung units, one NOW row, 52px done circles ---- */
+.set-grid{display:grid;grid-template-columns:38px 1fr 1fr 52px;gap:8px;align-items:center}
+.set-grid.header{padding:0 14px 8px;font-size:9.5px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.1em;font-weight:800}
+.set-grid.header span:first-child,.set-grid.header span:last-child{text-align:center}
+.set-row{position:relative;margin:0 8px 5px;padding:6px;border-radius:var(--r-group);background:transparent;
+  transition:background .3s var(--ease),box-shadow .3s var(--ease)}
+/* The column is 38px to keep the prototype's rhythm, but the TARGET must be 44. The button is 44
+   wide and overhangs 3px into the 8px gutter on each side, so it never reaches the value cell. */
+.set-number{display:grid;justify-items:center;align-content:center;gap:2px;border:0;background:transparent;
+  color:var(--taupe);width:44px;margin:0 -3px;min-height:44px;border-radius:var(--r-control);padding:0}
+.set-number b{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums lining-nums;line-height:1}
+.set-number em{font-style:normal;font-size:9px;font-weight:800;color:var(--teal-deep)}
+.set-tag{font-size:9px;font-weight:800;letter-spacing:.04em;line-height:1;color:var(--faint)}
+.set-cell{position:relative;display:block}
+.set-input{width:100%;height:52px;border:1px solid var(--card-hair);border-radius:var(--r-control);
+  background:var(--group-bg);color:var(--cream);text-align:center;font-size:20px;font-weight:800;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums;padding:0 14px 0 0;
+  -moz-appearance:textfield;transition:border-color .25s,background .25s,color .25s}
+.set-input::-webkit-outer-spin-button,.set-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+/* The unit hangs to the right of the number so the digits stay optically centred in the cell. */
+.set-unit{position:absolute;right:8px;bottom:15px;font-size:10px;font-weight:700;line-height:1;color:var(--ink-quiet);pointer-events:none}
+.set-row.prefilled .set-input{font-style:italic;color:var(--faint)}
+.set-row.now{background:rgba(var(--bloom-amber),.09);box-shadow:inset 3px 0 0 var(--amber)}
+.set-row.now .set-input{border-color:rgba(var(--bloom-amber),.45)}
+.set-row.now .set-tag{color:var(--amber-deep)}
+.set-row.completed{background:rgba(var(--bloom-amber),.13)}
+.set-row.completed .set-input{border-color:rgba(var(--bloom-amber),.28);color:var(--cream)}
+.set-row.beats{background:rgba(var(--bloom-amber),.2)}
+.set-row.beats .set-tag{color:var(--amber-deep)}
+.set-row.drop-set .set-tag{color:var(--teal-deep)}
+.set-done{width:52px;height:52px;justify-self:center;border:1.5px solid var(--card-hair);border-radius:50%;
+  background:var(--group-bg);color:var(--taupe);font-size:20px;font-weight:800;display:grid;place-items:center;
+  transition:background .25s,border-color .25s,transform .18s cubic-bezier(.34,1.56,.64,1)}
+.set-done:active{transform:scale(.92)}
+.set-done.done{background:linear-gradient(135deg,var(--amber-soft),var(--amber));border-color:transparent;
+  color:var(--on-amber);box-shadow:0 6px 16px -8px rgba(var(--bloom-amber),.9)}
+.set-footer{display:flex;gap:8px;padding:12px 14px 16px}
+.add-set{flex:1;min-height:46px;border:1px solid var(--card-hair);border-radius:var(--r-control);
+  background:var(--group-bg);color:var(--amber-deep);font-weight:800;font-size:14px}
+.add-drop{flex:none;padding:0 16px;min-height:46px;border:1px solid rgba(var(--bloom-teal),.35);
+  border-radius:var(--r-control);background:rgba(var(--bloom-teal),.09);color:var(--teal-deep);font-weight:800;font-size:14px}
+
+/* ---- RIR row: 0 to 4+ AND Skip, each a full 44px target ---- */
+.rir-row{margin:10px 14px 0;padding:13px 14px;border-radius:var(--r-group);
+  background:linear-gradient(135deg,rgba(var(--bloom-amber),.16),rgba(var(--bloom-amber),.05));
+  border:1px solid rgba(var(--bloom-amber),.3)}
+.rir-label{display:block;font-size:12.5px;font-weight:700;color:var(--amber-deep)}
+.rir-help{display:block;margin-top:3px;color:var(--taupe);font-size:11px;font-weight:600}
+.rir-chips{display:flex;gap:6px;margin-top:10px}
+.rir-chip{flex:1;min-height:44px;border:1px solid var(--card-hair);border-radius:var(--r-control);
+  background:var(--group-bg);color:var(--cream);font-size:14px;font-weight:800;
+  font-variant-numeric:tabular-nums lining-nums}
+.rir-note{display:flex;flex-direction:column;gap:2px;margin:10px 14px 0;min-height:44px;padding:8px 14px;
+  border:1px solid var(--card-hair);border-radius:var(--r-control);background:var(--group-bg);
+  color:var(--cream-dim);font-size:12.5px;font-weight:700;text-align:left}
+.rir-note small{color:var(--faint);font-size:11px;font-weight:600}
+
+/* ---- Swap note in the picker sheet ---- */
+.swap-note{margin:0 0 10px;color:var(--taupe);font-size:12.5px}
+.swap-note strong{color:var(--cream)}
+
+/* ---- Rest: full-width pill with a countdown ring ---- */
+/* NB: no `display` here. The pill is display:none until .show is added (line ~102); setting
+   display:flex in this rule made it permanently visible and it ate the bottom-nav taps. */
+.rest-pill{left:14px;right:14px;width:auto;align-items:center;gap:12px;padding:11px 12px 11px 14px;
+  border-radius:20px;border:1px solid rgba(var(--bloom-amber),.3)}
+.rest-ring{width:42px;height:42px;flex:none;transform:rotate(-90deg)}
+.rr-track{fill:none;stroke:var(--hair);stroke-width:4}
+.rr-arc{fill:none;stroke:var(--amber);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+.rest-info{flex:1;display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.rest-info span{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--amber-deep);text-transform:uppercase}
+.rest-info strong{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}
+.rest-act{min-height:44px;padding:0 13px;border-radius:var(--r-control);border:1px solid var(--card-hair);
+  background:var(--group-bg);color:var(--amber-deep);font-weight:800;font-size:12.5px;
+  font-variant-numeric:tabular-nums lining-nums}
+.rest-skip{border:0;background:linear-gradient(135deg,var(--amber-soft),var(--amber));color:var(--on-amber)}
