@@ -1492,3 +1492,107 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   background:var(--group-bg);color:var(--amber-deep);font-weight:800;font-size:12.5px;
   font-variant-numeric:tabular-nums lining-nums}
 .rest-skip{border:0;background:linear-gradient(135deg,var(--amber-soft),var(--amber));color:var(--on-amber)}
+
+/* ============================================================
+   v2 TRAIN + LIBRARY (design/HANDOFF.md section 2).
+   Train has ONE order: plan hero, your routines, the session library, the plan
+   shelf. The grid of boxes is gone; rows live in grouped inset lists.
+   Rollback: delete to the next banner.
+   ============================================================ */
+
+/* ---- Plan hero ---- */
+.plan-hero{display:block;width:100%;text-align:left;border:0;border-radius:var(--r-card);padding:20px;
+  background:linear-gradient(135deg,var(--amber-soft),var(--amber) 78%);color:var(--on-amber);
+  box-shadow:0 20px 44px -22px rgba(var(--bloom-amber),.65),inset 0 1px 0 rgba(255,255,255,.35)}
+.ph-kicker{font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:.75}
+.plan-hero strong{display:block;margin-top:8px;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.06}
+.plan-hero small{display:block;margin-top:6px;font-size:12.5px;font-weight:600;opacity:.8}
+.ph-progress{display:flex;align-items:center;gap:9px;margin-top:14px}
+.ph-progress i{flex:1;height:5px;border-radius:3px;background:rgba(20,15,8,.22);position:relative;display:block;overflow:hidden}
+.ph-progress i b{position:absolute;left:0;top:0;bottom:0;background:var(--on-amber);border-radius:3px;display:block}
+.ph-progress small{margin:0;font-size:11px;font-weight:800;opacity:1}
+/* The no-plan variant is a quiet surface, not an amber shout: it is a fallback, not the main act. */
+.plan-hero-empty{background:var(--card-bg);border:1px solid var(--card-hair);color:var(--cream);box-shadow:var(--shadow)}
+.plan-hero-empty .ph-kicker{color:var(--faint);opacity:1}
+.plan-hero-empty small{color:var(--taupe);opacity:1}
+
+.section-count{color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- Routine + session rows inside a grouped list ---- */
+#routineList.group,#workoutList.group{margin:0 0 4px}
+.routine-card.group-row,.workout-card.group-row{background:transparent;border:0;border-radius:0;
+  box-shadow:none;padding:0;gap:0;min-height:0;display:flex;align-items:center}
+.group>.routine-card:not(:last-child),.group>.workout-card:not(:last-child){border-bottom:1px solid var(--hair)}
+.routine-open,.workout-open{flex:1;min-width:0;min-height:56px;display:flex;flex-direction:column;
+  justify-content:center;gap:2px;border:0;background:transparent;color:var(--cream);text-align:left;padding:12px 0 12px 16px}
+.routine-open strong,.workout-open strong{display:block;font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+.routine-open small,.workout-open small{display:block;color:var(--faint);font-size:11.5px;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.routine-actions{display:flex;align-items:center;gap:6px;flex:none;padding-right:10px}
+.routine-menu{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--taupe);
+  border-radius:var(--r-control);font-size:15px;letter-spacing:.06em}
+.routine-start{min-width:64px;min-height:44px;padding:0 14px;border:0;border-radius:var(--r-control);
+  background:rgba(var(--bloom-amber),.15);color:var(--amber-deep);font-size:13px;font-weight:800}
+.workout-start{width:44px;height:44px;flex:none;margin-right:12px;border:0;border-radius:var(--r-control);
+  background:rgba(var(--bloom-amber),.15);color:var(--amber-deep);display:grid;place-items:center}
+.workout-start svg{width:14px;height:14px}
+
+/* ---- Plan shelf: horizontal, not a grid ---- */
+.plan-shelf{display:flex;gap:11px;overflow-x:auto;margin:0 -18px;padding:2px 18px 8px;scrollbar-width:none}
+.plan-shelf::-webkit-scrollbar{display:none}
+.plan-shelf-card{flex:none;width:178px;text-align:left;padding:16px;border-radius:var(--r-card);
+  border:1px solid var(--card-hair);color:var(--cream);
+  background:radial-gradient(120% 80% at 100% 0,rgba(var(--bloom-amber),.12),transparent 58%),var(--card-bg);
+  box-shadow:var(--shadow)}
+.plan-shelf-card span{color:var(--amber-deep);font-size:10px;font-weight:800;letter-spacing:.11em}
+.plan-shelf-card strong{display:block;margin:9px 0 5px;font-size:17.5px;font-weight:800;letter-spacing:-.025em;line-height:1.12}
+.plan-shelf-card small{display:block;color:var(--faint);font-size:11.5px;line-height:1.4}
+
+/* ---- Plan detail: days expand to reveal their exercises ---- */
+.plan-day{border-bottom:1px solid var(--hair)}
+.plan-day:last-of-type{border-bottom:0}
+.plan-day summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;
+  padding:10px 2px;cursor:pointer;list-style:none}
+.plan-day summary::-webkit-details-marker{display:none}
+.pd-name{font-size:14.5px;font-weight:700}
+/* The chevron is a SHAPE cue, and it rotates on open - never colour alone. */
+.pd-count{flex:none;display:flex;align-items:center;gap:8px;color:var(--faint);font-size:11.5px;font-weight:600}
+.pd-count::after{content:'\203A';font-size:17px;line-height:1;transform:rotate(90deg);transition:transform .2s var(--ease)}
+.plan-day[open] .pd-count::after{transform:rotate(-90deg)}
+.pd-list{margin:0 0 12px;padding:0 0 0 18px;color:var(--taupe);font-size:12.5px;line-height:1.6}
+
+/* ---- Library: the row list becomes a grouped inset list ---- */
+.exercise-list{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}
+.exercise-row{background:transparent;border:0;border-radius:0;box-shadow:none;display:flex;align-items:center}
+.exercise-list>.exercise-row:not(:last-child){border-bottom:1px solid var(--hair)}
+.exercise-pick{flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:12px;
+  border:0;background:transparent;color:var(--cream);text-align:left;padding:10px 0 10px 14px}
+.exercise-info{flex:1;min-width:0}
+.exercise-info strong{display:block;font-size:14.5px;font-weight:700;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exercise-info small{display:block;margin-top:2px;color:var(--faint);font-size:11.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* The hero keeps .train-hero/.big-button because browser-flow clicks '#view-train .big-button',
+   but those classes were written for the OLD icon+text row: `.train-hero>span` makes any span a
+   52px icon box and `.big-button` makes the button a flex row, so the v2 kicker rendered at 24px
+   and overlapped the title. These reset that geometry at equal specificity, declared later. */
+.plan-hero.train-hero,.plan-hero.big-button{display:block;gap:0;align-items:stretch;
+  padding:20px;margin:2px 0 6px;border-radius:var(--r-card)}
+.plan-hero>.ph-kicker{display:block;width:auto;height:auto;flex:none;place-items:start;
+  background:none;border-radius:0;font-size:10.5px;font-weight:800;letter-spacing:.11em;color:inherit;
+  /* No fade: at .75 this measured 4.27:1 on the hero gradient in light mode. Hierarchy here comes
+     from size, weight and letter-spacing, not from thinning the ink. */
+  opacity:1}
+.plan-hero>.ph-progress{display:flex;width:auto;height:auto;flex:none;place-items:center;
+  background:none;border-radius:0;font-size:inherit}
+.plan-hero>strong{font-size:23px;line-height:1.06}
+/* No sheen on the v2 hero: the prototype has none, and that keyframe animates background-position
+   rather than transform/opacity. */
+.plan-hero::after{display:none;content:none;animation:none}
+.plan-hero-empty>.ph-kicker{opacity:1}
+
+/* Rows are single-line: a wrapped title turns a list into a stack of blocks. */
+.routine-open strong,.workout-open strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Reset the raised-card glow the old routine-start carried; in a row it is a flat tinted chip. */
+.group .routine-start{box-shadow:none}

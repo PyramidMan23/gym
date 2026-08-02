@@ -383,7 +383,7 @@ function routineCard(routine,done){
   // The name itself opens the options sheet, not just the ••• glyph. Editing a routine has been
   // possible since day one and Mark never found it, because the only way in was an unlabelled
   // three-dot button (2026-07-28). Same handler, one much larger target.
-  return `<article class="routine-card"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><h3>${esc(routine.name)}</h3><p>${tick}${names.length} exercises${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p></button><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
+  return `<article class="routine-card group-row"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><strong>${esc(routine.name)}</strong><small>${tick}${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</small></button><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')" aria-label="${done?.has(routine.id)?'Repeat':'Start'} ${esc(routine.name)}">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
 }
 // Today's horizontal quick-start strip - same onclick contracts as routineCard (start + options menu).
 function routineStripCard(routine,done){
@@ -523,10 +523,46 @@ function exportLastSession(){
   Sync.exportSession(last);
 }
 
+// The plan hero: the ONE thing to do next. A plan counts as installed once applyPlan() has copied
+// its days into state.routines (they carry the "<plan> · " name prefix). Progress is counted from
+// real logged sessions via Core.routinesDoneThisWeek - never assumed.
+function installedPlan(){
+  for(const plan of plans){
+    const prefix=`${plan.name} · `;
+    const mine=state.routines.filter(r=>typeof r.name==='string'&&r.name.startsWith(prefix));
+    // applyPlan() UNSHIFTS each day, so state.routines holds them reversed. Re-order by the plan's
+    // own day sequence or the hero offers the last day first (it proposed Day C over Day A).
+    if(mine.length){
+      const ordered=plan.days.map(d=>mine.find(r=>r.name===prefix+d.name)).filter(Boolean);
+      return {plan,routines:ordered.length?ordered:mine};
+    }
+  }
+  return null;
+}
+function renderPlanHero(){
+  const slot=document.getElementById('planHero');if(!slot)return;
+  const found=installedPlan();
+  if(!found){
+    // Nothing installed yet, so the hero stays what Train used to lead with: the empty session.
+    slot.innerHTML=`<button class="train-hero plan-hero plan-hero-empty big-button" onclick="startQuickWorkout()"><span class="ph-kicker">NO PLAN INSTALLED</span><strong>Start an empty session</strong><small>Add exercises as you go, or install a plan below.</small></button>`;
+    return;
+  }
+  const {plan,routines}=found;
+  const done=Core.routinesDoneThisWeek(state.history);
+  const next=routines.find(r=>!done.has(r.id))||routines[0];
+  const doneCount=routines.filter(r=>done.has(r.id)).length;
+  const pct=routines.length?Math.round(doneCount/routines.length*100):0;
+  slot.innerHTML=`<button class="train-hero plan-hero big-button" onclick="startRoutine('${next.id}')" aria-label="Start ${esc(next.name)}">`
+    +`<span class="ph-kicker">YOUR PLAN · ${esc(plan.name.toUpperCase())}</span>`
+    +`<strong>${esc(next.name.split(' · ').slice(1).join(' · ')||next.name)}</strong>`
+    +`<span class="ph-progress"><i aria-hidden="true"><b style="width:${pct}%"></b></i><small>${doneCount} of ${routines.length} done this week</small></span>`
+  +`</button>`;
+}
 function renderTrain(){
-  document.getElementById('planList').innerHTML=plans.map(p=>`<button class="template-card plan-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
+  renderPlanHero();
+  document.getElementById('planList').innerHTML=plans.map(p=>`<button class="plan-shelf-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
   const doneThisWeek=Core.routinesDoneThisWeek(state.history);
-  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="empty-card card"><strong>Your routines live here</strong>Build one once, save one from any workout, or install a plan below.</div>`;
+  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>Your routines live here</strong><small>Build one once, save one from any workout, or install a plan below.</small></span></div>`;
   workoutGoalFilter='ALL'; // a stale chip must never hide a workout from someone who just opened Train
   renderWorkouts();
 }
@@ -551,7 +587,9 @@ function renderWorkouts(){
   const shown=workouts.filter(w=>workoutGoalFilter==='ALL'||w.goal===workoutGoalFilter);
   // Compact cards (Mark 2026-08-02: Train was one long scroll): blurb lives in the detail sheet,
   // the card carries only goal + name + meta, and Start is a corner glyph, not a full-width bar.
-  document.getElementById('workoutList').innerHTML=shown.map(w=>`<article class="template-card workout-card"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><span>${esc(w.goal)}</span><strong>${esc(w.name)}</strong><small class="workout-meta">${w.mins} min · ${w.exercises.length} exercises</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join('');
+  document.getElementById('workoutList').innerHTML=shown.length?shown.map(w=>`<article class="workout-card group-row"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><strong>${esc(w.name)}</strong><small class="workout-meta">${esc(w.goal)} · ${w.mins} min · ${w.exercises.length} exercises</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions match</strong><small>Clear the filter to see them all.</small></span></div>`;
+  const count=document.getElementById('workoutCount');
+  if(count)count.textContent=`${shown.length} of ${workouts.length}`;
 }
 function setWorkoutGoal(goal){workoutGoalFilter=goal;renderWorkouts();}
 function openWorkoutDetail(id){
@@ -596,7 +634,8 @@ function beginSession(routine){
 function resumeWorkout(){ navigate('workout'); }
 function openPlan(id){
   const plan=plans.find(p=>p.id===id);if(!plan)return;
-  const dayList=plan.days.map((d,i)=>`<div class="selected-row"><span><strong>${i+1}. ${esc(d.name)}</strong><small style="display:block;color:var(--muted)">${d.exerciseIds.map(x=>esc(exerciseById(x)?.name||x)).join(' · ')}</small></span></div>`).join('');
+  // v2: a plan day collapses to its name + count and EXPANDS to reveal its exercises.
+  const dayList=plan.days.map((d,i)=>`<details class="plan-day"><summary><span class="pd-name">${i+1}. ${esc(d.name)}</span><span class="pd-count">${d.exerciseIds.length} exercises</span></summary><ul class="pd-list">${d.exerciseIds.map(x=>`<li>${esc(exerciseById(x)?.name||x)}</li>`).join('')}</ul></details>`).join('');
   const pv=Core.planVolume(plan.days,muscleLookup);
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
   const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board - direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
