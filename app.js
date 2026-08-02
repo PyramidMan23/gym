@@ -193,7 +193,7 @@ document.getElementById('bottomNav').addEventListener('pointerdown',e=>{
   b.classList.remove('ring');void b.offsetWidth;b.classList.add('ring');
   setTimeout(()=>b.classList.remove('ring'),600);
 },{passive:true});
-function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
+function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();openSettings();}
 // Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
 function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}
 function navigate(view){
@@ -2210,7 +2210,27 @@ function saveRingGoals(){
 function openSettings(){
   // While the active profile is gated, Settings (rename/delete/export) stays behind the PIN too.
   if(lockGate){const p=Profiles?Profiles.getActive(localStorage):null;if(p){gateLockedProfile(p);return;}}
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>${profileSettingsMarkup()}<div class="field"><label>DEFAULT REST TIMER</label><select id="restSetting" onchange="setRestPreference(this.value)">${[60,90,120,180].map(x=>`<option value="${x}" ${state.preferences.restSeconds===x?'selected':''}>${x/60} ${x===60?'minute':'minutes'}</option>`).join('')}</select></div><label class="beighton-toggle"><span><strong>Haptics</strong><small>A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.</small></span><input type="checkbox" id="hapticsToggle" ${state.preferences.haptics!==false?'checked':''} onchange="toggleHaptics(this.checked)"></label><label class="beighton-toggle"><span><strong>Rest-end notification</strong><small>Pings when the rest timer finishes while the app is in the background (needs notification permission).</small></span><input type="checkbox" ${state.preferences.restNotify===true?'checked':''} onchange="enableRestNotify(this.checked)"></label><label class="beighton-toggle"><span><strong>Training around an injury</strong><small>Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.</small></span><input type="checkbox" ${injuryMode()?'checked':''} onchange="toggleInjuryMode(this.checked)"></label><div class="field"><label>BAR WEIGHT (PLATE MATH)</label><select id="barSetting" onchange="setBarWeight(this.value)">${[15,20].map(x=>`<option value="${x}" ${(Number(state.preferences.barWeight)||20)===x?'selected':''}>${x} kg bar</option>`).join('')}</select></div><div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>${syncSettingsMarkup()}<p style="color:var(--muted);font-size:12px;margin-top:18px">Private by default. Your training data stays in this browser unless you export it.</p><p class="build-footer" style="color:var(--faint);font-size:11px;margin-top:6px">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;document.getElementById('sheet').showModal();
+  // v2 Settings: the SAME fields, restyled. Rest timer and bar weight become segmented controls
+  // (a select hid the options behind a tap); the three toggles become 50x30 switches, each inside a
+  // full 44px row; the sync block is untouched; the build id stays in the footer.
+  const seg=(id,label,values,current,handler)=>`<div class="field"><label id="${id}Label">${label}</label>`
+    +`<div class="segmented" id="${id}" role="group" aria-labelledby="${id}Label">`
+    +values.map(([v,text])=>`<button type="button" class="seg-button${String(current)===String(v)?' on':''}" aria-pressed="${String(current)===String(v)}" onclick="${handler}('${v}')">${text}</button>`).join('')
+    +`</div></div>`;
+  const sw=(title,detail,checked,handler,id)=>`<label class="switch-row"><span><strong>${title}</strong><small>${detail}</small></span>`
+    +`<input type="checkbox" class="switch"${id?` id="${id}"`:''} ${checked?'checked':''} onchange="${handler}(this.checked)"></label>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
+    +profileSettingsMarkup()
+    +seg('restSetting','DEFAULT REST TIMER',[[60,'1 min'],[90,'1.5 min'],[120,'2 min'],[180,'3 min']],Number(state.preferences.restSeconds)||90,'setRestPreference')
+    +seg('barSetting','BAR WEIGHT (PLATE MATH)',[[15,'15 kg'],[20,'20 kg']],Number(state.preferences.barWeight)||20,'setBarWeight')
+    +sw('Haptics','A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.',state.preferences.haptics!==false,'toggleHaptics','hapticsToggle')
+    +sw('Rest-end notification','Pings when the rest timer finishes while the app is in the background (needs notification permission).',state.preferences.restNotify===true,'enableRestNotify')
+    +sw('Training around an injury','Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.',injuryMode(),'toggleInjuryMode')
+    +`<div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>`
+    +syncSettingsMarkup()
+    +`<p class="settings-note">Private by default. Your training data stays in this browser unless you export it.</p>`
+    +`<p class="build-footer">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;
+  document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture
 }
 // Google Drive sync + coach settings. drive.file scope only; the OAuth client ID is pasted by the owner.
@@ -2242,7 +2262,7 @@ function connectSync(){
 }
 function disconnectSync(){if(Sync){Sync.disconnect();openSettings();renderToday();showToast('Disconnected');}}
 function toggleBeighton(on){if(Sync){Sync.setBeighton(on);renderToday();showToast(on?'Beighton features unlocked':'Beighton features locked');}}
-function setRestPreference(value){state.preferences.restSeconds=Number(value);saveState();showToast('Rest timer updated');}
+function setRestPreference(value){state.preferences.restSeconds=Number(value);saveState();openSettings();showToast('Rest timer updated');}
 function toggleHaptics(on){state.preferences.haptics=!!on;saveState();if(on)buzz(15);showToast(on?'Haptics on':'Haptics off');}
 function activeProfileName(){const p=Profiles?Profiles.getActive(localStorage):null;return (p&&p.name)||'me';}
 function exportBackup(){const slug=activeProfileName().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'me';const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`gym-${slug}-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);}

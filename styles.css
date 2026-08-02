@@ -1643,3 +1643,33 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .cali-tick{z-index:2}
 .cali-bar{overflow:visible;border-radius:5px}
 .cali-bar i{max-width:100%}
+
+/* ============================================================
+   v2 SETTINGS: segmented controls, switches, unchanged sync block.
+   Rollback: delete to the end of file.
+   ============================================================ */
+
+/* A switch is 50x30 of VISUAL inside a 44px row, so the small glyph never shrinks the target.
+   State is carried by the knob's POSITION (and the native checked state that assistive tech
+   reads), not by hue alone. */
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:44px;
+  padding:12px 0;border-bottom:1px solid var(--hair)}
+.switch-row>span{flex:1;min-width:0}
+.switch-row strong{display:block;font-size:14.5px;font-weight:700}
+.switch-row small{display:block;margin-top:3px;color:var(--faint);font-size:11.5px;line-height:1.4}
+/* The ELEMENT is 50x44 (the tap area); the 50x30 track is drawn inside it by ::before, so the
+   visual stays small without shrinking the target. */
+.switch{flex:none;appearance:none;-webkit-appearance:none;position:relative;width:50px;height:44px;
+  margin:0;background:transparent;border:0}
+.switch::before{content:'';position:absolute;top:7px;left:0;width:50px;height:30px;border-radius:999px;
+  background:var(--hair-bright);border:1px solid var(--card-hair);box-sizing:border-box;
+  transition:background .2s var(--ease)}
+.switch::after{content:'';position:absolute;top:11px;left:4px;width:22px;height:22px;border-radius:50%;
+  background:var(--cream);transition:transform .2s var(--ease)}
+.switch:checked::before{background:var(--amber);border-color:transparent}
+.switch:checked::after{transform:translateX(20px);background:var(--on-amber)}
+
+.settings-note{color:var(--taupe);font-size:12px;margin-top:18px}
+.build-footer{color:var(--faint);font-size:11px;margin-top:6px}
+/* The settings segmented control sits under its own label, so it needs no extra top margin. */
+.field .segmented{margin:0}
