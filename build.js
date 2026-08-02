@@ -1,3 +1,3 @@
 // Release-truth build id. Baked into sw.js CACHE ('gym-'+BUILD) and shown in Settings.
 // Bump on every deploy so the update pill and cache invalidation stay honest.
-const BUILD = 'w27-20260803-color-scheme';
+const BUILD = 'w28-20260803-v2-instrument';

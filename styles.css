@@ -1673,3 +1673,9 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .build-footer{color:var(--faint);font-size:11px;margin-top:6px}
 /* The settings segmented control sits under its own label, so it needs no extra top margin. */
 .field .segmented{margin:0}
+
+/* A long sheet title (e.g. "Return Ramp · Day A · Squat pattern") squeezed the close button to
+   34.7px: it declares width:44px but sits in a flex row, where flex-shrink:1 is the default.
+   One fix at the shared rule, so every sheet keeps its 44px target. */
+.close-button{flex:none}
+.sheet-head h2{min-width:0;overflow-wrap:anywhere}

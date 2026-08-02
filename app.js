@@ -1421,8 +1421,11 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
   // v2 collapse rule (prototype parity): a finished exercise folds to a calm done row, but NEVER
   // before its final-set RIR is answered or skipped - collapsing first put the RIR tap out of reach
   // (BUILD-NEXT non-negotiable #3). Tapping the done row re-opens it for the rest of the session.
-  const allDone=sets.length>0&&sets.every(s=>s.done);
-  const collapsed=allDone&&exercise.rir!==undefined&&!forcedOpen.has(index);
+  // `rirDone` - NOT `sets.every(done)` - is the right predicate: the app auto-appends a blank
+  // trailing set after the last one is ticked, so every-set-done is never true and the card would
+  // never collapse. rirDone counts only the PLANNED working sets (the same denominator the rail and
+  // the RIR row use), so a card collapses exactly once its RIR question has been asked and answered.
+  const collapsed=rirDone&&exercise.rir!==undefined&&!forcedOpen.has(index);
   const isActive=index===activeIdx;
   const exVolume=Core.doneSets(exercise).reduce((a,x)=>a+(Number(x.weight)||0)*(Number(x.reps)||0),0);
   const rirWord=exercise.rir===undefined?'':(exercise.rir==='skip'?' · RIR skipped':` · RIR ${exercise.rir==='4'||exercise.rir===4?'4+':exercise.rir}`);
