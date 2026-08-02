@@ -1,4 +1,15 @@
 :root{
+  /* THE WHITE FLASH (measured 2026-08-03, w27). Without this declaration the browser treats the
+     document as light-scheme no matter what prefers-color-scheme says, so every surface the UA
+     paints ITSELF stays white: the root canvas underneath our background, the overscroll region,
+     scrollbars, form controls. Probe on a dark-mode page confirmed Canvas = rgb(255,255,255)
+     while our own html background was rgb(13,14,16). A tab swap collapses the document by ~17,800px
+     (Library 19,438 -> Today 1,650) and Chrome re-rasters the root scroller; for a frame the
+     newly-exposed region is UA-white. That is the "light white/blue flash" - it was never the
+     pane transition, which is why four fixes to the pane transition all missed it.
+     `light dark` (not `dark`) because this app genuinely ships both themes.
+     Bonus: this is also the documented fix for the UA CanvasText-in-dialogs bug. */
+  color-scheme:light dark;
   --page:#F4F0E7;--ink-1:#F4F0E7;--ink-2:#F4F0E7;
   --cream:#211C17;--cream-dim:#4A443C;--taupe:#665F54;--faint:#6E675E;
   --amber:#E06E1F;--amber-soft:#EF8A3D;--amber-deep:#9A480A;--on-amber:#211C17;

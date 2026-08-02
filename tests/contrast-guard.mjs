@@ -152,6 +152,31 @@ try {
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
     await sleep(120);
 
+    // UA-SURFACE SCHEME GATE (2026-08-03). Our own CSS being dark is not enough: without a
+    // `color-scheme` declaration the browser keeps painting ITS surfaces light - root canvas,
+    // overscroll region, scrollbars, form controls - and a re-raster then shows white on a dark
+    // app. That was Mark's "light white/blue flash", and it survived four fixes to the pane
+    // transition because it was never in the pane transition. Probe the UA's own Canvas colour.
+    const ua = await evaluate(`(()=>{
+      const p=document.createElement('div');
+      p.style.cssText='position:fixed;width:1px;height:1px;background:Canvas;color:CanvasText';
+      document.body.appendChild(p);
+      const cs=getComputedStyle(p);
+      const out={canvas:cs.backgroundColor,ink:cs.color,
+        declared:getComputedStyle(document.documentElement).colorScheme};
+      p.remove(); return out;
+    })()`);
+    const lum = s => { const [r, g, b] = s.match(/\d+/g).map(Number); return (r * 0.299 + g * 0.587 + b * 0.114) / 255; };
+    assert.notEqual(ua.declared, 'normal',
+      'color-scheme must be declared on :root, or every UA-painted surface stays light-scheme');
+    if (scheme === 'dark') {
+      assert.ok(lum(ua.canvas) < 0.3,
+        `dark mode: the UA Canvas must be dark, got ${ua.canvas} - a light UA canvas flashes white on re-raster`);
+      assert.ok(lum(ua.ink) > 0.7, `dark mode: UA CanvasText must be light, got ${ua.ink}`);
+    } else {
+      assert.ok(lum(ua.canvas) > 0.7, `light mode: the UA Canvas must be light, got ${ua.canvas}`);
+    }
+
     // --- State A: a live workout with a timed exercise, an RIR row and a completed set ---
     await evaluate(`(()=>{
       state.preferences.injuryMode=true; saveState();
