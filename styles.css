@@ -984,3 +984,128 @@ body.reordering{-webkit-user-select:none;user-select:none}
 .plan-line{display:block;margin-top:5px;padding-top:5px;border-top:1px solid rgba(11,110,119,.18);color:var(--cream-dim);font-weight:600}
 /* Three fixed segments, no scroll: the row does not need the edge bleed or the fade mask. */
 .vol-seg{margin:10px 0 4px;padding:0;-webkit-mask-image:none;mask-image:none}
+
+/* ============================================================
+   SLICE NAV pass (2026-08-02) - Mark: "the slice co bottom nav
+   bar is a million times better... exact copy".
+   Ported 1:1 from the LIVE sliceco.app tabbar (VPS
+   /var/www/sliceco/app.html, style#slice-glass-p01, read
+   2026-08-02): floating inset 999px capsule, glass sheen +
+   blur/saturate/brightness, per-tab concentric pill that springs
+   in (NOT a sliding cursor), icon spring + stroke thickening,
+   labels fade only, transform-only minimise on scroll-down.
+   Pigment is the ONLY substitution: SliceCo lime -> gym amber,
+   because the semantic families (amber = training/effort) and
+   Mark's CVD-safety rule outrank an exact hue copy. Every
+   geometry, duration, easing curve and cue is SliceCo's.
+   Rollback: delete everything below this banner.
+   ============================================================ */
+:root{
+  --nav-height:58px;                       /* SliceCo --tabbar-h, fixed: minimise is transform-only */
+  /* Every bottom-anchored surface reads this ONE token, and the probe in app.js
+     re-writes it on the root when env() lies. Fallback keeps CSS-only correct. */
+  --sai-bottom:env(safe-area-inset-bottom,0px);
+  --nav-inset:calc(10px + var(--sai-bottom));
+  --nav-sheen:linear-gradient(to bottom,rgba(255,255,255,.30),rgba(255,255,255,.04) 55%);
+  --nav-rim:rgba(255,255,255,.70);
+  --nav-edge:rgba(20,15,8,.10);
+  --nav-glass-shadow:0 8px 32px rgba(60,45,25,.14),0 2px 8px rgba(60,45,25,.07);
+  --nav-spring:cubic-bezier(.34,1.56,.64,1);
+  /* The MATERIAL, and the reason this is glass rather than a lozenge: the bar must be
+     translucent or the backdrop-filter has nothing to refract. --glass-solid (#FBF7EF /
+     #1a140d) is opaque, which read as a flat brown capsule on the first render - content
+     stopped dead at its edge. SliceCo's alphas, gym's own base hues. --nav-lumin lifts
+     what is behind light glass and leaves dark glass neutral, so it never darkens
+     already-dark content. */
+  --nav-glass:rgba(251,247,239,.55);
+  --nav-lumin:1.06;
+}
+@media(prefers-color-scheme:dark){:root{
+  --nav-sheen:linear-gradient(to bottom,rgba(255,255,255,.09),rgba(255,255,255,.02) 55%);
+  --nav-rim:rgba(255,255,255,.16);
+  --nav-edge:rgba(255,255,255,.09);
+  --nav-glass-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35);
+  --nav-glass:rgba(26,20,13,.58);
+  --nav-lumin:1;
+}}
+/* The capsule. left/right insets + margin-inline:auto keeps it centred at max-width
+   WITHOUT a translateX, so transform is free for the minimise (SliceCo relies on the
+   same thing; its bar is absolute inside .device). */
+.bottom-nav{
+  left:14px;right:14px;width:auto;max-width:736px;margin-inline:auto;
+  bottom:var(--nav-inset);
+  height:var(--nav-height);
+  padding:0 6px;
+  display:flex;align-items:center;justify-content:space-around;
+  border:0.5px solid var(--nav-edge);
+  border-radius:999px;
+  background-image:var(--nav-sheen);
+  background-color:var(--nav-glass);
+  -webkit-backdrop-filter:blur(24px) saturate(180%) brightness(var(--nav-lumin));
+  backdrop-filter:blur(24px) saturate(180%) brightness(var(--nav-lumin));
+  box-shadow:inset 0 1px 0 var(--nav-rim),var(--nav-glass-shadow);
+  overflow:hidden;
+  transform:none;
+  transform-origin:50% 100%;
+  will-change:transform;
+  transition:transform 360ms var(--nav-spring),box-shadow .3s ease;
+}
+/* Minimise: transform ONLY, so layout never shifts and no clearance ever churns. */
+body.nav-min .bottom-nav{transform:scale(.80) translateY(6px)}
+/* The sliding cursor is replaced by the per-tab pill below. */
+.nav-cursor{display:none}
+.bottom-nav button{
+  flex:1 1 0;min-width:0;height:100%;
+  padding:0 8px;gap:3px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;isolation:isolate;           /* REQUIRED: z-index:-1 pill vs the blurred bar */
+  border-radius:999px;
+  transition:color 200ms,transform 120ms var(--nav-spring),opacity 150ms ease;
+}
+/* Concentric glass pill behind the active tab (capsule-in-capsule). Active keeps THREE
+   non-colour cues - pill shape, thicker stroke, icon scale - so amber is never the only signal. */
+.bottom-nav button::before{
+  content:"";position:absolute;inset:7px 3px;z-index:-1;
+  border-radius:999px;
+  background:rgba(var(--bloom-amber),.14);
+  box-shadow:inset 0 1px 0 var(--nav-rim),inset 0 0 0 0.5px var(--nav-edge);
+  opacity:0;transform:scale(.7);transform-origin:center center;
+  transition:opacity 200ms,transform 320ms var(--nav-spring);
+}
+.bottom-nav button.active::before{opacity:1;transform:scale(1)}
+body.nav-min .bottom-nav button::before{inset:10px 6px}
+.bottom-nav button span{display:flex}
+.bottom-nav button svg{width:24px;height:24px;transition:transform 320ms var(--nav-spring)}
+.bottom-nav button.active svg{transform:scale(1.10);stroke-width:2.2;filter:none}
+/* Labels come BACK (SliceCo shows them at rest) and never move - fade only. */
+.bottom-nav button small{position:static;opacity:1;transform:none;pointer-events:none;font-size:10px;font-weight:700;line-height:1;transition:opacity 180ms ease}
+body.nav-min .bottom-nav button small{opacity:0}
+body.nav-min .bottom-nav button svg{transform:translateY(7px)}
+body.nav-min .bottom-nav button.active svg{transform:translateY(7px) scale(1.10)}
+/* Press (SliceCo): light depress + opacity tick + icon dip. Overrides the 3-role veil press. */
+.bottom-nav button:active{transform:scale(.97);opacity:.72;box-shadow:none}
+.bottom-nav button.active:active{opacity:.9}
+.bottom-nav button:active svg{transform:scale(.86)}
+.bottom-nav button.active:active svg{transform:scale(.96)}
+/* Things anchored above the bar follow the new inset. */
+#returnChip{bottom:calc(var(--nav-inset) + var(--nav-height) + 8px)}
+.update-pill{bottom:calc(var(--nav-inset) + var(--nav-height) + 14px)}
+.app-shell{padding-bottom:calc(var(--nav-height) + 44px + var(--sai-bottom))}
+/* The other bottom-anchored surfaces, moved off raw env() for the same reason: on a
+   standalone Android PWA env() reports 0 and they sit under the system nav buttons. */
+body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
+.sheet-scroll{padding-bottom:max(22px,var(--sai-bottom))}
+.receipt-card{margin-bottom:max(18px,var(--sai-bottom))}
+/* The rest pill only shows mid-workout, where the nav is hidden - it needs the
+   system-bar clearance, NOT nav clearance. */
+.rest-pill{bottom:max(14px,var(--sai-bottom))}
+/* Without backdrop-filter, translucency has nothing behind it but raw content - the
+   earlier @supports fallback said so, but this block comes later and would have won.
+   Restated here so the no-blur path stays opaque and legible. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .bottom-nav{background-color:var(--glass-solid);background-image:none}
+}
+@media(prefers-reduced-motion:reduce){
+  body.nav-min .bottom-nav{transform:none}
+  .bottom-nav,.bottom-nav button,.bottom-nav button::before,.bottom-nav button svg,.bottom-nav button small{transition:none}
+}

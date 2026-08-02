@@ -201,6 +201,75 @@ try {
   await evaluate(`state.activeSession=null;saveState();navigate('today');true`);
   await waitFor(`!document.body.classList.contains('workout-active')`);
 
+  // SLICE NAV gate. A guard that never renders the new state proves nothing (07-23 lesson), so
+  // this DRAWS the minimised capsule and reads it back rather than trusting the stylesheet.
+  const nav = await evaluate(`(() => {
+    closeSheet();
+    const bar=document.getElementById('bottomNav');
+    const active=bar.querySelector('button.active'), idle=bar.querySelector('button:not(.active)');
+    const cs=getComputedStyle(bar);
+    const pill=s=>{const p=getComputedStyle(s,'::before');return {opacity:p.opacity,transform:p.transform};};
+    const rest={radius:cs.borderTopLeftRadius,transform:cs.transform,
+      label:getComputedStyle(active.querySelector('small')).opacity,
+      cursor:getComputedStyle(document.getElementById('navCursor')).display,
+      activePill:pill(active),idlePill:pill(idle)};
+    document.body.classList.add('nav-min');
+    return {rest};
+  })()`);
+  // The capsule minimises through a 360ms transition, so a read taken in the same tick as the
+  // class add returns the START value (none). Poll for the transition to have actually moved.
+  await waitFor(`(()=>{const b=document.getElementById('bottomNav');
+    return getComputedStyle(b).transform !== 'none'
+      && parseFloat(getComputedStyle(b.querySelector('button.active small')).opacity) === 0;})()`);
+  nav.min = await evaluate(`(() => {
+    const bar=document.getElementById('bottomNav');
+    const out={transform:getComputedStyle(bar).transform,
+      label:getComputedStyle(bar.querySelector('button.active small')).opacity};
+    document.body.classList.remove('nav-min');
+    return out;
+  })()`);
+  assert.equal(nav.rest.radius, '999px', 'the nav must be a full capsule, not a rounded rectangle');
+  assert.equal(nav.rest.cursor, 'none', 'the sliding cursor is replaced by the per-tab pill and must not paint');
+  assert.equal(nav.rest.activePill.opacity, '1', 'the active tab must actually render its concentric pill');
+  assert.equal(nav.rest.idlePill.opacity, '0', 'an idle tab must not render a pill');
+  assert.notEqual(nav.rest.activePill.transform, nav.rest.idlePill.transform,
+    'the pill must spring from scale(.7) to scale(1) - identical transforms mean the animation never ran');
+  assert.equal(nav.rest.label, '1', 'labels are visible at rest (SliceCo parity)');
+  assert.equal(nav.rest.transform, 'none', 'the capsule sits untransformed at rest, so minimise is purely additive');
+  assert.notEqual(nav.min.transform, 'none', 'body.nav-min must actually transform the capsule');
+  assert.equal(nav.min.label, '0', 'minimised labels fade out');
+
+  // The probe is the reason the capsule does not sit under Android's system nav buttons.
+  // Assert it RAN, and that the bar's resting position is DERIVED from what it wrote - a
+  // token that exists but nothing consumes would sail through a naive presence check.
+  const inset = await evaluate(`(() => {
+    const root=document.documentElement;
+    const written=root.style.getPropertyValue('--sai-bottom');
+    const bar=document.getElementById('bottomNav');
+    const at=()=>Math.round(innerHeight - bar.getBoundingClientRect().bottom);
+    const before=at();
+    root.style.setProperty('--sai-bottom','24px');
+    const after=at();
+    root.style.setProperty('--sai-bottom',written);
+    return {written,before,after};
+  })()`);
+  // The material. Headless does not composite backdrop-filter, so a screenshot can never
+  // prove the blur - these read the resolved values instead. An opaque bar is the failure
+  // that shipped first: the blur has nothing to refract and it renders as a flat lozenge.
+  const material = await evaluate(`(() => {
+    const cs=getComputedStyle(document.getElementById('bottomNav'));
+    return {bg:cs.backgroundColor,filter:cs.backdropFilter||cs.webkitBackdropFilter,image:cs.backgroundImage};
+  })()`);
+  assert.match(material.bg, /^rgba\(/, 'the capsule must be translucent - an opaque bar is not glass');
+  assert.ok(parseFloat(material.bg.split(',')[3]) < 0.7, 'and translucent enough to actually refract');
+  assert.match(material.filter, /blur\(24px\)/, 'SliceCo blur radius');
+  assert.match(material.filter, /saturate\(1\.8\)/, 'SliceCo saturation lift (Chrome normalises 180% to 1.8)');
+  assert.match(material.image, /gradient/, 'the specular sheen must survive - background-color alone flattens it');
+
+  assert.match(inset.written, /^[\d.]+px$/, 'the probe must write a resolved pixel inset onto the root');
+  assert.equal(inset.after - inset.before, 24,
+    'the capsule must ride on --sai-bottom - an unchanged position means it still reads raw env()');
+
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
 
@@ -364,13 +433,13 @@ try {
     return {chips,cards,starts,filtered,reset:document.querySelectorAll('#workoutList .workout-card').length,
       seeds:routineSeeds().filter(s=>s.key.startsWith('wk:')).length};
   })()`);
-  assert.equal(workoutsUi.cards, 15, 'Train must show all 15 curated workouts');
-  assert.equal(workoutsUi.starts, 15, 'every workout card needs its own one-tap Start');
+  assert.equal(workoutsUi.cards, 16, 'Train must show all 16 curated workouts');
+  assert.equal(workoutsUi.starts, 16, 'every workout card needs its own one-tap Start');
   assert.equal(workoutsUi.chips[0], 'ALL', 'the goal chip row must lead with ALL');
   assert.equal(workoutsUi.chips.length, 9, 'ALL plus every distinct goal, in data order');
   assert.equal(workoutsUi.filtered, 3, 'a goal chip must actually filter the list');
-  assert.equal(workoutsUi.reset, 15, 'a fresh Train render must reset the goal filter to ALL');
-  assert.equal(workoutsUi.seeds, 15, 'the routine editor must be able to start from any workout');
+  assert.equal(workoutsUi.reset, 16, 'a fresh Train render must reset the goal filter to ALL');
+  assert.equal(workoutsUi.seeds, 16, 'the routine editor must be able to start from any workout');
   await evaluate(`openWorkoutDetail('wk-str-lower'); true`);
   await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.vol-seg')`);
   const workoutSheet = await evaluate(`(() => {
@@ -388,6 +457,7 @@ try {
     'the workout sheet must carry the disclaimer verbatim');
   assert.equal(workoutSheet.rows, 5, 'the sheet must list the resolved exercises');
   assert.ok(workoutSheet.planned > 0, 'the sheet must show the planned per-muscle board');
+
   const startedWorkout = await evaluate(`(() => {
     startWorkout('wk-str-lower');
     const ex=state.activeSession.exercises;

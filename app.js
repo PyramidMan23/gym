@@ -140,7 +140,47 @@ function animateNumbers(scope){
 // Nav condenses on scroll for EVERYONE (Mark, 2026-08-01): height compresses, buttons keep
 // their horizontal geometry, labels tuck away. Was an opt-in preference; the stale
 // preferences.navCondense key is simply never read again.
-addEventListener('scroll',()=>document.body.classList.toggle('scrolled',scrollY>10),{passive:true});
+// SLICE NAV (2026-08-02): SliceCo's transform-only minimise, ported 1:1 - the capsule recedes on
+// scroll-down and returns on scroll-up. Guards match SliceCo's: never while a dialog is open (the
+// bar must stay put under a sheet), never near the top, never under reduced motion. Layout never
+// shifts because the class only drives a transform, so no clearance recalculates.
+// Android Chrome reports env(safe-area-inset-bottom)=0 in a standalone PWA under
+// viewport-fit=cover, so anything pinned to that inset slides UNDER the system nav buttons -
+// which is exactly what the capsule is now pinned to. SliceCo's probe, ported: measure the
+// resolved inset, and when it is 0 on a standalone Android session disambiguate by GEOMETRY
+// rather than trusting it. env()=0 is ambiguous - either the OS kept the window above the
+// system bar (3-button nav, so 0 is the truth) or Chromium drew us under the gesture bar and
+// under-reported. A 3-button bar is >=48px, so a remaining gap >=24px means the window stops
+// above it and needs no inset. innerHeight is keyboard-stable, so this never churns while typing.
+function measureBottomInset(){
+  try{
+    const probe=document.createElement('div');
+    probe.style.cssText='position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)';
+    document.body.appendChild(probe);
+    const envBottom=parseFloat(getComputedStyle(probe).paddingBottom)||0;
+    probe.remove();
+    const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||navigator.standalone===true;
+    let inset=envBottom;
+    if(envBottom<=0&&standalone&&/Android/i.test(navigator.userAgent||'')){
+      const screenH=(screen&&screen.height)||0;
+      // gesture-pill clearance is ~24dp, not 44
+      if(screenH>0&&screenH-((window.screenY||0)+innerHeight)<24)inset=24;
+    }
+    document.documentElement.style.setProperty('--sai-bottom',inset+'px');
+  }catch(_){}
+}
+measureBottomInset();
+addEventListener('resize',measureBottomInset);
+addEventListener('orientationchange',measureBottomInset);
+
+let lastNavY=0;
+addEventListener('scroll',()=>{
+  const b=document.body.classList,y=scrollY,dy=y-lastNavY;lastNavY=y;
+  b.toggle('scrolled',y>10);
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches||document.querySelector('dialog[open]')){b.remove('nav-min');return;}
+  if(y<64){b.remove('nav-min');return;}
+  if(dy>4)b.add('nav-min');else if(dy<-4)b.remove('nav-min');
+},{passive:true});
 function setBarWeight(v){state.preferences.barWeight=Number(v)||20;saveState();}
 // Turning injury mode on/off changes which evidence gate progression uses, so re-render everything.
 function toggleInjuryMode(on){state.preferences.injuryMode=!!on;saveState();closeSheet();renderAllViews();if(state.activeSession)renderWorkout();showToast(on?'Injury mode on - pain check-ins added':'Injury mode off');}

@@ -459,6 +459,24 @@ const GYM_WORKOUTS = [
       {id:'mo14', sets:2, reps:'20-30', rest:30},
       {id:'st4',  sets:2, reps:'30-45', rest:30}
     ]},
+  // Symmetry-recorded upper re-entry (council 2026-08-02). Deliberately NOT called corrective:
+  // it does not claim to fix an asymmetry, it refuses to let the strong side hide one. Every
+  // one-sided movement runs weaker side FIRST and caps the other at the same clean reps, so the
+  // rep gap is recorded evidence rather than an inference. Overhead pressing is omitted on
+  // purpose (the most upper-trap and impingement-provocative pattern), not forgotten.
+  { id:'wk-upper-symmetry', goal:'POSTURE', name:'Upper Symmetry', mins:45,
+    blurb:'Pull bias, one side at a time, neck last',
+    note:'Pull-biased upper session that refuses to let your strong side carry the weak one. Run every one-sided movement on the WEAKER side first, then cap the stronger side at the same clean reps, and tap the set number to tag L or R so the balance board gets real numbers. Overhead pressing is left out on purpose: it is the pattern that loads the upper traps hardest. Nothing here progresses today, loads repeat what you already tolerated. STOP the exercise, not just the set, on any new tingling, numbness, weakness, radiating pain, a shoulder giving way, or a pop that changes what you can do afterwards. Position beats load on every movement here.',
+    exercises:[
+      {id:'ba7',  sets:3, reps:'8-10',   rest:105},
+      {id:'sh7',  sets:3, reps:'12-15',  rest:75},
+      {id:'ch3',  sets:3, reps:'6-8',    rest:120},
+      {id:'ba22', sets:2, reps:'10-12',  rest:90},
+      {id:'mo13', sets:2, reps:'8-10',   rest:45},
+      {id:'co8',  sets:2, reps:'30-40',  rest:60},
+      {id:'mo14', sets:2, reps:'20-30',  rest:30},
+      {id:'st15', sets:2, reps:'30-40',  rest:30}
+    ]},
   // MOBILITY
   { id:'wk-mob-lower', goal:'MOBILITY', name:'Mobility Lower', mins:40,
     blurb:'ATG-style full-range leg work',
