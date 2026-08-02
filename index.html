@@ -36,11 +36,9 @@
           <h1 id="todayTitle">Ready to train?</h1>
           <p id="todayPrompt">Pick up where you left off or start something new.</p>
         </div>
-        <div id="resumeSlot"></div>
-        <div id="todayGoal"></div>
-        <div id="deloadSlot"></div>
-        <div id="coachSlot"></div>
-        <div id="deskSlot"></div>
+        <!-- v2 Today order follows the prototype: greeting -> charge ring -> resume -> UP NEXT ->
+             grouped list -> quick start. Only DOM position moved; every id, class and onclick is
+             unchanged, and renderToday() writes by id so render order is unaffected. -->
         <section class="activity-card" aria-labelledby="activityTitle">
           <div class="activity-heading"><div><p class="kicker">THIS WEEK</p><h2 id="activityTitle">Start your week.</h2><p id="activityDetail" class="activity-detail">One completed set starts the rings.</p></div><button class="activity-info" onclick="openRingGoals()" aria-label="Activity ring goals">•••</button></div>
           <div class="activity-layout">
@@ -49,11 +47,17 @@
           </div>
           <div id="weekDots" class="week-dots week-dots-wide"></div>
         </section>
+        <div id="resumeSlot"></div>
+        <div id="deloadSlot"></div>
+        <div id="todayGoal"></div>
+        <div id="coachSlot"></div>
+        <!-- v2: Desk Reset and the last session are ONE grouped inset list (design/HANDOFF.md).
+             #recentSession moved up from .fold-2 to sit beside #deskSlot; both ids kept, and the
+             group renders nothing at all when both slots are empty. -->
+        <div class="group" id="todayGroup"><div id="deskSlot"></div><div id="recentSession"></div></div>
         <div class="fold-2">
           <div class="section-heading"><div><p class="kicker">QUICK START</p><h2>Your routines</h2></div><button class="text-button" onclick="navigate('train')">Manage</button></div>
           <div id="todayRoutines" class="routine-strip"></div>
-          <div class="section-heading"><div><p class="kicker">LAST SESSION</p><h2>Recent work</h2></div><button class="text-button" onclick="navigate('progress')">See all</button></div>
-          <div id="recentSession"></div>
         </div>
       </section>
 

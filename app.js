@@ -129,7 +129,11 @@ function animateNumbers(scope){
   scope.querySelectorAll('[data-count]').forEach(el=>{
     const target=Number(el.dataset.count)||0;
     const fmt=el.dataset.fmt==='compact'?compact:(v=>String(Math.round(v)));
-    if(REDUCED_MOTION||!target){el.textContent=fmt(target);return;}
+    // `document.hidden` matters as much as reduced motion: requestAnimationFrame does NOT run in a
+    // background tab, so a count-up started while hidden freezes at its start value and the surface
+    // shows a WRONG number until something re-renders it (the rAF-in-a-hidden-tab bug class). When
+    // there is no frame loop, skip the animation and state the true value immediately.
+    if(REDUCED_MOTION||document.hidden||!target){el.textContent=fmt(target);return;}
     const start=performance.now(),duration=650;
     const step=now=>{const k=Math.min(1,(now-start)/duration),eased=1-Math.pow(1-k,3);el.textContent=fmt(target*eased);if(k<1)requestAnimationFrame(step);};
     requestAnimationFrame(step);
@@ -280,7 +284,11 @@ function renderToday(){
   document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
   const routines=state.routines.slice(0,6),doneThisWeek=Core.routinesDoneThisWeek(state.history);
   document.getElementById('todayRoutines').innerHTML=routines.length?routines.map(r=>routineStripCard(r,doneThisWeek)).join(''):`<div class="empty-card card" style="flex:1"><strong>No routines yet</strong>Start an empty workout or save one from the Train tab.</div>`;
-  document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="empty-card card"><strong>No sessions logged</strong>Your first completed workout will land here.</div>`;
+  document.getElementById('recentSession').innerHTML=state.history.length?historyCard(state.history[0]):`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions logged</strong><small>Your first completed workout lands here.</small></span></div>`;
+  // The grouped list must not render as a bare bordered box when both of its slots are empty
+  // (no desk plan AND no history), so it collapses instead of leaving an empty inset.
+  const group=document.getElementById('todayGroup');
+  if(group)group.hidden=!group.querySelector('.group-row');
 }
 // Deload awareness (2026-07-28). Volume that only ever climbs is how a return to training becomes
 // the next injury: the exact failure mode this app exists to prevent, and nothing modelled it.
@@ -302,7 +310,12 @@ function renderDeskReset(){
   // ••• opens it as a PLAN (what it is), Start runs it (what it is for). Mark tapped the old
   // whole-row button, landed straight in a workout, and asked why he could not see it as a plan or
   // template. It was one, but nothing on this row said so (2026-07-28).
-  slot.innerHTML=`<div class="desk-card card"><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-actions"><button class="desk-menu" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details">•••</button><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></span></div>`;
+  // v2: a row in the Today grouped inset list (#todayGroup), no longer its own card. The
+  // `desk-card` class moves to the GROUP, because in v2 the group IS the Desk Reset surface:
+  // browser-flow selects `.desk-card` and asserts it clears the card below it (Mark's 2026-07-28
+  // report), and that clearance is now the group's own margin. Same guarantee, new referent.
+  document.getElementById('todayGroup')?.classList.add('desk-card');
+  slot.innerHTML=`<div class="group-row desk-row"><span class="row-glyph row-glyph-teal" aria-hidden="true">↺</span><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-actions"><button class="desk-menu" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details">•••</button><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></span></div>`;
 }
 function startDeskReset(){
   const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
@@ -323,13 +336,40 @@ function renderActivityRings(weekly){
   card.classList.toggle('card-live',score>0); // hero tinted card once the week is under way; quiet at zero-state
   document.getElementById('activityTitle').textContent=message.title;
   document.getElementById('activityDetail').textContent=message.detail;
-  const fmt=ring=>ring.key==='volume'?compact(ring.value):ring.value;
   const fmtGoal=ring=>ring.key==='volume'?compact(ring.goal):ring.goal;
-  document.getElementById('activityRings').innerHTML=rings.map(ring=>`<div class="arc-gauge"><svg viewBox="0 0 100 100" aria-hidden="true"><g transform="rotate(135 50 50)"><circle class="arc-track" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C}"></circle><circle class="arc-fill arc-fill-${ring.key}" data-offset="${ARC*(1-ring.ratio)}" cx="50" cy="50" r="${R}" style="stroke-dasharray:${ARC} ${C};stroke-dashoffset:${REDUCED_MOTION?ARC*(1-ring.ratio):ARC}"></circle></g></svg><div class="arc-value"><strong class="hero-num" data-count="${ring.value}" ${ring.key==='volume'?'data-fmt="compact"':''}>0</strong><b>/ ${fmtGoal(ring)}</b></div><span class="arc-label">${ring.label}</span></div>`).join('');
-  if(!REDUCED_MOTION)requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#activityRings .arc-fill').forEach(el=>{el.style.strokeDashoffset=el.dataset.offset;})));
+  // v2 charge ring (design/HANDOFF.md): ONE ring replaces the three arc gauges.
+  //   outer arc  = sessions + volume (the two "did you show up and do work" ratios, averaged)
+  //   inner arc  = completed sets
+  //   centre     = the average of all three, as one number — the same `score` the old card computed.
+  // Geometry mirrors the prototype at r=52/39.5 in a 120 viewBox. Radii are in the SAME user space
+  // as the stroke, so the drop-shadow cannot bleed outside the padded viewBox and start a
+  // horizontal scroll (the 460px-glow-in-a-390px-scroller trap called out in the brief).
+  const by=k=>rings.find(r=>r.key===k);
+  const OUT_R=52,IN_R=39.5,OUT_C=2*Math.PI*OUT_R,IN_C=2*Math.PI*IN_R;
+  const outRatio=(by('workouts').ratio+by('volume').ratio)/2,setsRatio=by('sets').ratio;
+  const outOff=OUT_C*(1-outRatio),inOff=IN_C*(1-setsRatio);
+  // Same rAF-in-a-hidden-tab guard as animateNumbers: with no frame loop the arcs would stay parked
+  // at their empty start value, drawing a 0% ring over a non-zero week. Draw them filled instead.
+  const noArcAnim=REDUCED_MOTION||document.hidden;
+  document.getElementById('activityRings').innerHTML=`<div class="charge-ring">`
+    +`<svg viewBox="0 0 120 120" aria-hidden="true">`
+    +`<circle class="cr-track" cx="60" cy="60" r="${OUT_R}"></circle>`
+    +`<circle class="cr-arc cr-out" data-offset="${outOff}" cx="60" cy="60" r="${OUT_R}" style="stroke-dasharray:${OUT_C};stroke-dashoffset:${noArcAnim?outOff:OUT_C}"></circle>`
+    +`<circle class="cr-track cr-track-in" cx="60" cy="60" r="${IN_R}"></circle>`
+    +`<circle class="cr-arc cr-in" data-offset="${inOff}" cx="60" cy="60" r="${IN_R}" style="stroke-dasharray:${IN_C};stroke-dashoffset:${noArcAnim?inOff:IN_C}"></circle>`
+    +`</svg>`
+    +`<button class="cr-centre" onclick="openRingGoals()" aria-label="Week ${score}% charged. Edit weekly goals">`
+    +`<span class="cr-num"><strong class="hero-num" data-count="${score}">0</strong><span class="cr-pct" aria-hidden="true">%</span></span>`
+    +`<small>WEEK CHARGED</small></button>`
+    +`</div>`;
+  if(!noArcAnim)requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#activityRings .cr-arc').forEach(el=>{el.style.strokeDashoffset=el.dataset.offset;})));
   animateNumbers(document.getElementById('activityRings'));
   document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} of ${goals.weeklyWorkoutGoal} workouts, ${weekly.completedSets} of ${goals.weeklySetGoal} sets, ${Math.round(weekly.volume)} of ${goals.weeklyVolumeGoal} kilograms volume`);
-  document.getElementById('activityLegend').innerHTML='';
+  // The two arcs are never distinguished by colour alone: each legend entry names its own metric
+  // and prints its own numbers, and the shapes differ (thick outer ring vs thin inner ring).
+  document.getElementById('activityLegend').innerHTML=
+    `<span class="cr-key cr-key-out"><i aria-hidden="true"></i>${by('workouts').value}/${fmtGoal(by('workouts'))} sessions · ${compact(by('volume').value)}/${fmtGoal(by('volume'))} kg</span>`
+   +`<span class="cr-key cr-key-in"><i aria-hidden="true"></i>${by('sets').value}/${fmtGoal(by('sets'))} sets</span>`;
 }
 function renderWeekDots(){
   const now=new Date(),monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-((now.getDay()+6)%7));
@@ -351,9 +391,13 @@ function routineStripCard(routine,done){
   const tick=done?.has(routine.id)?'<span class="done-badge">✓ Done</span> · ':'';
   return `<article class="routine-strip-card"><div class="rs-top"><h3>${esc(routine.name)}</h3><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button></div><p>${tick}${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</p><button class="rs-start" onclick="startRoutine('${routine.id}')">${done?.has(routine.id)?'Again':'Start'}</button></article>`;
 }
+// v2: the last session is a row in the Today grouped list. Keeps the .history-card class and the
+// openHistory() contract (browser-flow selects '#recentSession .history-card'); only the shell changed.
 function historyCard(session){
   const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
-  return `<button class="history-card" onclick="openHistory('${session.id}')"><span class="history-top"><span><h3>${esc(session.name)}</h3><time>${formatDate(session.started)}</time></span><span>›</span></span><span class="history-meta"><span>${summary.durationMinutes} min</span><span>${summary.completedSets} set${summary.completedSets===1?'':'s'}</span>${summary.volume>0?`<span>${compact(summary.volume)} kg</span>`:''}${prs?`<span class="pr-badge notched">${prs} PR${prs===1?'':'s'}</span>`:''}</span></button>`;
+  const meta=[`${summary.durationMinutes} min`,`${summary.completedSets} set${summary.completedSets===1?'':'s'}`];
+  if(summary.volume>0)meta.push(`${compact(summary.volume)} kg`);
+  return `<button class="history-card group-row" onclick="openHistory('${session.id}')"><span class="row-glyph row-glyph-amber" aria-hidden="true">${prs?'PR':'✓'}</span><span class="row-text"><strong>${esc(session.name)}</strong><small>${formatDate(session.started)} · ${esc(meta.join(' · '))}${prs?` · ${prs} PR${prs===1?'':'s'}`:''}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;
 }
 
 // Coach surface (Today): one active source only - remote "Coach's block" when a plan validates,
@@ -409,7 +453,6 @@ function renderCoach(){
   // Plan JSON is untrusted (comes from Drive): every plan-derived string goes through esc(),
   // numbers through Coach.doseLine (finite-or-nothing) - a hostile field renders inert.
   const names=s.exercises.map(e=>{const item=exerciseById(e.exerciseId);return item?esc(item.name):`${esc(e.exerciseId)} (skipped - not in library)`;});
-  const line=e=>{const d=esc(Coach.doseLine(e));return d?` · ${d}`:'';};
   // The cue is the plan's REASONING ("repeat exactly and answer the check-in", "stepped down 20%
   // after a flare") and the card was dropping it entirely, leaving numbers with no why. Untrusted
   // remote string → esc()'d like every other plan-derived field.
@@ -417,9 +460,20 @@ function renderCoach(){
   // exercise carries the same cue, say it ONCE under the list (council 2026-07-28).
   const cues=s.exercises.map(e=>e.cue||'');
   const allSame=cues.length>1&&cues.every(c=>c&&c===cues[0]);
-  const why=e=>!allSame&&e.cue?`<small class="coach-cue">${esc(e.cue)}</small>`:'';
   const sharedCue=allSame?`<small class="coach-cue coach-cue-shared">${esc(cues[0])}</small>`:'';
-  const list=s.exercises.slice(0,6).map((e,i)=>`<li${exerciseById(e.exerciseId)?'':' class="coach-skip"'}>${names[i]}${line(e)}${why(e)}</li>`).join('')+sharedCue;
+  // v2 UP NEXT card: the bullet list becomes exercise CHIPS. A chip carries the same real
+  // prescription the list did (name + Coach.doseLine), and an exercise missing from the library
+  // keeps its word-marked "skipped" state - never a colour-only cue.
+  const chips=s.exercises.slice(0,6).map((e,i)=>{
+    const known=!!exerciseById(e.exerciseId);
+    const dose=esc(Coach.doseLine(e));
+    return `<span class="next-chip${known?'':' next-chip-skip'}">${names[i]}${dose?`<b>${dose}</b>`:''}</span>`;
+  }).join('');
+  const more=s.exercises.length>6?`<span class="next-chip next-chip-more">+${s.exercises.length-6} more</span>`:'';
+  // Per-exercise cues keep the `.coach-cue` class (contrast-guard selects it) and simply move
+  // below the chip row, since a chip has no room for the plan's reasoning.
+  const perChipCues=allSame?'':s.exercises.slice(0,6).map((e,i)=>e.cue?`<small class="coach-cue">${names[i]}: ${esc(e.cue)}</small>`:'').join('');
+  const cueBlock=allSame?sharedCue:perChipCues;
   // A plan's notes are its stop rules and its standing instructions. They shipped in every plan and
   // were never rendered anywhere, so the safety copy the generator writes reached nobody.
   const notes=(ctx.source==='coach'&&Array.isArray(ctx.plan?.notes)?ctx.plan.notes:[]).filter(n=>typeof n==='string'&&n.trim()).slice(0,4);
@@ -428,14 +482,17 @@ function renderCoach(){
   const syncLine=sync.configured
     ?`${sync.connected?'Synced':'Sync pending'}${sync.lastSyncAt?' · '+formatDate(sync.lastSyncAt):''}${sync.queued?` · ${sync.queued} queued`:''}`
     :`Not connected${sync.queued?` · ${sync.queued} queued`:''}`;
-  slot.innerHTML=`<section class="coach-card card card-live" aria-label="Training coach">
-    <div class="coach-top"><p class="kicker">${ctx.source==='coach'?'COACH’S BLOCK':'LOCAL RAMP'}</p>${s.stepDown?'<span class="coach-flag notched">Step-down</span>':''}</div>
-    <h2>${esc(s.title)}</h2>
-    ${ctx.superseded?`<p class="coach-superseded">${esc(ctx.superseded)}</p>`:''}
-    <ul class="coach-list">${list}</ul>
-    ${notesBlock}
-    <p class="coach-prov">${esc(ctx.provenance)}</p>
-    <button class="primary-button full-button" onclick="startCoachSession()">Start ${esc(s.title)}</button>
+  slot.innerHTML=`<section class="coach-card up-next card card-live" aria-label="Training coach">
+    <div class="up-next-body">
+      <div class="coach-top"><p class="kicker">UP NEXT</p><span class="up-next-src">${ctx.source==='coach'?'Coach’s block':'Local ramp'}</span>${s.stepDown?'<span class="coach-flag notched">Step-down</span>':''}</div>
+      <h2>${esc(s.title)}</h2>
+      ${ctx.superseded?`<p class="coach-superseded">${esc(ctx.superseded)}</p>`:''}
+      <div class="next-chips">${chips}${more}</div>
+      ${cueBlock}
+      ${notesBlock}
+      <p class="coach-prov">${esc(ctx.provenance)}</p>
+    </div>
+    <button class="primary-button up-next-cta" onclick="startCoachSession()">Start ${esc(s.title)}</button>
     <div class="coach-sync"><span>${esc(syncLine)}</span>${sync.configured?'':`<button class="text-button" onclick="exportLastSession()">Export session</button>`}</div>
   </section>`;
 }
