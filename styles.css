@@ -47,14 +47,11 @@
 *{box-sizing:border-box;min-width:0}
 html{background:var(--page);scroll-behavior:smooth;max-width:100%;overflow-x:clip}
 body{margin:0;background:var(--page);color:var(--cream);font:500 15px/1.45 -apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI Variable','Segoe UI',system-ui,sans-serif;min-height:100vh;max-width:100%;overflow-x:clip;-webkit-font-smoothing:antialiased}
-/* Ambient blooms are pre-blurred radial gradients — NO filter:blur. A huge animated blurred fixed
-   layer is exactly what Android Chrome's compositor mis-rasterises into the phantom white strip
-   that only a force-close cleared (bug 2026-07-22). overflow-x:clip (not hidden) above kills the
-   other candidate: a stuck horizontal scroll offset revealing background past the page edge. */
-body::before,body::after{content:'';position:fixed;z-index:-1;width:75vmax;height:75vmax;border-radius:50%;pointer-events:none}
-body::before{top:-24vmax;left:-22vmax;background:radial-gradient(closest-side,rgba(var(--bloom-amber),var(--bloom-op)),transparent 62%);animation:drift 30s var(--ease) infinite alternate}
-body::after{bottom:-26vmax;right:-24vmax;background:radial-gradient(closest-side,rgba(var(--bloom-teal),var(--bloom-op)),transparent 62%);animation:drift 30s var(--ease) infinite alternate-reverse}
-@keyframes drift{from{transform:translate(0,0)}to{transform:translate(6vmax,4vmax)}}
+/* v2 (Instrument): the two ambient blooms are GONE. Surfaces now carry their own light — an inset
+   top-light plus one soft cast shadow (see the v2 token block at the end of this file) — instead of
+   a page-level glow. The --bloom-amber / --bloom-teal RGB tokens STAY: they are the theme-aware
+   amber/teal channels used by the nav cursor, rest pulse, adopt-last, bar marks and trend line.
+   overflow-x:clip on html/body above still kills a stuck horizontal scroll offset. */
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(224,110,31,.35);outline-offset:2px}
@@ -1186,3 +1183,60 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .bottom-nav button.ring::after{animation:pressRing .55s var(--ease) forwards}
 @keyframes pressRing{0%{transform:scale(.6);opacity:.55}100%{transform:scale(1.4);opacity:0}}
 @media (prefers-reduced-motion: reduce){.bottom-nav button.ring::after{animation:none}}
+
+/* ============================================================
+   v2 "INSTRUMENT" TOKEN BLOCK (design/HANDOFF.md §1, ported 2026-08-03)
+   Appended last so it wins over every earlier :root layer, matching this
+   file's established convention. Rollback: delete everything below this banner.
+
+   Polarity note: HANDOFF authors dark-first with a `prefers-color-scheme: light`
+   override. This stylesheet is light-first with a dark override, and flipping it
+   would fight the documented `color-scheme:light dark` white-flash fix at the top
+   of this file for zero visual gain. Both schemes stay fully token-paired, which
+   is what the rule is actually protecting. Values below are HANDOFF's, assigned
+   to whichever side of the existing split they belong to.
+
+   TWO DELIBERATE DEVIATIONS FROM HANDOFF, both because a machine gate disagrees
+   with it and the gate is measurably right:
+
+   1. --faint STAYS #868D94. HANDOFF proposes a 3-step quiet scale
+      (#7d848b / #6b7279 / #5f666d) claiming "all >=4.5:1 on the new surfaces".
+      Measured against the new OPAQUE card, worst realistic surface being the
+      group inset over a card (#1c1e20):
+          #7d848b 4.42:1   #6b7279 3.43:1   #5f666d 2.87:1   #868D94 4.98:1
+      The first three are AA failures for normal text - the same failures this
+      file already documents at line ~33 (#7E858C 4.29:1, #6B7178 3.25:1). The
+      brief's own verification rule says "stay at or above #868D94", so the quiet
+      hierarchy is expressed from the BRIGHT end (--cream-dim > --taupe > --faint)
+      rather than by sinking below the AA floor. Enforced by tests/contrast-guard.mjs.
+
+   2. Radius scale is snapped to the concentric law {0,8,12,16,20} that
+      tests/layout-check.mjs enforces (council 2026-07-23). HANDOFF asks for
+      22 cards / 20 groups / 16 buttons / 15 controls / 13 chips; 22, 15 and 13 are
+      off that scale. HANDOFF's RELATIVE hierarchy is kept, snapped to the sanctioned
+      steps: card 20 > group/button 16 > control/chip 12. Cards still get visibly
+      rounder (16 -> 20), which is the design intent.
+      TODO(design): if 22/15/13 are load-bearing rather than approximate, the
+      concentric scale itself needs a council decision - it is enforced end-to-end,
+      so widening it is not a CSS-only change.
+   ============================================================ */
+:root{
+  /* Light scheme (this file's base). Paired 1:1 with the dark block below. */
+  --card-bg:linear-gradient(180deg,#FFFFFF,#FBF7EF);
+  --card-hair:rgba(20,15,8,.10);
+  --group-bg:rgba(20,15,8,.035);
+  --hair:rgba(20,15,8,.09);
+  /* One soft cast + a top light, replacing the old 3-layer stack. Shadow alphas in
+     HANDOFF are authored for dark (.85-.95); light gets the warm near-surface tint
+     (--sh 224,214,194) instead of black so the page stays airy. */
+  --shadow:0 18px 40px -20px rgba(140,122,92,.28),inset 0 1px 0 rgba(255,255,255,.90);
+  --r-card:20px;--r-group:16px;--r-control:12px;--r-chip:12px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --page:#0B0C0D;
+  --card-bg:linear-gradient(180deg,#1a1d20,#141618);
+  --card-hair:rgba(255,255,255,.07);
+  --group-bg:rgba(255,255,255,.035);
+  --hair:rgba(255,255,255,.06);
+  --shadow:0 18px 40px -20px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.08);
+}}
