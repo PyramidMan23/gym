@@ -24,6 +24,7 @@ function bootProfiles(){
 }
 let currentView = 'today';
 let currentBuzzView = 'today'; // last tab that ticked - one haptic per change, never per render
+let leaveTimer = null;         // retires the cross-dissolve overlay; cleared so rapid taps can't stack
 let activeTimer = null;
 let restTimer = null;
 let restRemaining = 0;
@@ -190,20 +191,39 @@ function navigate(view){
   // the session keeps running and the return chip below is the always-visible way back.
   // A fresh Library open always starts unfiltered - a stale filter must never silently hide exercises (council 2026-07-19).
   if(view==='library')libraryFilter=newFilterState();
+  const from=currentView;
   currentView=view;
-  // View Transitions (Wave 2): morph the view swap (content + active classes together) when supported
-  // and motion is allowed; otherwise swap silently. Feature-detected, reduced-motion-gated.
   const swap=()=>{
     document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
     document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
     document.body.classList.toggle('workout-active',view==='workout');
     renderView(view);
   };
-  // Nav motion: ONE incoming settle, pure CSS on the class toggle (view-in in styles.css) - no
-  // snapshots, no JS animation handlers, so a rapid tab-tap can never fire a stale callback.
-  // The old directional fwd/back slide is gone (Mark 2026-08-02: two grammars read as unclean).
+  // Pane transition, ported from the live sliceco.app switchTab (Mark 2026-08-03: "why does this
+  // cause a block around the section and a flash?"). Two real causes. The incoming view was
+  // hard-swapped out of display:none with NOTHING covering the gap, and every direct child then ran
+  // its own staggered `rise` - 0.35s each on delays out to 0.2s, so 550ms of blocks punching in one
+  // at a time. SliceCo CROSS-DISSOLVES instead: the outgoing pane is lifted to an absolute overlay
+  // and faded sideways while the incoming slides in, so there is never a bare frame, the page never
+  // reflows, and the content moves as ONE object rather than N staggered rectangles.
   const ORDER={today:0,train:1,library:2,progress:3};
+  const prev=document.querySelector('.view.active'), next=document.getElementById(`view-${view}`);
+  const main=document.getElementById('main');
+  const cross=!matchMedia('(prefers-reduced-motion:reduce)').matches
+    && prev && next && prev!==next && ORDER[from]!==undefined && ORDER[view]!==undefined;
+  main.classList.remove('pane-fwd','pane-back');
+  if(cross){
+    main.classList.add(ORDER[view]>ORDER[from]?'pane-fwd':'pane-back');
+    // Retire any earlier leaver first, so a rapid tab-tap can never stack two overlays.
+    document.querySelectorAll('.view.leaving').forEach(el=>el.classList.remove('leaving'));
+    prev.classList.add('leaving');
+    clearTimeout(leaveTimer);
+    leaveTimer=setTimeout(()=>prev.classList.remove('leaving'),320);
+  }
   swap();
+  // Restart the incoming animation explicitly: without the reflow read the browser reuses the
+  // already-finished animation and the pane simply appears with no motion at all.
+  if(cross){next.style.animation='none';void next.offsetWidth;next.style.animation='';}
   if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
   renderReturnChip();
   const navIdx={today:0,train:1,library:2,progress:3}[view];

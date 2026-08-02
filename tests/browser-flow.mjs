@@ -239,6 +239,39 @@ try {
   assert.notEqual(nav.min.transform, 'none', 'body.nav-min must actually transform the capsule');
   assert.equal(nav.min.label, '0', 'minimised labels fade out');
 
+  // SLICE PANE gate. Drives a REAL tab swap and reads the mid-transition frame - the flash Mark
+  // reported was invisible to every gate precisely because nothing ever inspected that frame.
+  const pane = await evaluate(`(() => {
+    navigate('today');
+    const before=document.querySelectorAll('#view-today.active > *').length;
+    const kids=[...document.querySelectorAll('#view-today.active > *')]
+      .map(el=>getComputedStyle(el).animationName).filter(n=>n&&n!=='none');
+    navigate('progress');                    // forward: today(0) -> progress(3)
+    const leaving=document.querySelector('.view.leaving');
+    const lcs=leaving?getComputedStyle(leaving):null;
+    const out={children:before,animatedChildren:kids,
+      leavingId:leaving?leaving.id:null,
+      leavingPosition:lcs?lcs.position:null,
+      leavingAnim:lcs?lcs.animationName:null,
+      dirFwd:document.getElementById('main').classList.contains('pane-fwd'),
+      incomingAnim:getComputedStyle(document.getElementById('view-progress')).animationName};
+    navigate('train');                       // back: progress(3) -> train(1)
+    out.dirBack=document.getElementById('main').classList.contains('pane-back');
+    out.stacked=document.querySelectorAll('.view.leaving').length;
+    return out;
+  })()`);
+  assert.ok(pane.children > 3, 'Today must actually have children for the stagger check to mean anything');
+  assert.deepEqual(pane.animatedChildren, [],
+    'no direct child of a view may carry its own entrance animation - the staggered `rise` on N children WAS the flash');
+  assert.equal(pane.leavingId, 'view-today', 'the outgoing view must stay painted as a leaving overlay, not vanish');
+  assert.equal(pane.leavingPosition, 'absolute', 'the leaver must be absolutely positioned or the page reflows mid-swap');
+  assert.equal(pane.leavingAnim, 'paneOutLeft', 'a forward swap fades the leaver out to the left');
+  assert.equal(pane.incomingAnim, 'paneInRight', 'a forward swap slides the incoming view in from the right');
+  assert.equal(pane.dirFwd, true, 'today -> progress is a forward move');
+  assert.equal(pane.dirBack, true, 'progress -> train is a backward move');
+  assert.equal(pane.stacked, 1, 'a rapid second tap must retire the first overlay, never stack two');
+  await evaluate(`navigate('today'); true`);
+
   // The probe is the reason the capsule does not sit under Android's system nav buttons.
   // Assert it RAN, and that the bar's resting position is DERIVED from what it wrote - a
   // token that exists but nothing consumes would sail through a naive presence check.

@@ -911,13 +911,10 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .bottom-nav button.active svg{filter:drop-shadow(0 0 5px rgba(255,138,61,.45))}
 .bottom-nav button{transition:color .2s var(--ease),transform .12s var(--ease)}
 .bottom-nav button:active{transform:scale(.97)}
-/* THE tab-swap grammar (Mark 2026-08-02): one incoming settle - fade + 8px rise on a standard
-   decel curve, no direction, no scale. Runs on the class toggle alone, so a rapid tab-tap simply
-   restarts it - no completion handler to go stale. The nav cursor's spring carries the character. */
-@media (prefers-reduced-motion: no-preference){
-  .view.active{animation:view-in .2s cubic-bezier(.2,0,0,1)}
-}
-@keyframes view-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* The w22 tab-swap grammar (`view-in`, a 200ms fade + 8px rise) was DELETED 2026-08-03 rather than
+   shadowed by the SLICE PANE block at the end of this file. Two rules animating the same element is
+   the exact bug that made the swap feel unclean in the first place; leaving a dead one behind for a
+   later reader to resurrect would repeat it. The cross-dissolve is now the only pane grammar. */
 
 /* Starter rows (council 2026-07-28): a module with no evidence keeps its address but compresses to
    one quiet line - it stops impersonating valuable content before any exists. Actionable ones are
@@ -1108,4 +1105,56 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 @media(prefers-reduced-motion:reduce){
   body.nav-min .bottom-nav{transform:none}
   .bottom-nav,.bottom-nav button,.bottom-nav button::before,.bottom-nav button svg,.bottom-nav button small{transition:none}
+}
+
+/* ============================================================
+   SLICE PANE pass (2026-08-03) - Mark: "there's still a weird
+   flash when I swap tabs... a block around the section... the
+   SliceCo one feels so much smoother, why?"
+   Because of two things this block deletes.
+   1. `.view.active>*{animation:rise .35s both}` (line ~56) ran a
+      SEPARATE entrance on every direct child, staggered out to a
+      0.2s delay. Fill-mode `both` pins each child at opacity 0
+      through its delay, so a swap was 550ms of rectangles punching
+      in one at a time - the "blocks". The w22 pass killed two
+      fighting PARENT animations and never saw this child rule,
+      which is why it survived every previous cleanup.
+   2. The incoming view was hard-swapped out of display:none with
+      nothing covering the gap - one bare frame, read as a flash.
+   SliceCo does neither: it CROSS-DISSOLVES. The outgoing pane is
+   lifted to an absolute overlay (so layout cannot reflow) and
+   faded sideways in 260ms while the incoming slides 14px in over
+   300ms, as ONE object. Keyframes, distances, durations and the
+   curve below are copied from the live sliceco.app source
+   (paneIn/paneOut*, --ease-ios), not re-invented. Motion is on
+   the X axis on purpose: a vertical move on a vertically
+   scrolling page always reads as a jump.
+   Rollback: delete everything below this banner.
+   ============================================================ */
+:root{--ease-ios:cubic-bezier(.22,1,.36,1)}
+/* The whole reason the swap looked busy. One object moves, not N. */
+.view.active>*{animation:none}
+#main{position:relative}
+.view.leaving{
+  display:block!important;                 /* beats .view{display:none} */
+  position:absolute;top:0;left:0;right:0;z-index:2;   /* overlay: the page never reflows mid-swap */
+  pointer-events:none;
+  animation:paneOutLang .22s var(--ease-ios) forwards;
+}
+@media (prefers-reduced-motion: no-preference){
+  .view.active{animation:paneInLang .3s var(--ease-ios) forwards}
+  #main.pane-fwd  .view.active {animation:paneInRight .3s var(--ease-ios) forwards}
+  #main.pane-fwd  .view.leaving{animation:paneOutLeft .26s var(--ease-ios) forwards}
+  #main.pane-back .view.active {animation:paneInLeft  .3s var(--ease-ios) forwards}
+  #main.pane-back .view.leaving{animation:paneOutRight .26s var(--ease-ios) forwards}
+}
+@keyframes paneInLang {from{opacity:0;transform:translate3d(0,0,0)}   to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes paneOutLang{from{opacity:1;transform:translate3d(0,0,0)}   to{opacity:0;transform:translate3d(0,-4px,0)}}
+@keyframes paneInRight{from{opacity:0;transform:translate3d(14px,0,0)} to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes paneOutLeft{from{opacity:1;transform:translate3d(0,0,0)}   to{opacity:0;transform:translate3d(-8px,0,0)}}
+@keyframes paneInLeft {from{opacity:0;transform:translate3d(-14px,0,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes paneOutRight{from{opacity:1;transform:translate3d(0,0,0)}  to{opacity:0;transform:translate3d(8px,0,0)}}
+@media (prefers-reduced-motion: reduce){
+  .view.active,.view.leaving{animation:none!important}
+  .view.leaving{display:none!important}
 }
