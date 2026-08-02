@@ -239,36 +239,38 @@ try {
   assert.notEqual(nav.min.transform, 'none', 'body.nav-min must actually transform the capsule');
   assert.equal(nav.min.label, '0', 'minimised labels fade out');
 
-  // SLICE PANE gate, v2 (curtain design). Drives a REAL tab swap and reads the mid-transition
-  // frame. v1 asserted animation NAMES and still passed while Mark's phone showed legible
-  // text-over-text - because the crossfade it blessed was itself the bug. v2 asserts the two
-  // properties that make a ghost structurally impossible: the incoming pane is at opacity 1 the
-  // moment it lands, and the curtain above it is OPAQUE (a real background colour, not
-  // transparent) so nothing can blend through it.
+  // SLICE PANE gate, v3 (no-overlay design). v1 asserted animation NAMES; v2 asserted the curtain
+  // was opaque - and the OPACITY WAS THE BUG. This app draws content over two fixed radial blooms
+  // at z-index -1, so ANY opaque full-screen overlay hides them and fading it washes a 16% amber
+  // tint across the whole screen. v3 therefore asserts the invariant that outlaws the whole class:
+  // during a swap NOTHING may cover the page, and no pane may animate opacity at all. Only
+  // transform may move.
   const pane = await evaluate(`(() => {
-    navigate('library');                     // 254 catalogue rows: guaranteed tall enough to scroll
+    navigate('library');                     // 254 catalogue rows: the tallest view
     const before=document.querySelectorAll('#view-library.active > *').length;
     const kids=[...document.querySelectorAll('#view-library.active > *')]
       .map(el=>getComputedStyle(el).animationName).filter(n=>n&&n!=='none');
     // behavior:'instant' or the html{scroll-behavior:smooth} rule makes the very next scrollY
     // read return 0 - the smooth animation has not moved yet (the w4b readback-lie gotcha).
-    scrollTo({top:120,behavior:'instant'});  // the curtain must compensate for THIS
-    const from=scrollY;
+    scrollTo({top:120,behavior:'instant'});
     navigate('progress');                    // forward: library(2) -> progress(3)
-    const leaving=document.querySelector('.view.leaving');
-    const lcs=leaving?getComputedStyle(leaving):null;
+    // Mid-swap: how many views are painted, and is anything covering the page?
+    const painted=[...document.querySelectorAll('.view')].filter(v=>getComputedStyle(v).display!=='none');
     const ics=getComputedStyle(document.getElementById('view-progress'));
-    const out={children:before,animatedChildren:kids,scrolledFrom:from,
-      leavingId:leaving?leaving.id:null,
-      leavingPosition:lcs?lcs.position:null,
-      leavingAnim:lcs?lcs.animationName:null,
-      leavingBg:lcs?lcs.backgroundColor:null,
-      leavingTop:leaving?leaving.style.top:null,
+    // The bloom must be reachable at the viewport corner - if an overlay covers it, that IS the flash.
+    const corner=document.elementFromPoint(3,innerHeight-3);
+    const out={children:before,animatedChildren:kids,
+      paintedViews:painted.map(v=>v.id),
       incomingAnim:ics.animationName,incomingOpacity:ics.opacity,
+      // Every keyframe running on the incoming pane must touch transform only, never opacity.
+      incomingAnimatesOpacity:ics.animationName!=='none'&&[...document.styleSheets]
+        .flatMap(s=>{try{return [...s.cssRules]}catch(e){return []}})
+        .filter(r=>r.type===7&&r.name===ics.animationName)
+        .some(r=>/opacity/.test(r.cssText)),
+      cornerIsOverlay:!!(corner&&corner.classList&&corner.classList.contains('leaving')),
       dirFwd:document.getElementById('main').classList.contains('pane-fwd')};
     navigate('train');                       // back: progress(3) -> train(1)
     out.dirBack=document.getElementById('main').classList.contains('pane-back');
-    out.stacked=document.querySelectorAll('.view.leaving').length;
     // The droplet: fire a real pointerdown on an idle tab, SliceCo's trigger.
     const tab=document.querySelector('.bottom-nav button:not(.active)');
     tab.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
@@ -278,20 +280,17 @@ try {
   })()`);
   assert.ok(pane.children > 3, 'Library must actually have children for the stagger check to mean anything');
   assert.deepEqual(pane.animatedChildren, [],
-    'no direct child of a view may carry its own entrance animation - the staggered `rise` on N children WAS the first flash');
-  assert.equal(pane.leavingId, 'view-library', 'the outgoing view must stay painted as a curtain, not vanish');
-  assert.equal(pane.leavingPosition, 'absolute', 'the curtain must be absolutely positioned or the page reflows mid-swap');
-  assert.equal(pane.leavingAnim, 'curtainFade', 'the curtain fades - it never slides or blends');
-  assert.ok(pane.leavingBg && !/rgba\(0, 0, 0, 0\)|transparent/.test(pane.leavingBg),
-    `the curtain must be OPAQUE - a transparent leaver blends into text-over-text (got ${pane.leavingBg})`);
-  assert.ok(pane.scrolledFrom > 0 && pane.leavingTop === `-${pane.scrolledFrom}px`,
-    `the curtain must offset by -scrollY (${pane.scrolledFrom}) so it shows what WAS on screen, got top=${pane.leavingTop}`);
+    'no direct child of a view may carry its own entrance animation - the staggered `rise` on N children was the FIRST flash');
+  assert.deepEqual(pane.paintedViews, ['view-progress'],
+    'exactly ONE view may be painted mid-swap - a second painted view is an overlay, and an overlay over the bloom was the SECOND flash');
+  assert.equal(pane.cornerIsOverlay, false,
+    'nothing may cover the viewport corner mid-swap: an opaque layer hides the radial bloom and fading it tints the whole screen');
   assert.equal(pane.incomingAnim, 'paneSlideRight', 'a forward swap slides the incoming view in from the right');
-  assert.equal(pane.incomingOpacity, '1',
-    'the incoming pane must be FULLY OPAQUE mid-transition - a fading incoming pane is the double-exposure bug');
+  assert.equal(pane.incomingOpacity, '1', 'the incoming pane is fully opaque at all times');
+  assert.equal(pane.incomingAnimatesOpacity, false,
+    'the swap animation must touch TRANSFORM ONLY - any opacity keyframe re-introduces a blend or a tint');
   assert.equal(pane.dirFwd, true, 'today -> progress is a forward move');
   assert.equal(pane.dirBack, true, 'progress -> train is a backward move');
-  assert.equal(pane.stacked, 1, 'a rapid second tap must retire the first overlay, never stack two');
   assert.equal(pane.ring, true, 'pointerdown on a tab must arm the press ring');
   assert.equal(pane.ringAnim, 'pressRing', 'the armed ring must actually run the droplet animation');
   await evaluate(`navigate('today'); true`);

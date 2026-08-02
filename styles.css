@@ -1131,41 +1131,38 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    inner container), a leaver pinned to top:0 teleported to its own
    top when navigate() reset the scroll - a flash of content you
    were not even looking at.
-   The fix eliminates blending entirely: the incoming pane paints
-   FULLY OPAQUE immediately and only SLIDES (14px, SliceCo's
-   distance/curve); the outgoing pane becomes an OPAQUE CURTAIN
-   (background:var(--page), offset by -scrollY in JS so it shows
-   exactly what was on screen) that fades over it in 160ms. At
-   every instant one complete surface is visible - a ghost blend
-   and a bare frame are both structurally impossible.
-   Plus the "water droplet": SliceCo's pressRing (scale .6 to 1.4,
-   fade, 550ms, fired on pointerdown), verbatim, on the nav tabs.
+   THE CURTAIN WAS ALSO WRONG, and it was mine (measured
+   2026-08-03, w25 -> w26). It painted flat `var(--page)` =
+   rgb(13,14,16). But this app's real background is that colour
+   PLUS two fixed radial blooms at z-index -1 (amber at 16%
+   opacity). So an opaque curtain HID THE BLOOM, and fading it out
+   washed a 16% amber tint back across the entire screen over
+   160ms. Every tab tap changed the whole background. That was the
+   flash Mark kept seeing, on the website as well as the PWA.
+   ANY opaque full-screen overlay is incompatible with a
+   translucent-content-over-bloom design. So there is no overlay.
+   The swap is now what the fuel app does and what Mark says feels
+   smooth: a plain synchronous display swap, no leaving element at
+   all, plus a 14px directional slide on the incoming pane. The
+   w24 premise that a hard swap leaves a bare frame was simply
+   false - display:none -> block inside one tick paints ONE
+   complete frame, there is no gap to cover.
+   Kept from the SliceCo port: the slide distance/curve, and the
+   "water droplet" pressRing (scale .6 to 1.4, fade, 550ms, fired
+   on pointerdown) on the nav tabs.
    Rollback: delete everything below this banner.
    ============================================================ */
 :root{--ease-ios:cubic-bezier(.22,1,.36,1)}
-/* The whole reason the swap looked busy. One object moves, not N. */
+/* Children never carry their own entrance - one object moves, not N. */
 .view.active>*{animation:none}
-#main{position:relative}
-.view.leaving{
-  display:block!important;                 /* beats .view{display:none} */
-  position:absolute;left:0;right:0;z-index:2;   /* top set inline to -scrollY: the curtain shows what WAS on screen */
-  pointer-events:none;
-  background:var(--page);                  /* opaque: the pane below never bleeds through as a double exposure */
-  min-height:100vh;                        /* a short leaver must still cover the incoming pane */
-  animation:curtainFade .16s ease-out forwards;
-}
 @media (prefers-reduced-motion: no-preference){
-  /* Incoming: opacity 1 from the first frame - motion is slide-only, so nothing ever blends. */
+  /* Slide only. Opacity is never touched, so nothing can blend and no layer can hide the bloom. */
   #main.pane-fwd  .view.active {animation:paneSlideRight .3s var(--ease-ios)}
   #main.pane-back .view.active {animation:paneSlideLeft  .3s var(--ease-ios)}
 }
-@keyframes curtainFade{from{opacity:1}to{opacity:0}}
 @keyframes paneSlideRight{from{transform:translate3d(14px,0,0)} to{transform:translate3d(0,0,0)}}
 @keyframes paneSlideLeft {from{transform:translate3d(-14px,0,0)}to{transform:translate3d(0,0,0)}}
-@media (prefers-reduced-motion: reduce){
-  .view.active,.view.leaving{animation:none!important}
-  .view.leaving{display:none!important}
-}
+@media (prefers-reduced-motion: reduce){.view.active{animation:none!important}}
 /* The water droplet. SliceCo's pressRing verbatim (keyframes + .55s + fire-on-pointerdown);
    ring is element-centred like SliceCo's, inset to hug the tab's pill. --ease IS SliceCo's
    --ease-out curve (.16,1,.3,1) - same numbers, pre-existing token. The bar's overflow:hidden

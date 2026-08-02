@@ -24,7 +24,6 @@ function bootProfiles(){
 }
 let currentView = 'today';
 let currentBuzzView = 'today'; // last tab that ticked - one haptic per change, never per render
-let leaveTimer = null;         // retires the cross-dissolve overlay; cleared so rapid taps can't stack
 let activeTimer = null;
 let restTimer = null;
 let restRemaining = 0;
@@ -211,32 +210,25 @@ function navigate(view){
   // cause a block around the section and a flash?"). Two real causes. The incoming view was
   // hard-swapped out of display:none with NOTHING covering the gap, and every direct child then ran
   // its own staggered `rise` - 0.35s each on delays out to 0.2s, so 550ms of blocks punching in one
-  // at a time. REWORKED 2026-08-03 (council, Codex's design): the crossfade itself was the next
-  // bug - two semi-transparent text panes blending for ~200ms read as legible text-over-text
-  // (Mark's screenshot). Now the incoming pane paints FULLY OPAQUE and only slides; the outgoing
-  // becomes an opaque CURTAIN, offset by -scrollY so it shows exactly what was on screen, fading
-  // over the finished pane in 160ms. One complete surface is visible at every instant.
+  // at a time. THEN w25's opaque curtain turned out to be its OWN flash, and that one was mine: it
+  // painted flat var(--page), but this app's real background is that colour PLUS two fixed radial
+  // blooms (amber at 16%) at z-index -1. Covering them and fading out washed a 16% tint back across
+  // the WHOLE screen on every tab tap - measured, and visible on the website as well as the PWA.
+  // Any opaque full-screen overlay is incompatible with a translucent-content-over-bloom design, so
+  // there is no overlay now: a plain synchronous swap (exactly what the fuel app does, which Mark
+  // says is smooth) plus a 14px slide on the incoming pane. The w24 premise that a hard swap leaves
+  // a bare frame was false - display:none -> block inside ONE tick paints one complete frame.
   const ORDER={today:0,train:1,library:2,progress:3};
-  const prev=document.querySelector('.view.active'), next=document.getElementById(`view-${view}`);
+  const next=document.getElementById(`view-${view}`);
   const main=document.getElementById('main');
-  const cross=!matchMedia('(prefers-reduced-motion:reduce)').matches
-    && prev && next && prev!==next && ORDER[from]!==undefined && ORDER[view]!==undefined;
+  const slide=!matchMedia('(prefers-reduced-motion:reduce)').matches
+    && next && from!==view && ORDER[from]!==undefined && ORDER[view]!==undefined;
   main.classList.remove('pane-fwd','pane-back');
-  if(cross){
-    main.classList.add(ORDER[view]>ORDER[from]?'pane-fwd':'pane-back');
-    // Retire any earlier leaver first, so a rapid tab-tap can never stack two overlays.
-    document.querySelectorAll('.view.leaving').forEach(el=>{el.classList.remove('leaving');el.style.top='';});
-    // The page scroll resets to 0 below; without this offset the curtain would teleport to its own
-    // top and fade out showing content the user was not even looking at (the second flash source).
-    prev.style.top=`${-scrollY}px`;
-    prev.classList.add('leaving');
-    clearTimeout(leaveTimer);
-    leaveTimer=setTimeout(()=>{prev.classList.remove('leaving');prev.style.top='';},320);
-  }
+  if(slide)main.classList.add(ORDER[view]>ORDER[from]?'pane-fwd':'pane-back');
   swap();
-  // Restart the incoming animation explicitly: without the reflow read the browser reuses the
-  // already-finished animation and the pane simply appears with no motion at all.
-  if(cross){next.style.animation='none';void next.offsetWidth;next.style.animation='';}
+  // Restart the slide explicitly: without the reflow read the browser reuses the already-finished
+  // animation and the pane simply appears with no motion at all.
+  if(slide){next.style.animation='none';void next.offsetWidth;next.style.animation='';}
   if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
   renderReturnChip();
   const navIdx={today:0,train:1,library:2,progress:3}[view];
