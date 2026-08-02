@@ -800,7 +800,86 @@ function renderProgress(){
   renderBodyweight();
   renderWeekChart();
   renderPrFeed();
-  document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="empty-card card"><strong>Your progress starts at one</strong>Finish a workout and it will appear here.</div>`;
+  renderCalisthenics();
+  document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>Your progress starts at one</strong><small>Finish a workout and it will appear here.</small></span></div>`;
+  renderProgressSegments();
+}
+// ---- Progress segments (v2) -----------------------------------------------------------------
+// The SAME modules, one intent visible at a time instead of a 3000px scroll. Nothing is rebuilt or
+// re-ordered: each group is hidden or shown, so DOM order inside a segment is exactly what it was.
+const PROGRESS_TABS=[['week','Week'],['trends','Trends'],['records','Records']];
+let progressTab='week';
+function renderProgressSegments(){
+  const host=document.getElementById('progressSegments');if(!host)return;
+  host.innerHTML=PROGRESS_TABS.map(([id,label])=>`<button class="seg-button${progressTab===id?' on':''}" role="tab" aria-selected="${progressTab===id}" onclick="setProgressTab('${id}')">${label}</button>`).join('');
+  document.querySelectorAll('#view-progress .prog-group').forEach(g=>{g.hidden=g.dataset.seg!==progressTab;});
+}
+function setProgressTab(id){
+  if(!PROGRESS_TABS.some(([t])=>t===id))return;
+  progressTab=id;renderProgressSegments();
+  const main=document.getElementById('main');if(main)main.scrollTop=0;
+}
+// ---- Calisthenics ledger (v2 Progress > Trends) ----------------------------------------------
+// Scope: everything the catalogue files under Calisthenics, plus the classic bodyweight benchmarks
+// that live under their own muscle. Explicit, so nothing is guessed into the ledger.
+const CALI_EXTRA_IDS=['ba3','ba12','ch19','ch17','gr3','co1','co2','co10'];
+function caliIds(){
+  const ids=new Set(allExercises().filter(e=>e.muscle==='Calisthenics').map(e=>e.id));
+  for(const id of CALI_EXTRA_IDS)if(exerciseById(id))ids.add(id);
+  return [...ids];
+}
+function renderCalisthenics(){
+  const board=document.getElementById('caliBoard');if(!board)return;
+  const deltaEl=document.getElementById('caliDelta');
+  const r=Core.caliProgress(state.history,caliIds(),{step:Number(state.preferences.weightStep)||2.5});
+  if(!r.reps.length&&!r.holds.length){
+    if(deltaEl)deltaEl.textContent='';
+    board.innerHTML=`<div class="group"><div class="group-row group-row-empty"><span class="row-text"><strong>No bodyweight work logged yet</strong><small>Pull-ups, dips, push-ups and holds land here once you log a set.</small></span></div></div>`;
+    return;
+  }
+  // Reps and seconds are never merged into one figure - they are different units.
+  const gainWords=[];
+  if(r.gainedReps>0)gainWords.push(`+${r.gainedReps} rep${r.gainedReps===1?'':'s'}`);
+  if(r.gainedSeconds>0)gainWords.push(`+${r.gainedSeconds}s`);
+  if(deltaEl)deltaEl.textContent=gainWords.length?`${gainWords.join(' · ')} this block`:'no gain this block';
+  const nameOf=id=>esc(exerciseById(id)?.name||id);
+  // MAX SET · REPS. The previous best is a ghost fill BEHIND the current one plus a tick on the
+  // scale, so a gained rep is visible rather than asserted. Scale is the whole board's best.
+  const repMax=Math.max(r.repTarget,...r.reps.map(e=>Math.max(e.value,e.previousValue||0)));
+  const repRows=r.reps.map(e=>{
+    const pct=v=>`${Math.max(0,Math.min(100,(v/repMax)*100))}%`;
+    const vest=e.load>0?` <b>+${e.load} kg vest</b>`:'';
+    const deltaWord=e.previousValue==null?'first logged':(e.delta>0?`+${e.delta} rep${e.delta===1?'':'s'}`:(e.delta<0?`${e.delta} reps`:'held'));
+    return `<div class="cali-row"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}${vest}</span><span class="cali-val">${e.value}<small> reps</small></span></div>`
+      +`<div class="cali-bar" role="img" aria-label="${nameOf(e.exerciseId)}: ${e.value} reps${e.previousValue!=null?`, previous best ${e.previousValue}`:''}">`
+        +(e.previousValue!=null?`<i class="cali-ghost" style="width:${pct(e.previousValue)}"></i>`:'')
+        +`<i class="cali-fill" style="width:${pct(e.value)}"></i>`
+        // The tick is painted LAST: it marks where the previous best sat, and the current fill is
+        // wider than it whenever a rep was gained, so drawing it first hid the very cue it exists for.
+        +(e.previousValue!=null?`<u class="cali-tick" style="left:${pct(e.previousValue)}"></u>`:'')
+      +`</div>`
+      +`<small class="cali-note">${deltaWord}${e.loggedThisBlock?'':' · not trained this block'}</small></div>`;
+  }).join('');
+  // HOLDS · SECONDS on teal time bars, measured against their own next tier.
+  const holdRows=r.holds.map(e=>{
+    const pct=Math.max(0,Math.min(100,(e.value/Math.max(1,e.nextTier))*100));
+    const deltaWord=e.previousValue==null?'first logged':(e.delta>0?`+${e.delta}s`:(e.delta<0?`${e.delta}s`:'held'));
+    return `<div class="cali-row hold"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}</span><span class="cali-val">${e.value}<small>s</small></span></div>`
+      +`<div class="cali-bar" role="img" aria-label="${nameOf(e.exerciseId)}: ${e.value} seconds, next tier ${e.nextTier}"><i class="cali-fill teal" style="width:${pct}%"></i></div>`
+      +`<small class="cali-note">${deltaWord} · next tier ${e.nextTier}s</small></div>`;
+  }).join('');
+  // NEXT UNLOCK: the rule that fires next, stated as a rule and never as a promise.
+  let unlock='';
+  if(r.nextUnlock){
+    const u=r.nextUnlock,n=nameOf(u.exerciseId);
+    const line=u.kind==='reps'
+      ? `${u.repsToGo} more clean ${n.toLowerCase()} rep${u.repsToGo===1?'':'s'} and the load goes to +${u.toLoad} kg.`
+      : u.kind==='load'
+        ? `${n} is at the top of its rep range - the next step is +${u.toLoad} kg.`
+        : `Hold ${n} for ${u.secondsToGo}s longer to reach the next tier.`;
+    unlock=`<div class="cali-unlock"><p class="kicker">NEXT UNLOCK</p><p>${line}</p></div>`;
+  }
+  board.innerHTML=`<div class="cali-card">${repRows?`<p class="cali-head">MAX SET · REPS</p>${repRows}`:''}${holdRows?`<p class="cali-head">HOLDS · SECONDS</p>${holdRows}`:''}${unlock}</div>`;
 }
 // ---- Declared goals (2026-07-22) ----------------------------------------------------------
 // The app measured process (weekly rings) and emergent PRs, but nothing the lifter actually said

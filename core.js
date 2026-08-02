@@ -922,6 +922,89 @@
     return { verdict, advanced, considered, baseline, highlight };
   }
 
+  // ---- Calisthenics ledger (v2 Progress > Trends) ----------------------------------------------
+  // Bodyweight strength does not progress in kilos, so it needs its own read. This is PURELY a read
+  // over sets that already exist - no schema change, nothing invented:
+  //   * a REP movement's score is the best single-set rep count; the vest is that set's logged weight
+  //   * a HOLD (isTimed) scores the best seconds, which the app already stores in the reps field
+  // "Block" is the last `blockDays`; everything older is the previous best, so a gained rep is shown
+  // as a real delta rather than asserted. An exercise with no logged sets is omitted entirely.
+  //
+  // The unlock rule is NOT a new invention: it is the same double progression nextTarget() already
+  // runs - fill the rep range at the current load, then add one load step (secondsStep for holds).
+  // `ids` is supplied by the caller so core stays catalogue-agnostic.
+  function caliProgress(history, ids, opts) {
+    const o = opts || {};
+    const now = num(o.now) || Date.now();
+    const blockDays = num(o.blockDays) || 28;
+    const repTarget = num(o.repTarget) || 12;
+    const step = num(o.step) || 2.5;
+    const secondsStep = num(o.secondsStep) || 5;
+    const cutoff = now - blockDays * 86400000;
+    const want = new Set(Array.isArray(ids) ? ids : []);
+    const seen = new Map(); // id -> {blockSets:[], priorSets:[]}
+    for (const session of history || []) {
+      const started = num(session.started);
+      for (const exercise of session.exercises || []) {
+        if (!want.has(exercise.exerciseId)) continue;
+        const sets = doneSets(exercise);
+        if (!sets.length) continue;
+        if (!seen.has(exercise.exerciseId)) seen.set(exercise.exerciseId, { blockSets: [], priorSets: [] });
+        const bucket = seen.get(exercise.exerciseId);
+        (started >= cutoff ? bucket.blockSets : bucket.priorSets).push(...sets);
+      }
+    }
+    // Best = the single set with the most reps (or seconds); ties break on the heavier vest.
+    const bestOf = sets => sets.reduce((best, set) => {
+      if (!best) return set;
+      const r = num(set.reps), br = num(best.reps);
+      if (r > br || (r === br && num(set.weight) > num(best.weight))) return set;
+      return best;
+    }, null);
+    const reps = [], holds = [];
+    for (const [id, bucket] of seen) {
+      const block = bestOf(bucket.blockSets), prior = bestOf(bucket.priorSets);
+      const current = block || prior;              // no work this block -> the standing best still shows
+      if (!current) continue;
+      const previous = block ? prior : null;       // a prior-only entry has nothing to compare against
+      const value = num(current.reps);
+      const previousValue = previous ? num(previous.reps) : null;
+      const entry = {
+        exerciseId: id,
+        value,
+        previousValue,
+        delta: previousValue == null ? 0 : value - previousValue,
+        load: num(current.weight),
+        loggedThisBlock: !!block
+      };
+      if (isTimed(id)) holds.push({ ...entry, nextTier: value + secondsStep });
+      else reps.push(entry);
+    }
+    const bySize = (a, b) => b.value - a.value;
+    reps.sort(bySize); holds.sort(bySize);
+    // Reps and seconds are DIFFERENT UNITS and are never summed into one scalar: "+16" from
+    // 5 reps and 11 seconds is a number that means nothing. gained stays the rep figure.
+    const gainedReps = reps.reduce((sum, e) => sum + Math.max(0, e.delta), 0);
+    const gainedSeconds = holds.reduce((sum, e) => sum + Math.max(0, e.delta), 0);
+    const gained = gainedReps;
+    // The unlock that fires NEXT: the rep movement closest to the top of its range, else the hold
+    // closest to its next tier. Stated as the rule, never as a promise.
+    let nextUnlock = null;
+    const climbing = reps.filter(e => e.value < repTarget).sort((a, b) => (repTarget - a.value) - (repTarget - b.value));
+    const atTop = reps.filter(e => e.value >= repTarget).sort(bySize);
+    if (atTop.length) {
+      nextUnlock = { exerciseId: atTop[0].exerciseId, kind: 'load', repsToGo: 0,
+        fromLoad: atTop[0].load, toLoad: clean(atTop[0].load + step) };
+    } else if (climbing.length) {
+      nextUnlock = { exerciseId: climbing[0].exerciseId, kind: 'reps', repsToGo: repTarget - climbing[0].value,
+        fromLoad: climbing[0].load, toLoad: clean(climbing[0].load + step) };
+    } else if (holds.length) {
+      nextUnlock = { exerciseId: holds[0].exerciseId, kind: 'seconds', secondsToGo: secondsStep,
+        fromLoad: holds[0].load, toLoad: holds[0].load };
+    }
+    return { reps, holds, gained, gainedReps, gainedSeconds, repTarget, nextUnlock };
+  }
+
   function bodyweightTrend(entries, days = 90, now = Date.now()) {
     const cutoff = now - days * 86400000;
     return (entries || []).filter(e => num(e.t) >= cutoff).map(e => ({ t: num(e.t), kg: num(e.kg) })).sort((a, b) => a.t - b.t);
@@ -944,5 +1027,5 @@
   }
 
   return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

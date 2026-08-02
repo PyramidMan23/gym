@@ -95,27 +95,40 @@
         <!-- Intent-based structure (council 2026-07-28): This week (what happened) then Direction
              (where it's going) then Record (what it has been). DOM order IS visual order - modules
              keep a permanent address; a no-evidence module compresses in place, never moves. -->
-        <div class="section-heading"><div><p class="kicker">THIS WEEK</p><h2>By the numbers</h2></div></div>
-        <div id="progressStats" class="metric-grid"></div>
-        <div id="weeklyRecap"></div>
-        <div class="section-heading"><div><p class="kicker">WEEKLY VOLUME</p><h2>Sets per muscle</h2></div></div>
-        <div id="muscleVolume" class="mv-board"></div>
-        <div class="section-heading"><div><p class="kicker">GOALS</p><h2>What you're working toward</h2></div><button class="text-button" onclick="openGoalSheet()">New goal</button></div>
-        <div id="goalBoard" class="stack"></div>
-        <div id="painTrend"></div>
-        <div id="strengthPicker" class="trend-picker"></div>
-        <div id="strengthTrend"></div>
-        <div class="section-heading"><div><p class="kicker">BALANCE</p><h2>Left vs right</h2></div></div>
-        <div id="balanceBoard"></div>
-        <div class="section-heading"><div><p class="kicker">BODY</p><h2>Bodyweight</h2></div><button class="text-button" onclick="openBodyweightLog()">Log weight</button></div>
-        <div id="bodyweightCard"></div>
-        <div class="fold-2">
-          <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
-          <div id="weekChart" class="chart-card"></div>
-          <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
-          <div id="prFeed" class="pr-feed"></div>
-          <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
-          <div id="historyList" class="stack"></div>
+        <!-- v2: the SAME modules, grouped into three segments so one intent is visible at a time
+             instead of a 3000px scroll. DOM order INSIDE each segment is unchanged, and the
+             intent order above still holds: Week (what happened) -> Trends (where it is going)
+             -> Records (what it has been). -->
+        <div id="progressSegments" class="segmented" role="tablist" aria-label="Progress view"></div>
+        <div class="prog-group" data-seg="week">
+          <div class="section-heading"><div><p class="kicker">THIS WEEK</p><h2>By the numbers</h2></div></div>
+          <div id="progressStats" class="metric-grid"></div>
+          <div id="weeklyRecap"></div>
+          <div class="section-heading"><div><p class="kicker">WEEKLY VOLUME</p><h2>Sets per muscle</h2></div></div>
+          <div id="muscleVolume" class="mv-board"></div>
+          <div class="section-heading"><div><p class="kicker">GOALS</p><h2>What you're working toward</h2></div><button class="text-button" onclick="openGoalSheet()">New goal</button></div>
+          <div id="goalBoard" class="stack"></div>
+        </div>
+        <div class="prog-group" data-seg="trends">
+          <div id="painTrend"></div>
+          <div id="strengthPicker" class="trend-picker"></div>
+          <div id="strengthTrend"></div>
+          <div class="section-heading"><div><p class="kicker">BODYWEIGHT STRENGTH</p><h2>Calisthenics</h2></div><span id="caliDelta" class="section-count"></span></div>
+          <div id="caliBoard"></div>
+          <div class="section-heading"><div><p class="kicker">BALANCE</p><h2>Left vs right</h2></div></div>
+          <div id="balanceBoard"></div>
+          <div class="section-heading"><div><p class="kicker">BODY</p><h2>Bodyweight</h2></div><button class="text-button" onclick="openBodyweightLog()">Log weight</button></div>
+          <div id="bodyweightCard"></div>
+        </div>
+        <div class="prog-group" data-seg="records">
+          <div class="fold-2">
+            <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
+            <div id="weekChart" class="chart-card"></div>
+            <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
+            <div id="prFeed" class="pr-feed"></div>
+            <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
+            <div id="historyList" class="group"></div>
+          </div>
         </div>
       </section>
 
