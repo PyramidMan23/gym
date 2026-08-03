@@ -1157,11 +1157,19 @@ function renderStrength(){
   if(!unlocked.some(e=>e.id===strengthPick))strengthPick=unlocked[0].id;
   pickerEl.innerHTML=unlocked.slice(0,12).map(e=>`<button class="filter-chip ${e.id===strengthPick?'active':''}" onclick="pickStrength('${e.id}')">${esc(e.item.name)}</button>`).join('');
   const points=Core.exerciseTrend(state.history,strengthPick),name=exerciseById(strengthPick)?.name||'';
-  // Hero: current best est. 1RM as a giant numeral + a delta chip vs the first logged session.
-  let hero='';
-  if(points.length){const latest=points.at(-1).e1rm,delta=Math.round((latest-points[0].e1rm)*10)/10;
-    hero=`<div class="strength-hero"><strong class="sh-num hero-num">${latest}</strong><span class="sh-unit">kg est. 1RM</span><span class="sh-delta${delta<0?' down':''}">${delta>0?'+':''}${delta} kg</span></div>`;}
-  trendEl.innerHTML=hero+trendChart(points,name);
+  // Prototype layout: one card carrying the lift name + its gain, the current est. 1RM as a big
+  // numeral, and the area chart. The picker chips sit BELOW the card.
+  // exerciseTrend points carry `started`, not `t`, and a single point cannot draw a line -
+  // chartSvg threw on both. Same two-point guard trendChart has always used.
+  if(points.length<2){trendEl.innerHTML=`<div class="locked-card card"><strong>Almost there</strong>One more session of ${esc(name)} draws the line.</div>`;return;}
+  const latest=points.at(-1).e1rm,delta=Math.round((latest-points[0].e1rm)*10)/10;
+  trendEl.innerHTML=`<div class="st-card">`
+    +`<div class="st-top"><span class="st-name">${esc(name)}</span>`
+    +`<span class="st-delta${delta<0?' down':''}">${delta>0?'+':''}${delta} kg</span></div>`
+    +`<div class="st-hero"><strong class="hero-num" data-count="${latest}">0</strong><small>kg</small></div>`
+    +chartSvg(points.map(pt=>({t:pt.started,v:pt.e1rm})),`${name} estimated one rep max over time`)
+  +`</div>`;
+  animateNumbers(trendEl);
 }
 function pickStrength(id){strengthPick=id;renderStrength();}
 // Shared line-chart SVG (council 2026-07-20 refactor): points=[{t,v}], oldest→newest. Reused by the

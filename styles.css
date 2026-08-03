@@ -1851,3 +1851,26 @@ input,select,textarea{font-size:16px}
 .cali-foot small{color:var(--faint);font-size:11px;font-weight:600}
 .cali-gain{color:var(--amber-deep);font-weight:800}
 .cali-name{font-size:14.5px}
+
+/* ---- Progress > Trends strength card, ported from the prototype ----
+   name 13/700 + teal gain on one row, est. 1RM at 46px, then a clean area chart:
+   no grid lines, no axis ticks, no per-point dots - the design has none of them. */
+.st-card{padding:16px 16px 6px;border-radius:var(--r-card);border:1px solid var(--card-hair);
+  background:var(--card-bg);box-shadow:var(--shadow);margin-bottom:12px}
+.st-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.st-name{font-size:13px;font-weight:700;color:var(--cream)}
+.st-delta{font-size:12px;font-weight:800;color:var(--teal-deep);font-variant-numeric:tabular-nums lining-nums}
+.st-delta.down{color:var(--danger)}
+.st-hero{display:flex;align-items:baseline;gap:7px;margin-top:4px}
+.st-hero .hero-num{font-size:46px;font-weight:800;letter-spacing:-.05em;line-height:1.05;
+  font-variant-numeric:tabular-nums lining-nums}
+.st-hero small{font-size:16px;font-weight:700;color:var(--taupe)}
+.st-card .trend-grid-line,.st-card .trend-tick,.st-card .trend-dot{display:none}
+.st-card .trend-line{stroke-width:2.8px}
+.st-card .trend-svg{width:100%;height:92px;display:block;margin-top:2px}
+/* The picker chips sit BELOW the card in the design. */
+.trend-picker{display:flex;gap:7px;overflow-x:auto;margin:0 -18px 4px;padding:2px 18px 8px;scrollbar-width:none}
+.trend-picker::-webkit-scrollbar{display:none}
+.trend-picker .filter-chip{flex:none;white-space:nowrap;min-height:44px;padding:0 14px;border-radius:13px;
+  border:1px solid var(--card-hair);background:var(--group-bg);color:var(--cream-dim);font-size:11.5px;font-weight:800}
+.trend-picker .filter-chip.active{border-color:var(--amber);background:var(--amber);color:var(--on-amber)}
