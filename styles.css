@@ -366,9 +366,15 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 
 /* --- Premium tinted LIVE card: radial amber from top-right + amber border + inset amber top-light.
    --card-bg is already token-paired, so this reads as soft cream-amber on white / amber ember on #1D2228. --- */
-.card-live{position:relative;overflow:hidden;border-color:rgba(var(--bloom-amber),.34);
-  background:radial-gradient(130% 90% at 100% 0,rgba(var(--bloom-amber),.16),transparent 55%),var(--card-bg);
-  box-shadow:var(--shadow),inset 0 1px 0 rgba(var(--bloom-amber),.24)}
+/* NEUTRALISED 2026-08-04. Mark: "these boxes dont match up. the current one have a orange fade on
+   them and the shape and feel off them is just different." He was right, and the cause was not a
+   mis-ported token - it was the opposite. `--card-bg` is ALREADY byte-identical to the prototype's
+   card in both schemes (light #FFFFFF->#FBF7EF, dark #1a1d20->#141618, measured off the running
+   prototype). This rule then painted an invented amber radial wash ON TOP of a value that was already
+   correct, plus an amber border and an amber inset. The design has no tinted "live" card at all.
+   So the whole tint is gone and a live card is now simply a card. The class stays because four
+   surfaces reference it; it just no longer repaints them. */
+.card-live{position:relative;overflow:hidden}
 
 /* Live dot — CSS-only pulse; covered by the global reduced-motion kill-switch. */
 .live-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:9px;vertical-align:baseline;box-shadow:0 0 0 0 rgba(var(--bloom-amber),.5);animation:livePulse 1.8s var(--ease) infinite}
@@ -1224,6 +1230,11 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   /* Light scheme (this file's base). Paired 1:1 with the dark block below. */
   --card-bg:linear-gradient(180deg,#FFFFFF,#FBF7EF);
   --card-hair:rgba(20,15,8,.10);
+  /* Primary CTA, read straight out of the running prototype in BOTH schemes (2026-08-04). The design's
+     CTA is a 135deg amber gradient with an inset white top-light and NO drop shadow; ours was flat
+     var(--amber) with a 20px cast, which is what made it read as a different button. */
+  --cta-grad:linear-gradient(135deg,#EF8A3D,#C85F14);
+  --cta-ink:#211C17;
   --group-bg:rgba(20,15,8,.035);
   --hair:rgba(20,15,8,.09);
   /* One soft cast + a top light, replacing the old 3-layer stack. Shadow alphas in
@@ -1245,6 +1256,8 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   --page:#0B0C0D;
   --card-bg:linear-gradient(180deg,#1a1d20,#141618);
   --card-hair:rgba(255,255,255,.07);
+  --cta-grad:linear-gradient(135deg,#FFB070,#FF7A24);
+  --cta-ink:#1A1206;
   --group-bg:rgba(255,255,255,.035);
   --hair:rgba(255,255,255,.06);
   --shadow:0 18px 40px -20px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.08);
@@ -1301,7 +1314,11 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .next-chip-skip{font-style:italic;color:var(--faint)}
 .next-chip-more{color:var(--faint)}
 .up-next .coach-cue{display:block;margin-top:10px;color:var(--faint);font-size:12px;line-height:1.5}
-.up-next-cta{display:block;width:100%;min-height:56px;border:0;border-radius:0;font-size:16.5px;font-weight:800;letter-spacing:-.01em}
+/* The design's CTA is a 135deg gradient with an inset white top-light and NO drop shadow, full-bleed
+   at the bottom of the card so the card's own radius clips it (hence border-radius:0). Values read
+   from the running prototype in both schemes, not inferred. */
+.up-next-cta{display:block;width:100%;min-height:56px;border:0;border-radius:0;font-size:16.5px;font-weight:800;letter-spacing:-.01em;
+  background:var(--cta-grad);color:var(--cta-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
 .up-next .coach-sync{padding:12px 18px;border-top:1px solid var(--hair);margin:0}
 
 /* ---- Grouped inset list (Desk Reset + last session) ---- */
