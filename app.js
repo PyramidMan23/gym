@@ -1584,6 +1584,20 @@ function openTargetWhy(index){
     const rirTxt=basis?(basis.rir==null?'no RIR was logged':basis.rir==='skip'?'RIR was skipped':`you left ${basis.rir==='4'||basis.rir===4?'4+':basis.rir} in the tank`):'no basis';
     const basisTxt=basis?(timed?`${basis.weight?`${basis.weight} kg × `:''}${basis.reps} s`:`${basis.weight||'-'} kg × ${basis.reps}`):'';
     const evidence=basis?`Last ${injuryMode()?'confirmed ':''}set: ${esc(basisTxt)}, and ${esc(rirTxt)}.`:'';
+    // Design parity: the evidence becomes a grouped list, each row naming the input the rule read.
+    // Every value is the real stored one - nothing here is narrated.
+    const conf=Core.lastConfirmedExposure(state.history,ex.exerciseId,{requireConfirmation:injuryMode()});
+    const rirVal=!basis?'no basis':(basis.rir==null?'not logged':basis.rir==='skip'?'skipped':`${basis.rir==='4'||basis.rir===4?'4+':basis.rir}`);
+    const flare=state.history.find(s=>s.checkin&&s.checkin.flare!=null);
+    const painVal=!injuryMode()?'not tracked':(flare?(flare.checkin.flare===false?'no flare logged':'flare logged'):'not logged');
+    const rows=[
+      ['Last confirmed set',basisTxt||'none yet',''],
+      ['Confirmed tolerated',conf?formatDate(conf.started):'not yet','teal'],
+      ['Final-set RIR',rirVal,''],
+      ['Pain state',painVal,'teal'],
+      ['Today',formatTarget(target),'amber'],
+    ].map(([k,v,tone])=>`<div class="why-row"><span>${k}</span><b class="${tone?'why-'+tone:''}">${esc(String(v))}</b></div>`).join('');
+    const evidenceList=`<div class="group why-list">${rows}</div>`;
     const RULE_SENTENCE={
       'add-rep':'Reps are below the top of your range, so hold the load and add a rep.',
       'add-load':'You hit the top of the range with reps to spare, so add one load step and reset reps.',
@@ -1592,9 +1606,9 @@ function openTargetWhy(index){
       'repeat-no-rir':'No RIR evidence, so this stays conservative - repeat last, never guess up.',
       'step-down':'Pain has been elevated, so the load steps back about 10% today.'
     };
-    body=`<p class="why-evidence">${evidence}</p><p class="why-sentence">${esc(RULE_SENTENCE[target.rule]||'')}</p>`;
+    body=`<p class="why-evidence">${evidence}</p>${evidenceList}<p class="why-sentence">${esc(RULE_SENTENCE[target.rule]||'')}</p>`;
   }
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TODAY'S TARGET</p><h2>${esc(item?.name||'Exercise')}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>${body}<p class="why-foot">Targets come from your own logged evidence - never from a plan you didn't earn.</p>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">WHY THIS TARGET</p><h2>${esc(item?.name||'Exercise')}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>${body}<p class="why-foot">Targets come from your own logged evidence - never from a plan you didn't earn.</p>`;
   document.getElementById('sheet').showModal();
 }
 // A cell input opens the numeric pad instead of the keyboard (readonly + role=button); the pad's

@@ -1928,3 +1928,13 @@ input,select,textarea{font-size:16px}
 .opt-text{flex:1;min-width:0}
 .opt-text strong{display:block;font-size:15.5px;font-weight:700;letter-spacing:-.01em}
 .opt-text small{display:block;margin-top:2px;color:var(--faint);font-size:12px;line-height:1.35}
+
+/* ---- why? evidence list, ported from the prototype ---- */
+.why-list{margin:14px 0 12px}
+.why-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:12px 16px}
+.why-row+.why-row{border-top:1px solid var(--hair)}
+.why-row span{color:var(--taupe);font-size:14px}
+.why-row b{font-size:14.5px;font-weight:800;color:var(--cream);
+  font-variant-numeric:tabular-nums lining-nums;text-align:right}
+.why-row b.why-teal{color:var(--teal-deep)}
+.why-row b.why-amber{color:var(--amber-deep)}
