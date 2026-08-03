@@ -236,8 +236,6 @@ function navigate(view){
   if(ORDER[view]!==undefined&&view!==currentBuzzView){buzz(8);currentBuzzView=view;} // one gated tick per tab change
   renderReturnChip();
   const navIdx={today:0,train:1,library:2,progress:3}[view];
-  const navCursor=document.getElementById('navCursor');
-  if(navCursor&&navIdx!=null)navCursor.style.transform=`translateX(${navIdx*100}%)`;
   // instant, not the default: html{scroll-behavior:smooth} would ANIMATE this reset, so the new
   // pane visibly scrolled up under the curtain and the curtain (absolute in #main) drifted with
   // it - a third motion artifact hiding inside what looked like a plain reset.
@@ -305,6 +303,14 @@ function renderDeload(){
 // Desk Reset: the counter-dose to a laptop day. Deliberately startable in ONE tap without installing
 // the plan: friction is what kills a five-minute habit, and it needs to work on a rest day too.
 const DESK_PLAN=plans.find(p=>p.id==='plan-desk');
+// The design reads "5 min · 6 holds · undo the laptop day" - duration, then count, then the
+// description. Ours had the count last. The blurb already carries duration and description either
+// side of a middot, so the design's order is composed from it rather than hardcoded.
+function deskMeta(holds){
+  const parts=String(DESK_PLAN.blurb).split(' · ');
+  return parts.length>1 ? `${parts[0]} · ${holds} holds · ${parts.slice(1).join(' · ')}`
+                        : `${DESK_PLAN.blurb} · ${holds} holds`;
+}
 function renderDeskReset(){
   const slot=document.getElementById('deskSlot');if(!slot||!DESK_PLAN)return;
   const day=DESK_PLAN.days[0];
@@ -317,7 +323,7 @@ function renderDeskReset(){
   // browser-flow selects `.desk-card` and asserts it clears the card below it (Mark's 2026-07-28
   // report), and that clearance is now the group's own margin. Same guarantee, new referent.
   document.getElementById('todayGroup')?.classList.add('desk-card');
-  slot.innerHTML=`<div class="group-row desk-row"><span class="row-glyph row-glyph-teal" aria-hidden="true">↺</span><span class="desk-text"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(DESK_PLAN.blurb)} · ${day.exerciseIds.length} holds</small></span><span class="desk-actions"><button class="desk-menu" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details">•••</button><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></span></div>`;
+  slot.innerHTML=`<div class="group-row desk-row"><span class="row-glyph row-glyph-teal" aria-hidden="true">↺</span><span class="desk-text" role="button" tabindex="0" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(deskMeta(day.exerciseIds.length))}</small></span><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></div>`;
 }
 function startDeskReset(){
   const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
@@ -462,7 +468,6 @@ function renderCoach(){
   // exercise carries the same cue, say it ONCE under the list (council 2026-07-28).
   const cues=s.exercises.map(e=>e.cue||'');
   const allSame=cues.length>1&&cues.every(c=>c&&c===cues[0]);
-  const sharedCue=allSame?`<small class="coach-cue coach-cue-shared">${esc(cues[0])}</small>`:'';
   // v2 UP NEXT card: the bullet list becomes exercise CHIPS. A chip carries the same real
   // prescription the list did (name + Coach.doseLine), and an exercise missing from the library
   // keeps its word-marked "skipped" state - never a colour-only cue.
@@ -477,15 +482,22 @@ function renderCoach(){
   // Per-exercise cues keep the `.coach-cue` class (contrast-guard selects it) and simply move
   // below the chip row, since a chip has no room for the plan's reasoning.
   const perChipCues=allSame?'':s.exercises.slice(0,6).map((e,i)=>e.cue?`<small class="coach-cue">${names[i]}: ${esc(e.cue)}</small>`:'').join('');
-  const cueBlock=allSame?sharedCue:perChipCues;
+  // The design has exactly ONE note line under the chips: "Find an easy working load · joint-friendly
+  // local programming" - i.e. the cue and the provenance joined by a middot, as a single <p>. We had
+  // them as two elements (a <small> cue then a <p>), which cost 19px and was the last of the card's
+  // height overshoot. When every exercise shares a cue it now folds into that one line; only the rare
+  // differing-cue plan still renders a separate block, because the design does not model that case.
+  const cueBlock=allSame?'':perChipCues;
+  const noteLine=[allSame&&cues[0]?esc(cues[0]):'',esc(ctx.provenance)].filter(Boolean).join(' · ');
   // A plan's notes are its stop rules and its standing instructions. They shipped in every plan and
   // were never rendered anywhere, so the safety copy the generator writes reached nobody.
   const notes=(ctx.source==='coach'&&Array.isArray(ctx.plan?.notes)?ctx.plan.notes:[]).filter(n=>typeof n==='string'&&n.trim()).slice(0,4);
   const notesBlock=notes.length?`<details class="coach-notes"><summary>Plan rules (${notes.length})</summary><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></details>`:'';
-  const sync=Sync?Sync.status():{configured:false,queued:0,lastSyncAt:null};
-  const syncLine=sync.configured
-    ?`${sync.connected?'Synced':'Sync pending'}${sync.lastSyncAt?' · '+formatDate(sync.lastSyncAt):''}${sync.queued?` · ${sync.queued} queued`:''}`
-    :`Not connected${sync.queued?` · ${sync.queued} queued`:''}`;
+  // The sync status row that used to close this card is GONE (2026-08-04, Mark's word: "if its not
+  // needed and doesnt add something then it can go"). The design has no such row, it was ~69px of the
+  // card's 88px overshoot, and it was redundant: Settings already shows connection status, and its
+  // "Export session" button only ever rendered while sync was DISCONNECTED - Mark's is connected, so
+  // he never saw it. Whole-state export lives on in Settings -> Download backup, a superset.
   slot.innerHTML=`<section class="coach-card up-next card card-live" aria-label="Training coach">
     <div class="up-next-body">
       <div class="coach-top"><p class="kicker">UP NEXT</p><span class="up-next-src">${ctx.source==='coach'?'Coach’s block':'Local ramp'}</span>${s.stepDown?'<span class="coach-flag notched">Step-down</span>':''}</div>
@@ -494,10 +506,9 @@ function renderCoach(){
       <div class="next-chips">${chips}${more}</div>
       ${cueBlock}
       ${notesBlock}
-      <p class="coach-prov">${esc(ctx.provenance)}</p>
+      <p class="coach-prov">${noteLine}</p>
     </div>
-    <button class="primary-button up-next-cta" onclick="startCoachSession()">Start ${esc(s.title)}</button>
-    <div class="coach-sync"><span>${esc(syncLine)}</span>${sync.configured?'':`<button class="text-button" onclick="exportLastSession()">Export session</button>`}</div>
+    <button class="primary-button up-next-cta" onclick="startCoachSession()"><span>Start ${esc(s.title)}</span></button>
   </section>`;
 }
 function startCoachSession(){
@@ -519,12 +530,6 @@ function startCoachSession(){
   pickerFilterState=newFilterState();
   state.activeSession=session;
   saveState();navigate('workout');
-}
-function exportLastSession(){
-  if(!Sync)return;
-  const last=state.activeSession||state.history[0];
-  if(!last)return showToast('No session to export yet');
-  Sync.exportSession(last);
 }
 
 // The plan hero: the ONE thing to do next. A plan counts as installed once applyPlan() has copied
@@ -2668,7 +2673,6 @@ function commitSwitch(id){
   currentView='today';
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-today'));
   document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view==='today'));
-  const cursor=document.getElementById('navCursor');if(cursor)cursor.style.transform='translateX(0)';
   document.body.classList.remove('workout-active');
   renderAllViews();renderProfileChip();
   const main=document.getElementById('main');if(main)main.focus({preventScroll:true});window.scrollTo(0,0);

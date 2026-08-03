@@ -211,7 +211,7 @@ try {
     const pill=s=>{const p=getComputedStyle(s,'::before');return {opacity:p.opacity,transform:p.transform};};
     const rest={radius:cs.borderTopLeftRadius,transform:cs.transform,
       label:getComputedStyle(active.querySelector('small')).opacity,
-      cursor:getComputedStyle(document.getElementById('navCursor')).display,
+      cursor:document.getElementById('navCursor')?getComputedStyle(document.getElementById('navCursor')).display:'absent',
       activePill:pill(active),idlePill:pill(idle)};
     document.body.classList.add('nav-min');
     return {rest};
@@ -229,7 +229,9 @@ try {
     return out;
   })()`);
   assert.equal(nav.rest.radius, '999px', 'the nav must be a full capsule, not a rounded rectangle');
-  assert.equal(nav.rest.cursor, 'none', 'the sliding cursor is replaced by the per-tab pill and must not paint');
+  // Absence beats display:none - the element is gone entirely now (2026-08-04), which also drops
+  // the nav to the design's 4 children. Either value satisfies the real invariant: it must not paint.
+  assert.ok(['none','absent'].includes(nav.rest.cursor), `the sliding cursor must not paint, got ${nav.rest.cursor}`);
   assert.equal(nav.rest.activePill.opacity, '1', 'the active tab must actually render its concentric pill');
   assert.equal(nav.rest.idlePill.opacity, '0', 'an idle tab must not render a pill');
   assert.notEqual(nav.rest.activePill.transform, nav.rest.idlePill.transform,
@@ -456,7 +458,13 @@ try {
     navigate('today'); renderToday();
     const desk=document.querySelector('.desk-card');
     const gap=desk?parseFloat(getComputedStyle(desk).marginBottom):0;
-    const hasPlanEntry=!!document.querySelector('.desk-menu');
+    // Gate the INVARIANT (there is a way into the plan), not the implementation (a ... button).
+    // The design has no ... control on this row, so it was removed and the NAME became the tap
+    // target - the same fix that worked when routine editing was hidden behind an unlabelled ...
+    // Checking for .desk-menu specifically made this gate defend a control the design does not have.
+    const planEntry=[...document.querySelectorAll('[onclick]')]
+      .find(el=>(el.getAttribute('onclick')||'').indexOf('plan-desk')>-1)||null;
+    const hasPlanEntry=!!planEntry;
     // Starting a Desk Reset must NOT offer a warm-up: the session already is mobility work.
     if(state.activeSession) state.activeSession=null;
     startDeskReset();
@@ -482,12 +490,15 @@ try {
     const seededCount=routineDraft.exerciseIds.length;
     closeSheet();
     state.activeSession=null; saveState();
-    return {gap,hasPlanEntry,deskStrip,deskSecs,loadedStrip,
+    return {gap,hasPlanEntry,planEntryRole:planEntry?(planEntry.tagName==='BUTTON'?'button':planEntry.getAttribute('role')||''):'',deskStrip,deskSecs,loadedStrip,
       addedRoutine:state.routines.length-before,savedIds:saved?saved.exerciseIds.length:0,
       seedOptions,seededCount,nameOpensMenu:!!document.querySelector('.routine-open')};
   })()`);
   assert.ok(deskAndRoutines.gap >= 8, `Desk Reset row must clear the card below it, got ${deskAndRoutines.gap}px`);
   assert.equal(deskAndRoutines.hasPlanEntry, true, 'Desk Reset must offer a way to see it as a plan');
+  // Semantics, not pixels: this probe can run while Today is not the visible view, so a height
+  // assertion measured a hidden element and read 0. Being a real button/role=button is the invariant.
+  assert.ok(['button'].includes(deskAndRoutines.planEntryRole), `the plan entry must be an interactive control, got role "${deskAndRoutines.planEntryRole}"`);
   assert.equal(deskAndRoutines.deskStrip, false, 'a drill-only session must not propose a warm-up');
   assert.equal(deskAndRoutines.deskSecs, true, 'every Desk Reset drill must log in seconds');
   assert.equal(deskAndRoutines.loadedStrip, true, 'a loaded session must still propose a warm-up');

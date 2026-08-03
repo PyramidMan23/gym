@@ -44,7 +44,11 @@ const ANCHORS = [
   { id: 'cta-start',    kind: 'button',  minW: 200, match: t => /^Start\b/.test(t) && t.length < 40 },
   { id: 'desk-start',   kind: 'button',  match: t => /^Start$/.test(t) },
   { id: 'up-next-card', kind: 'surface', match: t => /^UP NEXT/.test(t) },
-  { id: 'desk-reset',   kind: 'surface', minW: 200, match: t => /Desk Reset/.test(t) },
+  // Anchor the ROW, not the card that holds it. The card's height also depends on its SIBLING row,
+  // which is a populated last-session row in the prototype's demo data and an empty state in a fresh
+  // app - a data difference, not a design one, and comparing it produced a permanent phantom delta.
+  // A container is only comparable when both sides hold identical data; a component always is.
+  { id: 'desk-reset',   kind: 'any', minW: 200, match: t => /^↺?\s*Desk Reset/.test(t) && t.length < 80 },
   { id: 'nav-bar',      kind: 'surface', match: t => /^Today Train Library Progress$/.test(t) },
   { id: 'charge-ring',  kind: 'any',     minW: 200, match: t => /WEEK CHARGED/.test(t) },
 ];
@@ -106,8 +110,13 @@ const PROBE = `(() => {
     if (a.kind === 'surface') hits = hits.filter(paints);
     if (a.minW) hits = hits.filter(el => el.getBoundingClientRect().width >= a.minW);
     if (!hits.length) { out[a.id] = null; continue; }
+    // Smallest matching box wins - but a slot wrapper and the row inside it are often the SAME size,
+    // and then the tie is arbitrary: it once resolved to our #deskSlot (1 child) instead of the row
+    // (3 children) and reported a phantom structural delta. Deepest wins the tie, since the deeper
+    // node is the component and the shallower one is just the container holding it.
     const area = el => { const r = el.getBoundingClientRect(); return r.width * r.height; };
-    const el = hits.sort((x, y) => area(x) - area(y))[0];
+    const depth = el => { let d = 0; for (let n = el; n; n = n.parentElement) d++; return d; };
+    const el = hits.sort((x, y) => (area(x) - area(y)) || (depth(y) - depth(x)))[0];
     const cs = getComputedStyle(el), r = el.getBoundingClientRect();
     out[a.id] = {
       text: norm(el.innerText).slice(0, 60),

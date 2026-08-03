@@ -181,7 +181,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .set-row.just-done{animation:settleDone .28s var(--ease)}
 .set-row.just-done::after{content:'';position:absolute;inset:0;border-radius:var(--r1);box-shadow:0 0 0 2px var(--amber);opacity:0;animation:afterimage .42s var(--ease);pointer-events:none}
 @keyframes afterimage{0%{opacity:.5}100%{opacity:0}}.set-row.completed .set-number{color:var(--amber-deep)}.set-row.completed .set-input{background:var(--card-solid);border-color:var(--amber-soft)}.set-number{text-align:center;color:var(--taupe);font-weight:800;font-variant-numeric:tabular-nums lining-nums}.set-input{width:100%;height:44px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);text-align:center;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums lining-nums}.set-done{width:48px;height:48px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--taupe);font-size:18px;transition:transform .15s var(--ease),background .15s var(--ease)}.set-done.done{background:var(--amber);border-color:var(--amber);color:var(--on-amber);transform:scale(1.06)}.add-set{width:calc(100% - 28px);margin:8px 14px 14px;height:44px;border:0;border-radius:var(--radius);background:var(--glass-2);color:var(--amber-deep);font-weight:800}.add-exercise-button{margin-top:14px}.danger-link{display:block;margin:20px auto 0;border:0;background:transparent;color:var(--danger);height:44px;font-weight:700}
-.bottom-nav{position:fixed;z-index:20;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:calc(100vw - 24px);max-width:736px;height:var(--nav-height);padding:7px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow)}.nav-cursor{position:absolute;top:7px;left:7px;height:calc(var(--nav-height) - 14px);width:calc((100% - 14px)/4);border-radius:var(--r1);background:rgba(224,110,31,.14);transition:transform .3s var(--ease);pointer-events:none;z-index:0}.bottom-nav button{position:relative;z-index:1;border:0;border-radius:var(--r1);background:transparent;color:var(--taupe);display:grid;place-content:center;gap:2px}.bottom-nav button span{font-size:19px;line-height:1}.bottom-nav button small{font-size:10px;font-weight:700}.bottom-nav button.active{color:var(--amber-deep)}
+.bottom-nav{position:fixed;z-index:20;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:calc(100vw - 24px);max-width:736px;height:var(--nav-height);padding:7px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow)}.bottom-nav button{position:relative;z-index:1;border:0;border-radius:var(--r1);background:transparent;color:var(--taupe);display:grid;place-content:center;gap:2px}.bottom-nav button span{font-size:19px;line-height:1}.bottom-nav button small{font-size:10px;font-weight:700}.bottom-nav button.active{color:var(--amber-deep)}
 .rest-pill{display:none;position:fixed;z-index:40;right:14px;bottom:14px;align-items:center;gap:9px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--cream);padding:10px 13px;box-shadow:var(--glass-edge),var(--shadow)}.rest-pill.show{display:flex}.rest-pill span,.rest-pill small{font-size:10px;color:var(--amber-deep);font-weight:700}.rest-pill strong{font-weight:800;font-size:16px;font-variant-numeric:tabular-nums lining-nums}
 dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::backdrop{background:rgba(7,18,36,.48);backdrop-filter:blur(2px)}.sheet{width:min(100vw,760px);max-width:none;max-height:min(88vh,88dvh);margin:auto 0 0;border:0;border-radius:10px 10px 0 0;padding:0;background:var(--glass-solid);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);overflow:hidden}.sheet[open]{display:flex;flex-direction:column}.sheet-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 18px max(22px,env(safe-area-inset-bottom))}.sheet[open]{animation:sheetUp .22s var(--ease) both}@keyframes sheetUp{from{transform:translateY(30px);opacity:.6}}.sheet-handle{width:28px;height:3px;border-radius:0;background:var(--hair-bright);margin:2px auto 14px}.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.sheet-head h2{font-weight:800;font-size:24px;letter-spacing:-.02em;margin:0}.close-button{width:44px;height:44px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--cream);font-size:20px}.field{display:grid;gap:6px;margin-bottom:14px}.field label{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--taupe)}.field input,.field select,.field textarea{width:100%;min-height:50px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);padding:0 13px;font-size:16px}.field textarea{padding:12px;resize:vertical}.picker-search{position:sticky;top:0;margin-bottom:10px}.picker-filters{margin-top:0;margin-bottom:4px}
 .cue-strip{margin:0 14px 8px;padding:9px 10px;border-radius:var(--r2);background:rgba(224,110,31,.1);color:var(--amber-deep);font-size:12px;font-weight:600}
@@ -230,9 +230,12 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
 .coach-list li{font-size:13px;color:var(--cream);font-variant-numeric:tabular-nums lining-nums;padding-left:12px;position:relative}
 .coach-list li::before{content:'';position:absolute;left:0;top:8px;width:5px;height:5px;border-radius:0;background:var(--amber)}
 .coach-list li.coach-skip{color:var(--taupe)}.coach-list li.coach-skip::before{background:var(--taupe)}
-.coach-prov{margin:0 0 12px;color:var(--taupe);font-size:11px;font-variant-numeric:tabular-nums lining-nums}
-.coach-sync{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid var(--hair)}
-.coach-sync span{color:var(--taupe);font-size:11px;font-variant-numeric:tabular-nums lining-nums}
+/* The design's single note line: margin 13px 0 0, 12px. DELIBERATE DEVIATION, contrast: the design's
+   --mut2 measures 4.47:1 on this card in DARK - three hundredths under AA - so the ink is --faint,
+   the value already calibrated against this exact surface. */
+.coach-prov{margin:13px 0 0;color:var(--faint);font-size:12px}
+
+
 .beighton-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:14px;padding:13px 14px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass)}
 .beighton-toggle strong{display:block;font-weight:800;font-size:14px}
 .beighton-toggle small{display:block;margin-top:3px;color:var(--taupe);font-size:11px;line-height:1.4}
@@ -386,7 +389,7 @@ button:disabled,button[disabled]{opacity:.38;cursor:default;box-shadow:none;filt
 /* Bars scale to 72% max so the count label + day label never force flex-shrink distortion (Codex verify 2026-07-20). */
 /* Nav: floating pill, glowing sculpted indicator, geometry fixed. */
 .bottom-nav{border-radius:var(--nav-radius);padding:8px;box-shadow:var(--glass-edge),var(--shadow),0 -1px 0 rgba(255,255,255,.04)}
-.nav-cursor{top:8px;left:8px;height:calc(var(--nav-height) - 16px);width:calc((100% - 16px)/4);border-radius:calc(var(--nav-radius) - 8px);background:linear-gradient(180deg,rgba(var(--bloom-amber),.28),rgba(var(--bloom-amber),.14));box-shadow:0 0 14px rgba(var(--bloom-amber),.35),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .3s cubic-bezier(.3,1.18,.4,1)}
+
 .bottom-nav button{transition:color .2s var(--ease)}
 .bottom-nav button svg{transition:transform .3s cubic-bezier(.3,1.6,.4,1)}
 .bottom-nav button.active svg{transform:translateY(-1px) scale(1.12)}
@@ -945,8 +948,8 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .desk-text strong{display:block;font-weight:800;font-size:16px}
 .desk-text small{display:block;margin-top:3px;color:var(--taupe);font-size:12px}
 .desk-actions{display:flex;gap:7px}
-.desk-menu,.desk-start{min-height:44px;border-radius:var(--r1);font-weight:800}
-.desk-menu{min-width:44px;border:1px solid var(--hair);background:var(--glass-2);color:var(--cream);letter-spacing:2px}
+.desk-start{min-height:44px;border-radius:var(--r1);font-weight:800}
+
 .desk-start{padding:0 15px;border:0;background:var(--teal);color:var(--teal-ink-on);transition:transform .12s var(--ease)}
 .desk-start:active{transform:scale(.98)}
 
@@ -1001,9 +1004,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
    ============================================================================================== */
 /* The cursor is now a LIT surface, not a flat wash: gradient fill, inner top-light, soft amber
    under-glow, and a light spring overshoot on the slide (Codex: heavy overshoot reads rubbery). */
-.nav-cursor{background:linear-gradient(180deg,rgba(224,110,31,.22),rgba(224,110,31,.10));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px -6px rgba(224,110,31,.55);
-  transition:transform .35s cubic-bezier(.25,1.25,.35,1)}
+
 /* Active icon: colour + 1px lift + tight glow. Stroke weight is NEVER animated (shimmer). */
 .bottom-nav button.active svg{filter:drop-shadow(0 0 5px rgba(255,138,61,.45))}
 .bottom-nav button{transition:color .2s var(--ease),transform .12s var(--ease)}
@@ -1146,8 +1147,7 @@ body.reordering{-webkit-user-select:none;user-select:none}
 }
 /* Minimise: transform ONLY, so layout never shifts and no clearance ever churns. */
 body.nav-min .bottom-nav{transform:scale(.80) translateY(6px)}
-/* The sliding cursor is replaced by the per-tab pill below. */
-.nav-cursor{display:none}
+
 .bottom-nav button{
   flex:1 1 0;min-width:0;height:100%;
   padding:0 8px;gap:3px;
@@ -1369,7 +1369,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .cr-out{stroke:url(#ringGradWorkouts);stroke-width:10;filter:drop-shadow(0 0 8px rgba(var(--bloom-amber),.42))}
 .cr-in{stroke:url(#ringGradSets);stroke-width:4.5;transition-delay:.1s;filter:drop-shadow(0 0 6px rgba(var(--bloom-teal),.42))}
 .cr-centre{position:absolute;inset:0;display:grid;place-content:center;gap:1px;
-  border:0;background:transparent;color:inherit;border-radius:50%;padding:0}
+  border:0;background:transparent;color:inherit;cursor:pointer;padding:0}
 .cr-centre .hero-num{font-size:clamp(38px,14vw,54px);font-weight:800;letter-spacing:-.05em;line-height:1;
   font-variant-numeric:tabular-nums lining-nums}
 .cr-centre .cr-pct{font-size:23px;font-weight:800;letter-spacing:-.02em;margin-left:1px}
@@ -1384,7 +1384,10 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .cr-key-in i{width:9px;height:4px;border-radius:2px;background:var(--teal)}
 
 /* ---- UP NEXT card: exercise chips + one full-width CTA ---- */
-.up-next{padding:0;overflow:hidden}
+/* The design's UP NEXT card, measured: 350x264, radius 22, a 1px rgba(var(--w),.07) hairline and the
+   --c1 -> --c2 vertical gradient. 22 is the design's own number, not our old concentric 20. */
+.up-next{padding:0;overflow:hidden;border-radius:22px;
+  background:linear-gradient(180deg,var(--c1),var(--c2));border:1px solid rgba(var(--w),.07)}
 .up-next-body{padding:18px 18px 14px}
 .up-next .coach-top{display:flex;align-items:baseline;gap:10px}
 .up-next-src{margin-left:auto;color:var(--faint);font-size:11px;font-weight:600}
@@ -1402,13 +1405,14 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    from the running prototype in both schemes, not inferred. */
 .up-next-cta{display:block;width:100%;min-height:56px;border:0;border-radius:0;font-size:16.5px;font-weight:800;letter-spacing:-.01em;
   background:var(--cta-grad);color:var(--cta-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
-.up-next .coach-sync{padding:12px 18px;border-top:1px solid var(--hair);margin:0}
+.up-next 
 
 /* ---- Grouped inset list (Desk Reset + last session) ---- */
 .group{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}
 .group[hidden]{display:none}
 .group>div:not(:last-child) .group-row{border-bottom:1px solid var(--hair)}
-.group-row{display:flex;width:100%;align-items:center;gap:12px;min-height:56px;padding:12px 14px;
+/* The design's group rows are padding:14px 16px (design/extracted/today.html). */
+.group-row{display:flex;width:100%;align-items:center;gap:12px;min-height:56px;padding:14px 16px;
   border:0;background:transparent;color:var(--cream);text-align:left;font:inherit}
 .row-glyph{width:34px;height:34px;flex:none;border-radius:var(--r-control);display:grid;place-items:center;
   font-size:14px;font-weight:800;font-style:normal}
@@ -1420,11 +1424,15 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .row-chev{color:var(--taupe);font-size:18px;flex:none}
 .group-row-empty{color:var(--faint)}
 /* Both actions keep a full 44px target even though the ••• glyph is small. */
-.desk-row .desk-actions{display:flex;align-items:center;gap:8px;flex:none}
-.desk-menu{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--taupe);
-  border-radius:var(--r-control);font-size:15px;letter-spacing:.06em}
-.desk-start{min-width:64px;min-height:44px;padding:0 14px;border-radius:var(--r-control);
-  border:1px solid var(--teal-deep);background:rgba(var(--bloom-teal),.10);color:var(--teal-deep);font-size:13px;font-weight:800}
+
+
+/* Geometry verbatim from the design (14px radius, 44x64 minimums, its rgba(var(--tl),...) fill).
+   DELIBERATE DEVIATION, contrast: the design's own --teal ink on that 10% tint measures 4.28:1 in
+   LIGHT mode, under AA. Mark is colour-blind and the contrast rule does not bend for a mockup, so the
+   ink is the paired --teal-deep. Dark mode is unaffected: --teal-deep is #2EC5E0 there, which IS the
+   design's --teal, so dark is byte-identical to the prototype. */
+.desk-start{min-width:64px;min-height:44px;padding:0 14px;border-radius:14px;
+  border:1px solid rgba(var(--tl),.4);background:rgba(var(--tl),.1);color:var(--teal-deep);font-size:13px;font-weight:800}
 /* The group IS the Desk Reset surface in v2, so it wears `.desk-card` (browser-flow's selector).
    Neutralise that class's old standalone-card geometry, keep only its clearance margin. */
 .group.desk-card{display:block;grid-template-columns:none;padding:0;border-left:0;margin:12px 0}
@@ -1825,8 +1833,15 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 
 /* Ring: 250px, and the concentric guide rings the prototype draws behind it. */
 .charge-ring{width:min(250px,72vw);margin:6px auto 0}
-.cr-centre .hero-num{font-size:clamp(40px,15vw,58px)}
-.cr-centre>small{color:var(--taupe);letter-spacing:.14em}
+/* These two rules had drifted OFF the design and, being later in the file, were overriding the
+   correct values above (2026-08-04). Measured in the prototype: the number is 54px flat, the label
+   is 10.5px/700 at .13em in --mut2. 15vw resolved to 58px at 390 wide, and .14em was a guess. */
+.cr-centre .hero-num{font-size:clamp(38px,14vw,54px)}
+.cr-centre>small{color:var(--mut2);letter-spacing:.13em}
+/* The design's ring button carries NO font declarations, so it computes to the UA button default and
+   every visible glyph inside it sets its own size. Ours inherits the app's 15px/500 from the global
+   button rule, so it is pinned back to what the design actually renders. */
+.cr-centre{font-size:13.3333px;font-weight:400}
 
 /* Legend: two entries, centred, 11.5px. */
 .activity-legend{gap:8px 22px;margin-top:14px}

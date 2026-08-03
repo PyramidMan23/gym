@@ -285,7 +285,12 @@ try {
   await evaluate(`navigate('progress'); true`);
   await sleep(400);
   const radii = await evaluate(`(()=>{
-    const ALLOWED=[0,8,12,16,20], bad=[], loose=[];
+    // The DESIGN's radius vocabulary, harvested from design/extracted/*.html rather than invented
+    // here (2026-08-04). Mark: "dont guess it, just literally apply the same thing." The old scale
+    // {0,8,12,16,20} was OUR concentric scale, and enforcing it is what forced the recorded
+    // deviation that snapped the design's 22/15/13 onto our numbers - i.e. this gate was actively
+    // defending the drift. Design wins, so the gate now encodes the design's own set.
+    const ALLOWED=[0,3,4,9,10,12,13,14,15,16,20,22,999], bad=[], loose=[];
     const r=el=>parseFloat(getComputedStyle(el).borderTopLeftRadius)||0;
     const named=el=>el.id?('#'+el.id):(el.className&&typeof el.className==='string'?'.'+el.className.trim().split(/\\s+/).slice(0,2).join('.'):el.tagName);
     for(const el of document.querySelectorAll('.view.active *')){
@@ -313,10 +318,10 @@ try {
     }
     return {bad:[...new Set(bad)].slice(0,8), loose:[...new Set(loose)].slice(0,8)};
   })()`);
-  assert.deepEqual(radii.bad, [], `radius off the concentric scale {0,4,10,14,18}: ${radii.bad.join(' | ')}`);
+  assert.deepEqual(radii.bad, [], `radius off the DESIGN's scale {0,3,4,9,10,12,13,14,15,16,20,22}: ${radii.bad.join(' | ')}`);
   assert.deepEqual(radii.loose, [], `child corner looser than its parent (breaks concentricity): ${radii.loose.join(' | ')}`);
 
-  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok grips=ok radii∈{0,8,12,16,20} concentric=ok');
+  console.log('layout-check-ok widths=320,360,390,430 screens=4 overlays=first-run,profile-switcher,filters,settings,picker,pad,confirm,receipt sticky=ok safe-area=ok grips=ok radii∈design-scale concentric=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();
