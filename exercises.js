@@ -530,65 +530,6 @@ const GYM_WORKOUTS = [
 
 // Multi-day plans (Train tab → "Pick a plan"). Applying one installs each day as a ready-to-start routine.
 const GYM_PLANS = [
-  {
-    id:'plan-return', tag:'EASE BACK IN', name:'Return Ramp', goal:3,
-    blurb:'Full body ×3 · joint-friendly restart',
-    note:'Coming back after a break without flaring up. Unilateral-biased, moderate volume, and it leans on your pain-free kickstand RDL and ATG knee/tibialis work. Build the habit for 2–3 weeks before adding load.',
-    days:[
-      { name:'Day A · Squat pattern', exerciseIds:['lg22','lg8','lg4','lg18','gr3','mo4'] },
-      { name:'Day B · Push / Pull',   exerciseIds:['ch3','ba6','sh2','ba3','sh8','co5'] },
-      { name:'Day C · Posterior + carry', exerciseIds:['lg5','lg13','lg7','gr7','lg19','mo2'] }
-    ]
-  },
-  {
-    id:'plan-ul', tag:'PREFERRED', name:'Upper / Lower', goal:4,
-    blurb:'4 days · upper + lower alternating',
-    note:'Your upper/lower split. Alternate the four days across the week (Upper A / Lower A / Upper B / Lower B). Progress load when all sets feel strong.',
-    days:[
-      { name:'Upper A', exerciseIds:['ch1','ba3','sh2','ba6','ar2','ar6'] },
-      { name:'Lower A', exerciseIds:['lg1','lg5','lg7','lg23','lg18','lg17'] },
-      { name:'Upper B', exerciseIds:['sh1','ba4','ch4','ba5','sh7','ar3'] },
-      { name:'Lower B', exerciseIds:['lg6','lg9','lg13','lg12','co1'] }
-    ]
-  },
-  {
-    id:'plan-ppl', tag:'PREFERRED', name:'Push / Pull / Legs', goal:5,
-    blurb:'5–6 days · your PPL',
-    note:'Your PPL. Run the three days through the week and repeat as time allows (5–6 sessions). Watch pressing volume - back off if the right shoulder starts talking.',
-    days:[
-      { name:'Push', exerciseIds:['ch1','sh1','ch4','sh4','ch6','ar6','ar9'] },
-      { name:'Pull', exerciseIds:['ba1','ba3','ba5','ba9','sh7','ar2','ar3'] },
-      { name:'Legs', exerciseIds:['lg1','lg5','lg7','lg13','lg18','lg17','co4'] }
-    ]
-  },
-  {
-    id:'plan-ty-ppl', tag:'TY', name:'Ty · PPL', goal:3,
-    blurb:'3 days · Ty’s push / pull / legs',
-    note:'Ty’s rotation, exactly as written in his doc. Vest work (deficit push-ups, dips, optional pull-ups) is logged as 8 kg - take it off for the bench and lateral raises. On legs, put the leg extension and leg curl back to back and flip the superset switch on the extension.',
-    days:[
-      { name:'Push', exerciseIds:['ch17','ch5','ch19','sh4','ar9'] },
-      { name:'Pull', exerciseIds:['ba3','ba8','ba6','ar22','cs35'] },
-      { name:'Legs', exerciseIds:['lg3','lg42','lg43','lg23','lg14','lg13','lg18'] }
-    ]
-  },
-  {
-    id:'plan-desk', tag:'DESK RESET', name:'Desk Reset', goal:5,
-    blurb:'5 min · undo the laptop day',
-    note:'Not a workout: the counter-dose to sitting. Five minutes, no kit beyond a wall and the bench, run it on training days or rest days. Three of these are holds and log in SECONDS (Couch Stretch, Doorway Pec, Chin Tuck); the other three are slow rep drills. Order matters: open the front of the hips and chest first, then ask the upper back to rotate and the neck to stack.',
-    days:[
-      { name:'Desk Reset', exerciseIds:['mo6','st4','mo10','mo15','mo13','mo14'] }
-    ]
-  },
-  {
-    id:'plan-atg', tag:'ATG ADD-ON', name:'Knees & Tibialis', goal:2,
-    blurb:'2 short sessions · KOT-style',
-    note:'Knees-Over-Toes style bulletproofing to pair with any split - two short sessions a week using your tib bars, slant board and hang board. Low load, full range, no ego.',
-    days:[
-      { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg24','lg18','lg17','gr3'] },
-      { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg25','lg19','ba11','mo5','mo3'] }
-    ]
-  },
-
   // ── Mark · Right-Side Chain (2026-08-03) ────────────────────────────────────────────────────────
   // The first plan in this app built from a PERSON rather than from a goal tag. Mark's read on every
   // build before this one: "I'm just doing generic exercises, it's not really made for me and my
@@ -667,7 +608,67 @@ const GYM_PLANS = [
           {id:'co20', sets:3, reps:'10-12', rest:60}
         ]}
     ]
+  },
+
+  {
+    id:'plan-return', tag:'EASE BACK IN', name:'Return Ramp', goal:3,
+    blurb:'Full body ×3 · joint-friendly restart',
+    note:'Coming back after a break without flaring up. Unilateral-biased, moderate volume, and it leans on your pain-free kickstand RDL and ATG knee/tibialis work. Build the habit for 2–3 weeks before adding load.',
+    days:[
+      { name:'Day A · Squat pattern', exerciseIds:['lg22','lg8','lg4','lg18','gr3','mo4'] },
+      { name:'Day B · Push / Pull',   exerciseIds:['ch3','ba6','sh2','ba3','sh8','co5'] },
+      { name:'Day C · Posterior + carry', exerciseIds:['lg5','lg13','lg7','gr7','lg19','mo2'] }
+    ]
+  },
+  {
+    id:'plan-ul', tag:'PREFERRED', name:'Upper / Lower', goal:4,
+    blurb:'4 days · upper + lower alternating',
+    note:'Your upper/lower split. Alternate the four days across the week (Upper A / Lower A / Upper B / Lower B). Progress load when all sets feel strong.',
+    days:[
+      { name:'Upper A', exerciseIds:['ch1','ba3','sh2','ba6','ar2','ar6'] },
+      { name:'Lower A', exerciseIds:['lg1','lg5','lg7','lg23','lg18','lg17'] },
+      { name:'Upper B', exerciseIds:['sh1','ba4','ch4','ba5','sh7','ar3'] },
+      { name:'Lower B', exerciseIds:['lg6','lg9','lg13','lg12','co1'] }
+    ]
+  },
+  {
+    id:'plan-ppl', tag:'PREFERRED', name:'Push / Pull / Legs', goal:5,
+    blurb:'5–6 days · your PPL',
+    note:'Your PPL. Run the three days through the week and repeat as time allows (5–6 sessions). Watch pressing volume - back off if the right shoulder starts talking.',
+    days:[
+      { name:'Push', exerciseIds:['ch1','sh1','ch4','sh4','ch6','ar6','ar9'] },
+      { name:'Pull', exerciseIds:['ba1','ba3','ba5','ba9','sh7','ar2','ar3'] },
+      { name:'Legs', exerciseIds:['lg1','lg5','lg7','lg13','lg18','lg17','co4'] }
+    ]
+  },
+  {
+    id:'plan-ty-ppl', tag:'TY', name:'Ty · PPL', goal:3,
+    blurb:'3 days · Ty’s push / pull / legs',
+    note:'Ty’s rotation, exactly as written in his doc. Vest work (deficit push-ups, dips, optional pull-ups) is logged as 8 kg - take it off for the bench and lateral raises. On legs, put the leg extension and leg curl back to back and flip the superset switch on the extension.',
+    days:[
+      { name:'Push', exerciseIds:['ch17','ch5','ch19','sh4','ar9'] },
+      { name:'Pull', exerciseIds:['ba3','ba8','ba6','ar22','cs35'] },
+      { name:'Legs', exerciseIds:['lg3','lg42','lg43','lg23','lg14','lg13','lg18'] }
+    ]
+  },
+  {
+    id:'plan-desk', tag:'DESK RESET', name:'Desk Reset', goal:5,
+    blurb:'5 min · undo the laptop day',
+    note:'Not a workout: the counter-dose to sitting. Five minutes, no kit beyond a wall and the bench, run it on training days or rest days. Three of these are holds and log in SECONDS (Couch Stretch, Doorway Pec, Chin Tuck); the other three are slow rep drills. Order matters: open the front of the hips and chest first, then ask the upper back to rotate and the neck to stack.',
+    days:[
+      { name:'Desk Reset', exerciseIds:['mo6','st4','mo10','mo15','mo13','mo14'] }
+    ]
+  },
+  {
+    id:'plan-atg', tag:'ATG ADD-ON', name:'Knees & Tibialis', goal:2,
+    blurb:'2 short sessions · KOT-style',
+    note:'Knees-Over-Toes style bulletproofing to pair with any split - two short sessions a week using your tib bars, slant board and hang board. Low load, full range, no ego.',
+    days:[
+      { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg24','lg18','lg17','gr3'] },
+      { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg25','lg19','ba11','mo5','mo3'] }
+    ]
   }
+
 ];
 
 // A plan day may carry a full {id,sets,reps,rest} scheme (Mark's chain) or a bare exerciseIds list
