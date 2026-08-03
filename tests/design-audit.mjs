@@ -62,6 +62,7 @@ const HARVEST = `(() => {
     if (!t || t.length > 60) continue;
     out.push({
       key: t, tag: el.tagName.toLowerCase(),
+      depth: (() => { let d = 0; for (let n = el; n; n = n.parentElement) d++; return d; })(),
       w: Math.round(r.width), h: Math.round(r.height),
       radius: cs.borderRadius, bgImage: cs.backgroundImage, bgColor: cs.backgroundColor,
       color: cs.color, fontSize: cs.fontSize, fontWeight: cs.fontWeight,
@@ -103,7 +104,12 @@ const index = list => {
   const m = new Map();
   for (const e of list) {
     const prev = m.get(e.key);
-    if (!prev || (e.w * e.h) < (prev.w * prev.h)) m.set(e.key, e);
+    // Smallest box wins; DEEPEST wins the tie. A wrapper and the single element inside it share the
+    // same innerText and often the same box, and an arbitrary tie reported the container's inherited
+    // font as drift - e.g. "QUICK START" resolved to the wrapping <div> (15px) instead of the
+    // <p class="kicker"> (11px) that actually carries the design's value. Same trap as the contract gate.
+    if (!prev || (e.w * e.h) < (prev.w * prev.h)
+        || ((e.w * e.h) === (prev.w * prev.h) && e.depth > prev.depth)) m.set(e.key, e);
   }
   return m;
 };
