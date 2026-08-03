@@ -223,7 +223,7 @@ const DUCK_EXERCISES = [
   {id:'mo7',name:'90/90 Hip Rotations',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Bodyweight (rotation)'},
   {id:'mo8',name:'World’s Greatest Stretch',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Lunge + rotation flow (full-body warm-up)'},
   {id:'mo9',name:'Wall Slides',muscle:'Mobility',muscles:['Mobility','Shoulders'],patterns:['Mobility'],family:'Mobility',equip:['Bodyweight'],equipment:'Back to the wall, arms sliding overhead (shoulder mobility)'},
-  {id:'mo10',name:'Thoracic Extension over Bench',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bench'],equipment:'Upper back over the bench edge (t-spine extension)'},
+  {id:'mo10',timed:true,name:'Thoracic Extension over Bench',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Bench'],equipment:'Upper back over the bench edge (t-spine extension)'},
   {id:'mo11',timed:true,name:'Banded Ankle Distraction',muscle:'Mobility',muscles:['Mobility'],patterns:['Mobility'],family:'Mobility',equip:['Band'],equipment:'Band around the ankle, knee drives forward (dorsiflexion)'},
   {id:'mo12',name:'Jefferson Curl',muscle:'Mobility',muscles:['Mobility','Legs','Back'],patterns:['Mobility'],family:'Stretch',equip:['Dumbbell','Bench'],equipment:'Light dumbbell, slow spinal roll-down (loaded hamstring / spine mobility)'},
   // Desk-posture drills (2026-07-28): the load a 10-hour laptop day actually accumulates.
@@ -455,7 +455,7 @@ const GYM_WORKOUTS = [
       {id:'sh7',  sets:4, reps:'12-15', rest:75},
       {id:'ba7',  sets:3, reps:'10-12', rest:105},
       {id:'sh6',  sets:3, reps:'12-15', rest:75},
-      {id:'mo10', sets:2, reps:'8-10',  rest:45},
+      {id:'mo10', sets:2, reps:'20-30', rest:45},
       {id:'mo9',  sets:2, reps:'8-10',  rest:45},
       {id:'mo14', sets:2, reps:'20-30', rest:30},
       {id:'st4',  sets:2, reps:'30-45', rest:30}
