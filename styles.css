@@ -55,8 +55,91 @@ body{margin:0;background:var(--page);color:var(--cream);font:500 15px/1.45 -appl
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(224,110,31,.35);outline-offset:2px}
-.app-shell{width:100%;max-width:760px;min-height:100vh;margin:0 auto;padding:0 18px calc(var(--nav-height) + 42px + env(safe-area-inset-bottom))}
-.app-header{position:sticky;top:0;z-index:15;height:64px;display:flex;align-items:center;justify-content:space-between;margin:0 -18px;padding:0 18px;background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}
+/* ============================================================================================
+   PROTOTYPE SOURCE - extracted verbatim from Mark's "Gym v2 Standalone.html", never authored here.
+   Regenerate with the extractor; the checked-in copy is design/extracted/tokens.css.
+
+   Mark, 2026-08-04: "dont guess it, just literally apply the same thing." So the design's own
+   tokens and utilities now live in this file rather than being translated into ours. Verified
+   before adding: the only three names that exist in both systems (--amber, --teal, --danger) hold
+   IDENTICAL values in BOTH schemes, and NO atomic class name collides with any class token in our
+   markup - so this block is purely additive and cannot restyle anything that already exists.
+
+   The prototype is 68% inline-styled and every inline style references these vars, which is why one
+   set of ported markup serves light AND dark: the theme lives entirely in the token override below.
+   ============================================================================================ */
+:root{
+  /* The design's page gutter, read from its scroll container: padding 76px 20px 96px. */
+  --gutter:20px;
+  --w:20,15,8;--sh:224,214,194;--am:224,110,31;--tl:11,110,119;--dg:170,70,60;--sf:239,138,61;--bg:#F4F0E7;
+  --desk:#E7E0D2;--desk2:#F6F2E9;--ink:#211C17;--ink2:#4A443C;--ink3:#5A5348;--mut:#665F54;--mut2:#6E675E;
+  --mut3:#7C7466;--mut4:#8B8372;--mut5:#9A9280;--amber2:#C85F14;--acc:#9A480A;--soft:#EF8A3D;--hi:#F7B57C;
+  --warm:#9A480A;--onAmber:#211C17;--teal2:#0B6E77;--c1:#FFFFFF;--c2:#FBF7EF;--c3:#FFFFFF;--c4:#FAF6EC;
+  --c5:#FFFFFF;--c6:#FDFAF3;--sheet:#FBF7EF;--receipt:#FCFAF4;--confirm:#FBF7EF;--segOn:#FFFFFF;
+  --chrome:rgba(251,247,239,.74);--chrome2:rgba(251,247,239,.84);--navBg:rgba(251,247,239,.62);
+  --restBg:rgba(251,247,239,.9);--toast:rgba(251,247,239,.96);--scrim:rgba(60,45,25,.34);
+  --scrim2:rgba(60,45,25,.42);
+}
+@media(prefers-color-scheme:dark){:root{
+  --w:255,255,255;--sh:0,0,0;--am:255,138,61;--tl:46,197,224;--dg:231,144,134;--sf:255,176,112;--bg:#0B0C0D;
+  --desk:#08090a;--desk2:#111315;--ink:#F4F1EA;--ink2:#C2C7CB;--ink3:#A7AEB5;--mut:#8A9097;--mut2:#7d848b;
+  --mut3:#6b7279;--mut4:#5f666d;--mut5:#4f565c;--amber2:#FF7A24;--acc:#FFB070;--soft:#FFB070;--hi:#FFC98A;
+  --warm:#FFC48A;--onAmber:#1a1206;--teal2:#4FD6EC;--c1:#1a1d20;--c2:#141618;--c3:#1c2023;--c4:#14171a;
+  --c5:#1e2225;--c6:#1c1f22;--sheet:#121417;--receipt:#141719;--confirm:#161a1c;--segOn:#2b2f33;
+  --chrome:rgba(11,12,13,.72);--chrome2:rgba(11,12,13,.82);--navBg:rgba(26,20,13,.58);--restBg:rgba(20,22,24,.86);
+  --toast:rgba(28,31,34,.94);--scrim:rgba(6,7,8,.62);--scrim2:rgba(6,7,8,.7);
+}}
+
+/* The design's 45 atomic utilities, verbatim. Low specificity on purpose: ported screen rules and
+   the elements' own inline styles both win over these. */
+.fx { display: flex; }
+.col { display: flex; flex-direction: column; }
+.grid { display: grid; }
+.ac { align-items: center; }
+.jc { justify-content: center; }
+.jb { justify-content: space-between; }
+.f1 { flex: 1 1 0%; }
+.noshrink { flex-shrink: 0; }
+.wrap { flex-wrap: wrap; }
+.fw5 { font-weight: 500; }
+.fw6 { font-weight: 600; }
+.fw7 { font-weight: 700; }
+.fw8 { font-weight: 800; }
+.fs11 { font-size: 11px; }
+.fs12 { font-size: 12px; }
+.fs13 { font-size: 13px; }
+.fs14 { font-size: 14px; }
+.fs15 { font-size: 15px; }
+.fs16 { font-size: 16px; }
+.fs20 { font-size: 20px; }
+.fs22 { font-size: 22px; }
+.upper { text-transform: uppercase; }
+.tc { text-align: center; }
+.nowrap { white-space: nowrap; }
+.gap8 { gap: 8px; }
+.gap10 { gap: 10px; }
+.gap12 { gap: 12px; }
+.gap16 { gap: 16px; }
+.gap24 { gap: 24px; }
+.m0 { margin: 0px; }
+.mt8 { margin-top: 8px; }
+.mt12 { margin-top: 12px; }
+.mt16 { margin-top: 16px; }
+.mb8 { margin-bottom: 8px; }
+.mb12 { margin-bottom: 12px; }
+.mb16 { margin-bottom: 16px; }
+.posrel { position: relative; }
+.posabs { position: absolute; }
+.round { border-radius: 50%; }
+.ohide { overflow: hidden; }
+.bbox { box-sizing: border-box; }
+.pointer { cursor: pointer; }
+.w100 { width: 100%; }
+.b0 { border-width: medium; border-style: none; border-color: currentcolor; border-image: none; }
+.gs { scrollbar-width: none; }
+
+.app-shell{width:100%;max-width:760px;min-height:100vh;margin:0 auto;padding:0 var(--gutter) calc(var(--nav-height) + 42px + env(safe-area-inset-bottom))}
+.app-header{position:sticky;top:0;z-index:15;height:64px;display:flex;align-items:center;justify-content:space-between;margin:0 calc(var(--gutter)*-1);padding:0 var(--gutter);background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}
 .brand{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:0;color:var(--cream);font-weight:800;font-size:18px;letter-spacing:-.02em}
 .brand span{width:36px;height:36px;display:grid;place-items:center;border-radius:var(--r2);background:var(--amber);color:var(--on-amber);font-size:16px;font-weight:800}
 .icon-button{width:44px;height:44px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--cream);font-weight:800;letter-spacing:2px}
@@ -93,7 +176,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .template-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.template-card{min-height:118px;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-edge),var(--shadow);padding:18px;text-align:left;color:var(--cream);transition:transform .14s var(--ease)}.template-card:active{transform:scale(.975)}.template-card span{display:block;color:var(--amber-deep);font-size:11px;font-weight:800;letter-spacing:1px}.template-card strong{display:block;font-weight:800;font-size:18px;margin:8px 0 5px;line-height:1.15}.template-card small{color:var(--taupe);display:block;line-height:1.4}
 .search-wrap{display:flex;align-items:center;gap:10px;background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--hair);border-radius:var(--radius);padding:0 14px;height:52px;position:sticky;top:72px;z-index:5;box-shadow:var(--glass-edge)}.search-wrap span{font-size:22px;color:var(--taupe)}.search-wrap input{width:100%;border:0;outline:0;background:transparent;font-size:16px}.filter-row{display:flex;overflow-x:auto;gap:7px;margin:13px -18px 4px;padding:0 32px 0 18px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}.filter-row::-webkit-scrollbar{display:none}.filter-chip{flex:none;white-space:nowrap;display:inline-flex;align-items:center;min-height:44px;border:1px solid var(--hair);border-radius:var(--r1);background:var(--glass-2);color:var(--cream);padding:0 14px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;transition:transform .12s var(--ease),background .15s var(--ease)}.filter-chip:active{transform:scale(.94)}.filter-chip.active{background:var(--amber);color:var(--on-amber);border-color:var(--amber)}.result-count{color:var(--taupe);font-size:12px;margin:12px 2px 8px}.exercise-list{display:grid;gap:8px;margin-bottom:16px}.exercise-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-edge),var(--shadow);padding:13px 13px 13px 16px}.exercise-row strong{display:block}.exercise-row small{display:block;margin-top:3px;color:var(--taupe);font-size:11px}
 .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.metric{position:relative;min-height:102px;background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--card-hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow);padding:16px 14px 14px}.metric::before{content:'';position:absolute;top:0;left:14px;right:14px;height:1px;background:var(--hair)}.metric::after{content:'';position:absolute;top:0;left:14px;width:10px;height:2px;background:var(--amber)}.metric strong{display:block;font-weight:800;font-size:28px;letter-spacing:-.02em;font-variant-numeric:tabular-nums lining-nums}.metric span{display:block;color:var(--taupe);font-size:11px;margin-top:6px}.chart-card{height:170px;padding:20px 14px 14px;display:flex;gap:8px;align-items:end}.bar-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:6px}.bar-col i{width:100%;max-width:34px;min-height:4px;border-radius:2px;background:rgba(224,110,31,.22)}.bar-col.active i{background:var(--amber)}.bar-col small{font-size:9px;color:var(--taupe);font-variant-numeric:tabular-nums lining-nums}
-.workout-view{padding-bottom:132px}/* room for the fixed rest pill - 96px still let it sit on the last card's +Add set row (audit 2026-08-02) */body.workout-active .app-header,body.workout-active .bottom-nav{display:none}body.workout-active .app-shell{padding-top:0;padding-bottom:30px}.workout-header{position:sticky;top:0;z-index:10;background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);display:flex;align-items:center;justify-content:space-between;margin:0 -18px;padding:14px 18px 12px;border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}.workout-header h1{font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--taupe);margin:0}.workout-clock{margin:2px 0 0;color:var(--amber-deep);font-size:34px;font-weight:800;letter-spacing:0;line-height:1;font-variant-numeric:tabular-nums lining-nums}.workout-context{margin:8px 0 0;color:var(--taupe);font-size:12px;font-variant-numeric:tabular-nums lining-nums}.finish-button{padding:0 18px;background:var(--amber);color:var(--on-amber)}.live-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0}.live-metric{position:relative;padding:12px 8px 10px;border-radius:var(--radius);background:var(--glass-2);border:1px solid var(--hair)}.live-metric::before{content:'';position:absolute;top:0;left:10px;right:10px;height:1px;background:var(--hair)}.live-metric::after{content:'';position:absolute;top:0;left:10px;width:10px;height:2px;background:var(--amber)}.live-metric strong,.live-metric small{display:block}.live-metric strong{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums lining-nums}.live-metric small{font-size:9px;color:var(--taupe);text-transform:uppercase;letter-spacing:.6px}.workout-exercises{display:grid;gap:12px}.workout-exercise{background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--card-hair);border-radius:var(--radius);overflow:hidden;box-shadow:var(--glass-edge),var(--shadow)}.exercise-head{display:flex;justify-content:space-between;align-items:start;padding:16px 16px 10px}.exercise-head h2{font-weight:800;font-size:18px;margin:0}.exercise-head p{color:var(--taupe);font-size:11px;margin:3px 0 0}.exercise-more{border:0;background:transparent;color:var(--cream);min-width:44px;height:44px;font-weight:800}.previous-strip{margin:0 14px 10px;padding:9px 10px;border-radius:var(--r2);background:rgba(11,110,119,.1);color:var(--teal);font-size:11px;font-variant-numeric:tabular-nums lining-nums}.set-grid{display:grid;grid-template-columns:34px 1fr 1fr 48px;gap:7px;align-items:center;padding:5px 14px}.set-grid.header{font-size:9px;color:var(--taupe);text-transform:uppercase;letter-spacing:.7px;padding-top:0;padding-bottom:7px;border-bottom:1px solid var(--hair)}.set-row{position:relative;margin:2px 8px;padding:7px 6px;border-radius:var(--r1);transition:background .16s var(--ease),box-shadow .16s var(--ease)}.set-row.completed{background:rgba(224,110,31,.13);box-shadow:inset 4px 0 0 var(--amber)}.set-row.notched{box-shadow:inset 3px 0 0 var(--amber);border:1px solid rgba(224,110,31,.4)}
+.workout-view{padding-bottom:132px}/* room for the fixed rest pill - 96px still let it sit on the last card's +Add set row (audit 2026-08-02) */body.workout-active .app-header,body.workout-active .bottom-nav{display:none}body.workout-active .app-shell{padding-top:0;padding-bottom:30px}.workout-header{position:sticky;top:0;z-index:10;background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);display:flex;align-items:center;justify-content:space-between;margin:0 calc(var(--gutter)*-1);padding:14px var(--gutter) 12px;border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}.workout-header h1{font-weight:800;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--taupe);margin:0}.workout-clock{margin:2px 0 0;color:var(--amber-deep);font-size:34px;font-weight:800;letter-spacing:0;line-height:1;font-variant-numeric:tabular-nums lining-nums}.workout-context{margin:8px 0 0;color:var(--taupe);font-size:12px;font-variant-numeric:tabular-nums lining-nums}.finish-button{padding:0 var(--gutter);background:var(--amber);color:var(--on-amber)}.live-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0}.live-metric{position:relative;padding:12px 8px 10px;border-radius:var(--radius);background:var(--glass-2);border:1px solid var(--hair)}.live-metric::before{content:'';position:absolute;top:0;left:10px;right:10px;height:1px;background:var(--hair)}.live-metric::after{content:'';position:absolute;top:0;left:10px;width:10px;height:2px;background:var(--amber)}.live-metric strong,.live-metric small{display:block}.live-metric strong{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums lining-nums}.live-metric small{font-size:9px;color:var(--taupe);text-transform:uppercase;letter-spacing:.6px}.workout-exercises{display:grid;gap:12px}.workout-exercise{background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--card-hair);border-radius:var(--radius);overflow:hidden;box-shadow:var(--glass-edge),var(--shadow)}.exercise-head{display:flex;justify-content:space-between;align-items:start;padding:16px 16px 10px}.exercise-head h2{font-weight:800;font-size:18px;margin:0}.exercise-head p{color:var(--taupe);font-size:11px;margin:3px 0 0}.exercise-more{border:0;background:transparent;color:var(--cream);min-width:44px;height:44px;font-weight:800}.previous-strip{margin:0 14px 10px;padding:9px 10px;border-radius:var(--r2);background:rgba(11,110,119,.1);color:var(--teal);font-size:11px;font-variant-numeric:tabular-nums lining-nums}.set-grid{display:grid;grid-template-columns:34px 1fr 1fr 48px;gap:7px;align-items:center;padding:5px 14px}.set-grid.header{font-size:9px;color:var(--taupe);text-transform:uppercase;letter-spacing:.7px;padding-top:0;padding-bottom:7px;border-bottom:1px solid var(--hair)}.set-row{position:relative;margin:2px 8px;padding:7px 6px;border-radius:var(--r1);transition:background .16s var(--ease),box-shadow .16s var(--ease)}.set-row.completed{background:rgba(224,110,31,.13);box-shadow:inset 4px 0 0 var(--amber)}.set-row.notched{box-shadow:inset 3px 0 0 var(--amber);border:1px solid rgba(224,110,31,.4)}
 @keyframes settleDone{0%{transform:translateX(0) scaleY(1)}30%{transform:translateX(3px) scaleY(1)}60%{transform:translateX(0) scaleY(.94) translateY(-1px);opacity:.85}100%{transform:none;opacity:1}}
 .set-row.just-done{animation:settleDone .28s var(--ease)}
 .set-row.just-done::after{content:'';position:absolute;inset:0;border-radius:var(--r1);box-shadow:0 0 0 2px var(--amber);opacity:0;animation:afterimage .42s var(--ease);pointer-events:none}
@@ -126,7 +209,7 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
 .trend-dot{fill:var(--amber);stroke:var(--card-solid);stroke-width:2}
 .trend-grid-line{stroke:var(--hair);stroke-width:1}
 .trend-tick{font-size:9px;fill:var(--taupe);font-weight:600}
-.trend-picker{display:flex;overflow-x:auto;gap:7px;margin:0 -18px 12px;padding:0 18px;scrollbar-width:none}.trend-picker::-webkit-scrollbar{display:none}
+.trend-picker{display:flex;overflow-x:auto;gap:7px;margin:0 calc(var(--gutter)*-1) 12px;padding:0 var(--gutter);scrollbar-width:none}.trend-picker::-webkit-scrollbar{display:none}
 .locked-card{padding:22px 20px;text-align:center;color:var(--taupe);border-style:dashed;background:var(--glass)}
 .locked-card strong{display:block;color:var(--cream);font-weight:800;font-size:16px;margin-bottom:4px}
 .locked-card .lock-progress{display:flex;justify-content:center;gap:6px;margin-top:12px}.locked-card .lock-progress i{width:26px;height:6px;border-radius:2px;background:var(--glass-2);border:1px solid var(--hair)}.locked-card .lock-progress i.full{background:var(--amber);border-color:var(--amber)}
@@ -192,7 +275,7 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
 /* ---- Exercise catalogue picker (council 2026-07-19): Quick Picks + one muscle row + Filters control + stable list ---- */
 .quick-picks:not(:empty){margin:6px 0 4px}
 .quick-kicker{margin:0 2px 8px;color:var(--amber-deep)}
-.quick-row{display:flex;gap:8px;overflow-x:auto;margin:0 -18px;padding:0 18px 2px;scrollbar-width:none}
+.quick-row{display:flex;gap:8px;overflow-x:auto;margin:0 calc(var(--gutter)*-1);padding:0 var(--gutter) 2px;scrollbar-width:none}
 .quick-row::-webkit-scrollbar{display:none}
 .quick-chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:210px;overflow:hidden;padding:0 14px;border:1px solid var(--card-hair);border-radius:var(--r1);background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);box-shadow:var(--glass-edge);color:var(--cream);font-weight:700;font-size:13px;transition:transform .12s var(--ease)}
 .quick-chip:active{transform:scale(.96)}
@@ -395,7 +478,7 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 /* Hero activity numerals. */
 .activity-card.card-live .arc-value strong{font-size:27px}
 /* Routines become a horizontal start strip. */
-.routine-strip{display:flex;gap:11px;overflow-x:auto;margin:0 -18px;padding:2px 18px 8px;scrollbar-width:none}
+.routine-strip{display:flex;gap:11px;overflow-x:auto;margin:0 calc(var(--gutter)*-1);padding:2px var(--gutter) 8px;scrollbar-width:none}
 .routine-strip::-webkit-scrollbar{display:none}
 .routine-strip-card{flex:none;width:204px;display:flex;flex-direction:column;gap:12px;min-height:126px;padding:16px 16px 15px;border:1px solid var(--card-hair);border-radius:var(--radius);background:var(--card-bg);box-shadow:var(--glass-edge),var(--shadow)}
 .routine-strip-card .rs-top{display:flex;align-items:start;justify-content:space-between;gap:8px}
@@ -516,7 +599,7 @@ button.mv-row:active{transform:scale(.985)}
    ======================================================================== */
 
 /* ---- Update-ready pill (release truth). Chrome glass, persistent + tappable, slides up. ---- */
-.update-pill{position:fixed;left:50%;bottom:calc(var(--nav-height) + 14px + env(safe-area-inset-bottom));transform:translate(-50%,140%);z-index:60;display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 18px;border:1px solid var(--amber);border-radius:999px;background:var(--glass-solid);color:var(--cream);font-weight:800;font-size:13px;box-shadow:var(--shadow),var(--glass-edge);transition:transform .4s var(--ease),opacity .3s var(--ease);opacity:0}
+.update-pill{position:fixed;left:50%;bottom:calc(var(--nav-height) + 14px + env(safe-area-inset-bottom));transform:translate(-50%,140%);z-index:60;display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 var(--gutter);border:1px solid var(--amber);border-radius:999px;background:var(--glass-solid);color:var(--cream);font-weight:800;font-size:13px;box-shadow:var(--shadow),var(--glass-edge);transition:transform .4s var(--ease),opacity .3s var(--ease);opacity:0}
 .update-pill[hidden]{display:none}
 .update-pill.show{transform:translate(-50%,0);opacity:1}
 .update-pill .update-dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(var(--bloom-amber),.22)}
@@ -984,7 +1067,7 @@ body.reordering{-webkit-user-select:none;user-select:none}
 .workout-card .workout-start{position:absolute;top:6px;right:6px;width:44px;height:44px;margin:0;display:grid;place-items:center;border:0;border-radius:var(--r1);background:transparent;color:var(--amber-deep)}
 .workout-card .workout-start svg{width:20px;height:20px}
 /* Plans ride a horizontal shelf: one row of swipeable posters instead of a stack of full cards. */
-#planList{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:min(76%,290px);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 -18px;padding:2px 18px 6px}
+#planList{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:min(76%,290px);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(var(--gutter)*-1);padding:2px var(--gutter) 6px}
 #planList::-webkit-scrollbar{display:none}
 #planList .plan-card{scroll-snap-align:start;min-height:118px}
 .workout-meta{margin-top:7px;color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
@@ -1557,7 +1640,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .workout-start svg{width:14px;height:14px}
 
 /* ---- Plan shelf: horizontal, not a grid ---- */
-.plan-shelf{display:flex;gap:11px;overflow-x:auto;margin:0 -18px;padding:2px 18px 8px;scrollbar-width:none}
+.plan-shelf{display:flex;gap:11px;overflow-x:auto;margin:0 calc(var(--gutter)*-1);padding:2px var(--gutter) 8px;scrollbar-width:none}
 .plan-shelf::-webkit-scrollbar{display:none}
 .plan-shelf-card{flex:none;width:178px;text-align:left;padding:16px;border-radius:var(--r-card);
   border:1px solid var(--card-hair);color:var(--cream);
@@ -1908,7 +1991,7 @@ input,select,textarea{font-size:16px}
 .st-card .trend-line{stroke-width:2.8px}
 .st-card .trend-svg{width:100%;height:92px;display:block;margin-top:2px}
 /* The picker chips sit BELOW the card in the design. */
-.trend-picker{display:flex;gap:7px;overflow-x:auto;margin:0 -18px 4px;padding:2px 18px 8px;scrollbar-width:none}
+.trend-picker{display:flex;gap:7px;overflow-x:auto;margin:0 calc(var(--gutter)*-1) 4px;padding:2px var(--gutter) 8px;scrollbar-width:none}
 .trend-picker::-webkit-scrollbar{display:none}
 .trend-picker .filter-chip{flex:none;white-space:nowrap;min-height:44px;padding:0 14px;border-radius:13px;
   border:1px solid var(--card-hair);background:var(--group-bg);color:var(--cream-dim);font-size:11.5px;font-weight:800}
@@ -2013,7 +2096,7 @@ input,select,textarea{font-size:16px}
    Ours inherited .filter-row's `13px -18px 4px` margin, so the sessions list sat 4px under the
    chips instead of 12px, and the chips carried a 13px top margin the design does not have.
    Prototype: margin 0 -20px 12px / padding 0 20px (our page gutter is 18px, so -18/18). */
-#workoutGoals{margin:0 -18px 12px;padding:0 18px;gap:7px}
+#workoutGoals{margin:0 calc(var(--gutter)*-1) 12px;padding:0 var(--gutter);gap:7px}
 
 /* ============================================================
    THE TAB-SWAP FLASH, SOLVED 2026-08-03 (w23-w27 + w28-w46 all missed it).
