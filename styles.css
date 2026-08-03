@@ -139,16 +139,18 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .gs { scrollbar-width: none; }
 
 .app-shell{width:100%;max-width:760px;min-height:100vh;margin:0 auto;padding:0 var(--gutter) calc(var(--nav-height) + 42px + env(safe-area-inset-bottom))}
-.app-header{position:sticky;top:0;z-index:15;height:64px;display:flex;align-items:center;justify-content:space-between;margin:0 calc(var(--gutter)*-1);padding:0 var(--gutter);background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}
-.brand{display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:0;color:var(--cream);font-weight:800;font-size:18px;letter-spacing:-.02em}
+.app-header{position:sticky;top:0;z-index:15;height:60px;display:flex;align-items:center;justify-content:space-between;margin:0 calc(var(--gutter)*-1);padding:0 18px;background:var(--chrome);-webkit-backdrop-filter:blur(26px) saturate(1.6);backdrop-filter:blur(26px) saturate(1.6);border-bottom:1px solid var(--hair);box-shadow:var(--glass-edge)}
+/* Design: gap 9, 17px, min-height 44, --ink. */
+.brand{display:flex;align-items:center;gap:9px;min-height:44px;border:0;background:transparent;padding:0;color:var(--ink);font-weight:800;font-size:17px;letter-spacing:-.02em}
 .brand span{width:36px;height:36px;display:grid;place-items:center;border-radius:var(--r2);background:var(--amber);color:var(--on-amber);font-size:16px;font-weight:800}
-.icon-button{width:44px;height:44px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--cream);font-weight:800;letter-spacing:2px}
+/* Design: 44x44, r14, 1px rgba(var(--w),.09) on rgba(var(--w),.05), 15px/800, --ink2, ls 2px. */
+.icon-button{width:44px;height:44px;border:1px solid rgba(var(--w),.09);border-radius:14px;background:rgba(var(--w),.05);color:var(--ink2);font-weight:800;font-size:15px;letter-spacing:2px}
 .view{display:none}.view.active{display:block}#main:focus{outline:none}
 .view.active>*{animation:rise .35s var(--ease) both}
 .view.active>*:nth-child(2){animation-delay:.04s}.view.active>*:nth-child(3){animation-delay:.08s}.view.active>*:nth-child(4){animation-delay:.12s}.view.active>*:nth-child(5){animation-delay:.16s}.view.active>*:nth-child(n+6){animation-delay:.2s}
 .workout-view.active>*{animation-duration:.3s}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.page-lead{margin:14px 0 28px}.compact-lead{margin-bottom:20px}.page-lead h1{font-weight:800;font-size:clamp(32px,9vw,48px);line-height:1.04;letter-spacing:-.03em;margin:5px 0 8px;text-wrap:balance}.page-lead p:last-child{margin:0;max-width:550px;color:var(--taupe);font-size:16px}.kicker{margin:0;color:var(--amber-deep);font-size:11px;font-weight:800;letter-spacing:1.35px}
+.page-lead{margin:14px 0 28px}.compact-lead{margin-bottom:20px}.page-lead h1{font-weight:800;font-size:clamp(32px,9vw,48px);line-height:1.02;letter-spacing:-.035em;margin:6px 0 3px;text-wrap:balance}.page-lead p:last-child{margin:0;max-width:550px;color:var(--taupe);font-size:16px}.kicker{margin:0;color:var(--amber-deep);font-size:11px;font-weight:800;letter-spacing:1.35px}
 .section-heading{position:relative;display:flex;align-items:end;justify-content:space-between;gap:16px;margin:30px 2px 12px;padding-bottom:9px;border-bottom:1px solid var(--hair)}.section-heading::after{content:'';position:absolute;left:0;bottom:-1px;width:10px;height:2px;background:var(--amber)}.section-heading h2{font-weight:800;font-size:21px;letter-spacing:-.02em;margin:3px 0 0}.text-button{border:0;background:transparent;color:var(--amber-deep);min-height:44px;padding:0;font-weight:800}
 .primary-button,.secondary-button,.finish-button{border:0;min-height:50px;border-radius:var(--radius);font-weight:800;transition:transform .12s var(--ease)}.primary-button{background:var(--amber);color:var(--on-amber);box-shadow:0 8px 20px -8px rgba(224,110,31,.5)}.primary-button:active,.secondary-button:active,.routine-start:active,.finish-button:active{transform:scale(.98)}.secondary-button{background:var(--glass-2);border:1px solid var(--hair);color:var(--cream)}.full-button{width:100%}.big-button{width:100%;display:flex;align-items:center;text-align:left;gap:14px;padding:16px 20px;margin:18px 0 4px;border-radius:var(--radius)}.big-button>span{font-size:24px}.big-button strong,.big-button small{display:block}.big-button small{opacity:.8;font-weight:500;margin-top:2px}
 .stack{display:grid;gap:10px}.card,.routine-card,.history-card,.week-card,.chart-card{background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--card-hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow)}
@@ -274,7 +276,7 @@ dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::back
   .sheet,.confirm-dialog,.toast{background:var(--glass-solid)}
 }
 @media(min-width:650px){.app-shell{padding-left:28px;padding-right:28px}.template-grid{grid-template-columns:repeat(3,1fr)}.sheet{left:50%;transform:translateX(-50%);border-radius:10px 10px 0 0}.sheet[open]{animation:none}.metric-grid{gap:12px}}
-@media(max-width:390px){.page-lead h1{font-size:31px}.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}#workoutList{grid-template-columns:1fr 1fr;gap:10px}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:36px 1fr 1fr 48px;padding-left:7px;padding-right:7px}.arc-value strong{font-size:19px}}
+@media(max-width:390px){.page-lead h1{font-size:33px}/* design: 33px flat, not a step-down */.week-dots{gap:3px}.day-dot i{width:9px}.metric{padding:12px 10px}.metric strong{font-size:20px}.template-grid{grid-template-columns:1fr}#workoutList{grid-template-columns:1fr 1fr;gap:10px}.routine-card{grid-template-columns:1fr}.routine-actions{justify-content:flex-end}.set-grid{grid-template-columns:36px 1fr 1fr 48px;padding-left:7px;padding-right:7px}.arc-value strong{font-size:19px}}
 /* ---- Exercise catalogue picker (council 2026-07-19): Quick Picks + one muscle row + Filters control + stable list ---- */
 .quick-picks:not(:empty){margin:6px 0 4px}
 .quick-kicker{margin:0 2px 8px;color:var(--amber-deep)}
@@ -319,7 +321,8 @@ button:disabled,button[disabled]{opacity:.38;cursor:default;box-shadow:none;filt
 @keyframes catFade{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}
 /* ---- Track B: local profiles ---- */
 .header-actions{display:flex;align-items:center;gap:8px}
-.profile-chip{width:44px;height:44px;flex:none;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass-2);color:var(--cream);font-weight:800;font-size:16px;display:grid;place-items:center;font-variant-numeric:tabular-nums;position:relative}
+/* Design: same 44x44 r14 control as .icon-button, ink --ink, 15px. */
+.profile-chip{width:44px;height:44px;flex:none;border:1px solid rgba(var(--w),.09);border-radius:14px;background:rgba(var(--w),.05);color:var(--ink);font-weight:800;font-size:15px;display:grid;place-items:center;font-variant-numeric:tabular-nums;position:relative}
 .profile-chip>span{line-height:1}
 .profile-chip.is-locked::after{content:'';position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:var(--teal);border:2px solid var(--page)}
 .coach-empty{padding:20px}.coach-empty h2{font-weight:800;font-size:20px;letter-spacing:-.02em;margin:6px 0 4px}.coach-empty-detail{color:var(--taupe);font-size:13px;margin:0 0 16px}
@@ -1154,6 +1157,10 @@ body.nav-min .bottom-nav{transform:scale(.80) translateY(6px)}
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   position:relative;isolation:isolate;           /* REQUIRED: z-index:-1 pill vs the blurred bar */
   border-radius:999px;
+  /* Matched to the design (design/extracted/today.html): its nav buttons carry NO font of their own,
+     so they compute to the UA button default and the 10px/700 <small> sets the label size; and the
+     idle ink is --mut2, not --mut. Ours inherited 15px/500 from the global button rule. */
+  font-size:13.3333px;font-weight:400;color:var(--mut2);
   transition:color 200ms,transform 120ms var(--nav-spring),opacity 150ms ease;
 }
 /* Concentric glass pill behind the active tab (capsule-in-capsule). Active keeps THREE
@@ -1693,6 +1700,15 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    own padding does that job, so zero it or the glyph floats 18px off the edge. */
 .pd-start-row .workout-start{margin-right:0}
 
+
+/* NAV YIELD. While the floating nav genuinely overlaps the primary CTA (measured from live rects in
+   app.js, never a hardcoded offset) it steps aside so the button underneath is reachable. It fades
+   and lifts rather than vanishing, and pointer-events go with it so the CTA receives the tap - the
+   nav is one scroll gesture away and returns the moment the overlap clears. Chrome only: nothing
+   about the card, CTA, ring, gutter, spacing or paint moves, so the ported design is untouched. */
+body.nav-yield .bottom-nav{opacity:0;transform:translateY(8px) scale(.98);pointer-events:none}
+@media(prefers-reduced-motion:reduce){body.nav-yield .bottom-nav{transition:none}}
+
 /* ---- Library: the row list becomes a grouped inset list ---- */
 .exercise-list{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}
 .exercise-row{background:transparent;border:0;border-radius:0;box-shadow:none;display:flex;align-items:center}
@@ -1888,7 +1904,12 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 /* UP NEXT reads amber. The prototype uses raw --amber, which measures 2.88:1 on cream in LIGHT
    mode; --amber-deep is the app token for amber TEXT and resolves to #FFB070 in dark, which is the
    prototype's own accent colour anyway. Same look in dark, legible in light. */
-.up-next .coach-top .kicker{color:var(--amber-deep)}
+/* The design's UP NEXT kicker: var(--amber), 11px, .1em. Measured on its own card - DARK #FF8A3D is
+   7.22:1 so dark matches the design EXACTLY; LIGHT #E06E1F is 3.27:1 which fails AA, so light alone
+   keeps --amber-deep (6.35:1). Deviate only in the scheme that forces it, never in both.
+   NB this selector is (0,3,0): a lower-specificity attempt higher in the file silently lost to it. */
+.up-next .coach-top .kicker{color:var(--amber-deep);font-size:11px;letter-spacing:.1em}
+@media(prefers-color-scheme:dark){.up-next .coach-top .kicker{color:var(--amber)}}
 
 /* Prototype gives its section actions min-width:56px; shortening "+ New" to "New" had ours at 33px. */
 .section-heading .text-button{min-width:56px;min-height:44px}

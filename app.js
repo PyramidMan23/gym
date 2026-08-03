@@ -178,13 +178,40 @@ addEventListener('resize',measureBottomInset);
 addEventListener('orientationchange',measureBottomInset);
 
 let lastNavY=0;
+// The floating nav is fixed, so at some scroll offsets it lands ON TOP of a primary action. On Today
+// at scrollY=0 - the position the app OPENS in - it covered the Start CTA completely: the button's
+// centre hit .bottom-nav, so elementFromPoint never reached it and the main action was untappable
+// until you scrolled 139px. The prototype cannot arbitrate this (it is a device mock whose nav sits
+// in normal flow), so it is measured against our own layout.
+// Collision is computed from LIVE rectangles every scroll, never a hardcoded offset, and the nav is
+// only yielded while it genuinely overlaps. Deliberately does NOT touch the card, the CTA, the
+// gutter, spacing, paint or the initial scroll position - the design fidelity stays exactly as
+// ported; only the chrome floating above it gets out of the way.
+function navCollidesWithCTA(){
+  const nav=document.querySelector('.bottom-nav');
+  const cta=document.querySelector('.up-next-cta');
+  if(!nav||!cta)return false;
+  const n=nav.getBoundingClientRect(),c=cta.getBoundingClientRect();
+  if(c.bottom<=0||c.top>=innerHeight)return false;          // CTA off screen: nothing to protect
+  // Only yield when the nav covers the CTA's CENTRE, because that is exactly what makes the button
+  // unreachable (elementFromPoint at the centre is what a tap resolves against). A 2px graze left
+  // the button perfectly tappable but hid the whole nav on the home screen - too aggressive, and
+  // state-dependent enough that a longer profile name could flip it.
+  const cy=c.top+c.height/2, cx=c.left+c.width/2;
+  return cy>n.top && cy<n.bottom && cx>n.left && cx<n.right;
+}
+function syncNavYield(){
+  document.body.classList.toggle('nav-yield',navCollidesWithCTA());
+}
 addEventListener('scroll',()=>{
   const b=document.body.classList,y=scrollY,dy=y-lastNavY;lastNavY=y;
   b.toggle('scrolled',y>10);
+  syncNavYield();
   if(matchMedia('(prefers-reduced-motion:reduce)').matches||document.querySelector('dialog[open]')){b.remove('nav-min');return;}
   if(y<64){b.remove('nav-min');return;}
   if(dy>4)b.add('nav-min');else if(dy<-4)b.remove('nav-min');
 },{passive:true});
+addEventListener('resize',syncNavYield);
 // SliceCo's press ring ("water droplet"), same fire pattern as its global .tap handler: on
 // pointerdown (so the ring starts BEFORE the pane swap), restart via remove + reflow + add so a
 // rapid double-tap re-fires instead of silently reusing the finished animation.
@@ -266,6 +293,8 @@ function renderView(view){
 }
 
 function renderToday(){
+  requestAnimationFrame(syncNavYield);   // the collision exists at scrollY=0, before any scroll fires
+
   const hour=new Date().getHours();
   document.getElementById('todayKicker').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()).toUpperCase();
   const who=activeProfileName();
