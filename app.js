@@ -1993,6 +1993,18 @@ function cancelWorkout(){
 function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
 function closeConfirm(){dismissDialog(document.getElementById('confirmDialog'));}
 
+let swapConfirmed=null; // 'keep' | 'discard' while a swap-with-logged-sets confirmation is open
+// Split the performed sets off as their own finished entry, then swap the original to the new lift.
+function doSwap(id,mode){
+  const idx=swapTargetIndex;const ex=state.activeSession?.exercises[idx];
+  if(!ex){closeConfirm();return;}
+  if(mode==='keep'){
+    const done=ex.sets.filter(s=>s.done);
+    state.activeSession.exercises.splice(idx,0,{exerciseId:ex.exerciseId,notes:ex.notes||'',rir:ex.rir,sets:done});
+    swapTargetIndex=idx+1;
+  }
+  swapConfirmed=mode;closeConfirm();pickExercise(id);swapConfirmed=null;
+}
 let swapTargetIndex=null; // set only for a workout SWAP; a plain add leaves it null
 function openExercisePicker(target,swapIndex){
   pickerTarget=target;
@@ -2016,6 +2028,18 @@ function pickExercise(id){
   // the NEW lift's own confirmed history, so nothing is carried across exercises.
   if(pickerTarget==='workout'&&swapTargetIndex!=null){
     const ex=state.activeSession?.exercises[swapTargetIndex];
+    // Sets already logged belong to the lift that was actually performed. Swapping would discard
+    // them silently, so ask first - same rule as Remove. Answering "keep both" splits them off as
+    // their own finished exercise so the work is never lost.
+    const logged=ex?Core.doneSets(ex).length:0;
+    if(ex&&logged&&!swapConfirmed){
+      const oldName=exerciseById(ex.exerciseId)?.name||'this lift';
+      const newName=exerciseById(id)?.name||'the new lift';
+      closeSheet();
+      document.getElementById('confirmContent').innerHTML=`<h2>Keep the ${logged} set${logged===1?'':'s'} you already did?</h2><p>You logged ${logged} set${logged===1?'':'s'} of ${esc(oldName)}. Swapping to ${esc(newName)} can keep that work as its own entry, or discard it.</p><div class="sheet-actions"><button class="secondary-button" onclick="closeConfirm()">Cancel</button><button class="secondary-button" onclick="doSwap('${esc(id)}','discard')">Discard them</button></div><div class="sheet-actions"><button class="primary-button full-button" onclick="doSwap('${esc(id)}','keep')">Keep both</button></div>`;
+      document.getElementById('confirmDialog').showModal();
+      return;
+    }
     if(ex){
       const keep=Math.max(1,ex.sets.length);
       ex.exerciseId=id;ex.sets=Array.from({length:keep},()=>({weight:'',reps:'',done:false}));
