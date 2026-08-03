@@ -1803,8 +1803,8 @@ body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
 /* ---- Segmented control. The selected tab carries a filled chip AND aria-selected,
    never colour alone. The chip is 30px tall inside a 44px tap area. ---- */
 /* Design: the segmented track is r15 on rgba(var(--w),.055); its buttons stay r12. */
-.segmented{display:flex;gap:4px;margin:2px 0 16px;padding:4px;border-radius:15px;background:rgba(var(--w),.055);
-  background:var(--group-bg);border:1px solid var(--card-hair)}
+.segmented{display:flex;gap:4px;margin:2px 0 16px;padding:4px;border-radius:15px;
+  background:rgba(var(--w),.055);border:0}   /* design: .055 fill, borderless (third duplicate-declaration catch) */
 /* Design: 12.5px / 700. NB this rule used to declare font-size TWICE - a prepended 12.5px followed
    by the original 13px later in the SAME block, and the later declaration silently won. */
 .seg-button{flex:1;min-height:44px;border:0;border-radius:12px;background:transparent;
@@ -2032,6 +2032,8 @@ body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
 .wk-dot{fill:var(--amber)}
 .wk-empty{color:var(--faint);font-size:12.5px;margin:0 0 18px}
 .wk-stats{margin-bottom:4px}
+/* Design: stat-list labels are 13.5px/600. */
+.wk-row>span:first-child{font-size:13.5px;font-weight:600}
 .wk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;
   padding:12px 16px;font-size:14.5px;font-weight:700;color:var(--cream)}
 .wk-stats .wk-row+.wk-row{border-top:1px solid var(--hair)}
