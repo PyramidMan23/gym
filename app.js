@@ -1514,7 +1514,10 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
       +`<span class="row-text"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(doneSummary)}</small></span>`
       +`<span class="done-edit">Edit</span></button></article>${ssLink}`;
   }
-  const lastLine=previous.length?`Last · ${timed?`${previous[0].reps}s hold`:`${previous[0].weight?`${previous[0].weight} kg × `:'bodyweight × '}${previous[0].reps}`}`:'Last · no history yet';
+  // The design's evidence line carries the DATE of that last exposure, not just the numbers.
+  const lastSess=state.history.find(s=>(s.exercises||[]).some(e=>e.exerciseId===exercise.exerciseId&&Core.doneSets(e).length));
+  const lastWhen=lastSess?` · ${formatDate(lastSess.started)}`:'';
+  const lastLine=previous.length?`Last · ${timed?`${previous[0].reps}s hold`:`${previous[0].weight?`${previous[0].weight} kg × `:'bodyweight × '}${previous[0].reps}`}${lastWhen}`:'Last · no history yet';
   const basis=previous.length?previous[0]:null;
   const delta=targetDelta(target,basis,timed);
   // Graphic target strip: teal evidence line + amber delta chip, then TODAY at 20px with the why?.

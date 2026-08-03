@@ -1899,3 +1899,10 @@ input,select,textarea{font-size:16px}
 .pr-feed.group::before{content:none;display:none}
 .pr-feed.group .pr-row::before{content:none;display:none}
 .pr-feed.group .pr-row .pr-mark{clip-path:none;-webkit-clip-path:none;border-radius:14px;width:50px;height:50px;font-size:12px}
+/* The design has no "Use last" adopt bar - its set cells are pre-filled with the target, which
+   ours are too, so the bar was redundant duplication. Kept in the DOM (adoptLast() still works if
+   called) but not painted.
+   TODO(design): Mark - say if you want the one-tap "Use last" back; the design omits it. */
+.adopt-last{display:none}
+/* The NOW row's done circle carries an amber ring in the design. */
+.set-row.now .set-done{border-color:var(--amber);color:var(--amber-deep)}
