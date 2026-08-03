@@ -1562,12 +1562,28 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .pd-count::after{content:'\203A';font-size:17px;line-height:1;transform:rotate(90deg);transition:transform .2s var(--ease)}
 .plan-day[open] .pd-count::after{transform:rotate(-90deg)}
 .pd-list{margin:0 0 12px;padding:0 0 0 18px;color:var(--taupe);font-size:12.5px;line-height:1.6}
-/* A plan day carrying a real scheme shows its dose and starts from here (Mark's chain, 2026-08-03). */
-.pd-list li{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+/* A plan day carrying a real scheme (Mark's chain, 2026-08-03). Diffed against the prototype's Train
+   tab: every list of things there is a GROUPED INSET block (rounded, tinted, hairline dividers) and
+   every startable row is name-left / 44px amber play-right. The first cut was a bare indented <ul>
+   with the play button on the LEFT beside a label - a grammar that appears nowhere else in the app or
+   in the design. Same tokens as .exercise-list below, so this is reuse, not a new component. */
+.pd-scheme{list-style:none;margin:0 0 10px;padding:0;border-radius:var(--r-group);
+  background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}
+.pd-scheme li{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:44px;padding:9px 14px;color:var(--cream);font-size:13.5px;line-height:1.35}
+.pd-scheme li:not(:last-child){border-bottom:1px solid var(--hair)}
 .pd-dose{flex:none;color:var(--faint);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
 .pd-note{margin:0 0 10px;color:var(--faint);font-size:12px;line-height:1.55}
-.pd-start-row{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-.pd-start-text{font-size:13px;font-weight:700;color:var(--amber-deep)}
+/* The day's start row: the same shape as the prototype's routine and session rows. */
+.pd-start-row{display:flex;width:100%;align-items:center;gap:12px;min-height:56px;
+  padding:6px 6px 6px 14px;margin:0 0 6px;border:0;background:transparent;color:var(--cream);
+  text-align:left;font:inherit;border-radius:var(--r-group)}
+.pd-start-copy{flex:1;min-width:0}
+.pd-start-copy strong{display:block;font-size:14.5px;font-weight:700}
+.pd-start-copy small{display:block;margin-top:2px;color:var(--faint);font-size:11.5px}
+/* .workout-start carries a 12px right margin for its Train-card context; inside this row the row's
+   own padding does that job, so zero it or the glyph floats 18px off the edge. */
+.pd-start-row .workout-start{margin-right:0}
 
 /* ---- Library: the row list becomes a grouped inset list ---- */
 .exercise-list{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}

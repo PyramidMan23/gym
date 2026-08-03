@@ -101,7 +101,7 @@ try {
       const sr = start && start.getBoundingClientRect();
       return {
         days: days.length,
-        rows: days.map(d => d.querySelectorAll('.pd-list li').length),
+        rows: days.map(d => d.querySelectorAll('.pd-scheme li').length),
         doses: document.querySelectorAll('#sheet .pd-dose').length,
         notes: document.querySelectorAll('#sheet .pd-note').length,
         starts: document.querySelectorAll('#sheet .pd-start-row .workout-start').length,

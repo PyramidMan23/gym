@@ -648,8 +648,12 @@ function openPlan(id){
       ? scheme.map(e=>`<li><span>${esc(exerciseById(e.id)?.name||e.id)}</span><span class="pd-dose">${e.sets} x ${esc(String(e.reps))}${Core.isTimed(e.id)?'s':''}</span></li>`)
       : d.exerciseIds.map(x=>`<li><span>${esc(exerciseById(x)?.name||x)}</span></li>`)).join('');
     const note=d.note?`<p class="pd-note">${esc(d.note)}</p>`:'';
-    const start=scheme?`<div class="pd-start-row"><button class="workout-start" onclick="startPlanDay('${esc(plan.id)}',${i})" aria-label="Start ${esc(d.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button><span class="pd-start-text">Start this day</span></div>`:'';
-    return `<details class="plan-day"><summary><span class="pd-name">${i+1}. ${esc(d.name)}</span><span class="pd-count">${d.exerciseIds.length} exercises</span></summary>${note}<ul class="pd-list">${rows}</ul>${start}</details>`;
+    // Start row mirrors the design's routine/session rows: copy left, 44px amber play right, whole
+    // row tappable. The list itself is a grouped inset block only when it carries a real scheme -
+    // an older bare list has nothing to group and keeps its plain indented form.
+    const mins=scheme?Math.round(scheme.reduce((n,e)=>n+e.sets*((Number(e.rest)||60)+40),0)/60):0;
+    const start=scheme?`<button class="pd-start-row" onclick="startPlanDay('${esc(plan.id)}',${i})" aria-label="Start ${esc(d.name)} now"><span class="pd-start-copy"><strong>Start this day</strong><small>${scheme.length} lifts${mins?` · ~${mins} min`:''}</small></span><span class="workout-start" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></button>`:'';
+    return `<details class="plan-day"><summary><span class="pd-name">${i+1}. ${esc(d.name)}</span><span class="pd-count">${d.exerciseIds.length} exercises</span></summary>${note}<ul class="${scheme?'pd-scheme':'pd-list'}">${rows}</ul>${start}</details>`;
   }).join('');
   const pv=Core.planVolume(plan.days,muscleLookup);
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
@@ -2427,7 +2431,12 @@ function openSettings(){
     +`</div></div>`;
   const sw=(title,detail,checked,handler,id)=>`<label class="switch-row"><span><strong>${title}</strong><small>${detail}</small></span>`
     +`<input type="checkbox" class="switch"${id?` id="${id}"`:''} ${checked?'checked':''} onchange="${handler}(this.checked)"></label>`;
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Settings & data</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
+  // The build id is RELEASE TRUTH - it is how you answer "which version am I actually on?" - but it
+  // lived only as an 11px --faint line at the very BOTTOM of this sheet, 614px of scrolling away and
+  // flush against the sheet edge. Mark went looking for it: "i cant see the number anywhere in the
+  // app". Settings was also the one sheet with an EMPTY kicker slot while every other sheet uses one,
+  // so it moves there: same design language, zero scrolling, no new component.
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">BUILD ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p><h2>Settings &amp; data</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
     +profileSettingsMarkup()
     +seg('restSetting','DEFAULT REST TIMER',[[60,'1 min'],[90,'1.5 min'],[120,'2 min'],[180,'3 min']],Number(state.preferences.restSeconds)||90,'setRestPreference')
     +seg('barSetting','BAR WEIGHT (PLATE MATH)',[[15,'15 kg'],[20,'20 kg']],Number(state.preferences.barWeight)||20,'setBarWeight')
