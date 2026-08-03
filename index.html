@@ -125,11 +125,14 @@
         </div>
         <div class="prog-group" data-seg="records">
           <div class="fold-2">
+            <!-- The design's Records pane is two grouped lists: PERSONAL RECORDS then ALL
+                 WORKOUTS. It has no consistency chart, so #weekChart stays in the DOM (its
+                 renderer still runs) but is not painted. -->
             <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
             <div id="weekChart" class="chart-card"></div>
-            <div class="section-heading"><div><p class="kicker">MILESTONES</p><h2>Personal records</h2></div></div>
-            <div id="prFeed" class="pr-feed"></div>
-            <div class="section-heading"><div><p class="kicker">HISTORY</p><h2>All workouts</h2></div></div>
+            <div class="section-heading"><div><p class="kicker">PERSONAL RECORDS</p><h2>Personal records</h2></div></div>
+            <div id="prFeed" class="pr-feed group"></div>
+            <div class="section-heading"><div><p class="kicker">ALL WORKOUTS</p><h2>All workouts</h2></div></div>
             <div id="historyList" class="group"></div>
           </div>
         </div>

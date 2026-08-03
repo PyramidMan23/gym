@@ -1874,3 +1874,28 @@ input,select,textarea{font-size:16px}
 .trend-picker .filter-chip{flex:none;white-space:nowrap;min-height:44px;padding:0 14px;border-radius:13px;
   border:1px solid var(--card-hair);background:var(--group-bg);color:var(--cream-dim);font-size:11.5px;font-weight:800}
 .trend-picker .filter-chip.active{border-color:var(--amber);background:var(--amber);color:var(--on-amber)}
+
+/* ---- Progress > RECORDS, ported from the prototype ----
+   Two grouped lists: PERSONAL RECORDS then ALL WORKOUTS. The design has no consistency
+   chart on this pane, so it and its heading are not painted (renderer still runs). */
+.prog-group[data-seg="records"] .section-heading:first-of-type,
+.prog-group[data-seg="records"] #weekChart{display:none}
+.pr-feed.group .pr-row{display:flex;align-items:center;gap:12px;min-height:64px;padding:12px 16px;
+  background:transparent;border:0;border-radius:0;box-shadow:none}
+.pr-feed.group .pr-row+.pr-row{border-top:1px solid var(--hair)}
+.pr-row .pr-mark{width:50px;height:50px;flex:none;display:grid;place-items:center;border-radius:14px;
+  background:rgba(var(--bloom-amber),.14);color:var(--amber-deep);font-size:12px;font-weight:800;letter-spacing:.04em}
+.pr-row>span:not(.pr-mark){flex:1;min-width:0}
+.pr-row strong{display:block;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.pr-row small{display:block;margin-top:2px;color:var(--faint);font-size:12px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr-row time{flex:none;color:var(--faint);font-size:12px;white-space:nowrap}
+/* ALL WORKOUTS rows carry no leading glyph in the design - name, meta, chevron. */
+#historyList .history-card .row-glyph{display:none}
+#historyList .history-card{min-height:64px;padding:12px 16px}
+/* The PR timeline rail + dots (lines 430-432) are not in the design's Records pane, and the
+   badge is a rounded square there, not the notched octagon. */
+.pr-feed.group{display:block;padding-left:0;position:static}
+.pr-feed.group::before{content:none;display:none}
+.pr-feed.group .pr-row::before{content:none;display:none}
+.pr-feed.group .pr-row .pr-mark{clip-path:none;-webkit-clip-path:none;border-radius:14px;width:50px;height:50px;font-size:12px}
