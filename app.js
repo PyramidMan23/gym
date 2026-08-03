@@ -270,7 +270,9 @@ function renderView(view){
 function renderToday(){
   const hour=new Date().getHours();
   document.getElementById('todayKicker').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()).toUpperCase();
-  document.getElementById('todayTitle').textContent=hour<12?'Morning.':hour<18?'Ready to train?':'Let’s finish strong.';
+  const who=activeProfileName();
+  const nameBit=who&&who!=='me'?`, ${who}`:'';
+  document.getElementById('todayTitle').textContent=(hour<12?'Morning':hour<18?'Ready to train':'Let’s finish strong')+nameBit+'.';
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
   renderDeload();
@@ -368,13 +370,13 @@ function renderActivityRings(weekly){
   // The two arcs are never distinguished by colour alone: each legend entry names its own metric
   // and prints its own numbers, and the shapes differ (thick outer ring vs thin inner ring).
   document.getElementById('activityLegend').innerHTML=
-    `<span class="cr-key cr-key-out"><i aria-hidden="true"></i>${by('workouts').value}/${fmtGoal(by('workouts'))} sessions · ${compact(by('volume').value)}/${fmtGoal(by('volume'))} kg</span>`
+    `<span class="cr-key cr-key-out"><i aria-hidden="true"></i>${by('workouts').value}/${fmtGoal(by('workouts'))} sessions</span>`
    +`<span class="cr-key cr-key-in"><i aria-hidden="true"></i>${by('sets').value}/${fmtGoal(by('sets'))} sets</span>`;
 }
 function renderWeekDots(){
   const now=new Date(),monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-((now.getDay()+6)%7));
   const completed=new Set(state.history.map(s=>{const d=new Date(s.started);d.setHours(0,0,0,0);return d.getTime()}));
-  document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday.getTime()+index*DAY);return `<span class="day-dot ${completed.has(date.getTime())?'done':''} ${date.toDateString()===now.toDateString()?'today':''}"><i></i><small>${label}</small></span>`}).join('');
+  document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday.getTime()+index*DAY);const done=completed.has(date.getTime());return `<span class="day-dot ${done?'done':''} ${date.toDateString()===now.toDateString()?'today':''}" title="${done?'Trained':'No session'}"><i></i><small>${label}</small></span>`}).join('');
 }
 // `done` = the Set from Core.routinesDoneThisWeek. A tick AND the words - never a colour alone.
 function routineCard(routine,done){
@@ -383,7 +385,7 @@ function routineCard(routine,done){
   // The name itself opens the options sheet, not just the ••• glyph. Editing a routine has been
   // possible since day one and Mark never found it, because the only way in was an unlabelled
   // three-dot button (2026-07-28). Same handler, one much larger target.
-  return `<article class="routine-card group-row"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><strong>${esc(routine.name)}</strong><small>${tick}${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</small></button><div class="routine-actions"><button class="routine-menu" onclick="openRoutineMenu('${routine.id}')" aria-label="Routine options">•••</button><button class="routine-start" onclick="startRoutine('${routine.id}')" aria-label="${done?.has(routine.id)?'Repeat':'Start'} ${esc(routine.name)}">${done?.has(routine.id)?'Again':'Start'}</button></div></article>`;
+  return `<article class="routine-card group-row"><button class="routine-open" onclick="openRoutineMenu('${routine.id}')" aria-label="Options for ${esc(routine.name)}"><strong>${esc(routine.name)}</strong><small>${tick}${names.length} exercise${names.length===1?'':'s'}${names.length?' · '+esc(names.slice(0,2).join(', ')):''}</small></button><div class="routine-actions"><button class="routine-start" onclick="startRoutine('${routine.id}')" aria-label="${done?.has(routine.id)?'Repeat':'Start'} ${esc(routine.name)}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></div></article>`;
 }
 // Today's horizontal quick-start strip - same onclick contracts as routineCard (start + options menu).
 function routineStripCard(routine,done){
@@ -464,12 +466,14 @@ function renderCoach(){
   // v2 UP NEXT card: the bullet list becomes exercise CHIPS. A chip carries the same real
   // prescription the list did (name + Coach.doseLine), and an exercise missing from the library
   // keeps its word-marked "skipped" state - never a colour-only cue.
-  const chips=s.exercises.slice(0,6).map((e,i)=>{
+  // Prototype parity: a chip is the exercise NAME only (the dose lives in the session itself), and
+  // the row shows three then a "+N" overflow chip.
+  const CHIP_SHOWN=3;
+  const chips=s.exercises.slice(0,CHIP_SHOWN).map((e,i)=>{
     const known=!!exerciseById(e.exerciseId);
-    const dose=esc(Coach.doseLine(e));
-    return `<span class="next-chip${known?'':' next-chip-skip'}">${names[i]}${dose?`<b>${dose}</b>`:''}</span>`;
+    return `<span class="next-chip${known?'':' next-chip-skip'}">${names[i]}</span>`;
   }).join('');
-  const more=s.exercises.length>6?`<span class="next-chip next-chip-more">+${s.exercises.length-6} more</span>`:'';
+  const more=s.exercises.length>CHIP_SHOWN?`<span class="next-chip next-chip-more">+${s.exercises.length-CHIP_SHOWN}</span>`:'';
   // Per-exercise cues keep the `.coach-cue` class (contrast-guard selects it) and simply move
   // below the chip row, since a chip has no room for the plan's reasoning.
   const perChipCues=allSame?'':s.exercises.slice(0,6).map((e,i)=>e.cue?`<small class="coach-cue">${names[i]}: ${esc(e.cue)}</small>`:'').join('');
@@ -777,14 +781,9 @@ function renderProgress(){
   // The headline was a static "Getting stronger." even when every recap number was down - a
   // billion-dollar app never asserts what the data contradicts (council 2026-07-28). Derived from
   // the same recap the cards below show, so the page can never disagree with itself.
-  const ttl=document.getElementById('progressTitle');
-  if(ttl){
-    const rc=Core.weeklyRecap(state.history,muscleLookup);
-    ttl.textContent=!state.history.length?'Your story starts here.'
-      :rc.prs>0||rc.volumeDelta>0||rc.setsDelta>0?'Getting stronger.'
-      :rc.workouts===0?'Quiet week so far.'
-      :'Steady as she goes.';
-  }
+  // The prototype titles this screen with a plain "Progress" and lets the modules speak, so the
+  // derived mood headline is no longer written over it. The recap it was based on is unchanged and
+  // still rendered by renderWeeklyRecap() below, where the numbers actually live.
   // A lifter who only trains bodyweight has a real lifetime of work and zero kilos - count their
   // sets rather than showing them a proud "0".
   const lifetimeSets=state.history.reduce((sum,s)=>sum+Core.summarizeSession(s).completedSets,0);

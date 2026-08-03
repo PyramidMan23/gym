@@ -1235,6 +1235,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
      --teal (#0B6E77) on that tint measures 4.29:1 in light - an AA fail the contrast guard caught.
      Same trick the amber pair already uses: the fill stays --teal, the INK goes darker. 5.53:1. */
   --teal-deep:#095C63;
+  --chip-bg:rgba(20,15,8,.05);   /* UP NEXT chip fill, measured off the prototype (dark .055) */
   /* Third ink step (the prototype's --ink3): quieter than --cream-dim, but legible on the AMBER-TINTED
      set rows where --faint/--taupe fail. Worst surface is the PR row's 20%% amber wash:
      light #5A5348 = 6.09:1, dark #A7AEB5 = 5.27:1. Used by the hung unit labels. */
@@ -1248,6 +1249,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   --hair:rgba(255,255,255,.06);
   --shadow:0 18px 40px -20px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.08);
   --teal-deep:#2EC5E0;   /* dark scheme: the bright teal already measures 7.49:1 on its own tint */
+  --chip-bg:rgba(255,255,255,.055);
   --ink-quiet:#A7AEB5;
 }}
 
@@ -1679,3 +1681,77 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    One fix at the shared rule, so every sheet keeps its 44px target. */
 .close-button{flex:none}
 .sheet-head h2{min-width:0;overflow-wrap:anywhere}
+
+/* ============================================================
+   v2 FIDELITY PASS — measured against Mark's standalone prototype
+   ("Gym v2 Standalone.html"), not inferred. Every value below was read out of
+   the running prototype with getComputedStyle, screen by screen.
+   Rollback: delete to the end of file.
+   ============================================================ */
+
+/* ---- The charge ring sits ON THE PAGE, not in a card ----
+   Measured: the ring's whole ancestor chain is border:0, background:transparent.
+   Ours wrapped it in a bordered .activity-card with a "THIS WEEK / Momentum
+   started." heading the prototype does not have. That was the "extra border".
+   The heading elements stay in the DOM (renderActivityRings writes to them by
+   id) but are not painted. */
+.activity-card{background:none;border:0;box-shadow:none;padding:0;border-radius:0;margin:2px 0 0}
+.activity-card::before,.activity-card::after{display:none;content:none}
+.activity-heading{display:none}
+.activity-card.card-live,.activity-card.complete{background:none;border:0;box-shadow:none}
+.activity-layout{display:block}
+
+/* Ring: 250px, and the concentric guide rings the prototype draws behind it. */
+.charge-ring{width:min(250px,72vw);margin:6px auto 0}
+.cr-centre .hero-num{font-size:clamp(40px,15vw,58px)}
+.cr-centre>small{color:var(--taupe);letter-spacing:.14em}
+
+/* Legend: two entries, centred, 11.5px. */
+.activity-legend{gap:8px 22px;margin-top:14px}
+
+/* ---- Week strip: full-width pill tracks (measured 46x8, radius 4) ---- */
+.week-dots{display:flex;gap:6px;margin-top:18px}
+.week-dots .day-dot{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;background:none;border:0;padding:0}
+.week-dots .day-dot i{width:100%;height:8px;border-radius:4px;background:var(--hair);display:block;
+  transition:background .4s var(--ease)}
+.week-dots .day-dot.done i{background:linear-gradient(90deg,var(--amber-soft),var(--amber));
+  box-shadow:0 0 12px rgba(var(--bloom-amber),.45)}
+/* Today is marked by an OUTLINE as well as fill, so it is never colour alone. */
+.week-dots .day-dot.today i{box-shadow:0 0 0 2px rgba(var(--bloom-amber),.55)}
+.week-dots .day-dot small{font-size:10px;font-weight:600;color:var(--faint)}
+.week-dots .day-dot.today small{color:var(--cream)}
+
+/* ---- UP NEXT chips: NO border, radius 9, name only (measured) ---- */
+.next-chip{border:0;border-radius:9px;background:var(--chip-bg);color:var(--cream-dim);
+  padding:5px 10px;font-size:11.5px;font-weight:600}
+.next-chip b{display:none}
+.next-chips{gap:6px}
+
+/* ---- Section headings are KICKERS ONLY. The prototype has zero <h2> on Train. ---- */
+.section-heading h2{display:none}
+.section-heading .kicker{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--taupe);margin:0}
+.section-heading{align-items:baseline;margin:24px 0 10px}
+/* Train/Library/Progress lead with a plain h1; only Today keeps its date kicker. */
+#view-train .page-lead>.kicker,#view-library .page-lead>.kicker,#view-progress .page-lead>.kicker{display:none}
+#view-train .page-lead h1,#view-library .page-lead h1,#view-progress .page-lead h1{font-size:32px;font-weight:800;letter-spacing:-.035em}
+
+/* ---- Routine + session rows: one 44px amber play square (measured 44x44, r15,
+   bg rgba(255,138,61,.15), ink #FFB070). The row NAME opens options. ---- */
+.routine-start,.workout-start{width:44px;height:44px;min-width:44px;flex:none;margin-right:12px;padding:0;
+  border:0;border-radius:15px;background:rgba(var(--bloom-amber),.15);color:var(--amber-deep);
+  display:grid;place-items:center;font-size:0}
+.routine-start svg,.workout-start svg{width:14px;height:14px;display:block}
+.routine-actions{padding-right:0;gap:0}
+
+/* ---- The grouped list matches the prototype exactly: bg .035, hairline .06, r20 ---- */
+.group,.exercise-list{border-radius:20px;background:var(--group-bg);border:1px solid var(--hair)}
+
+/* The week strip had a border-top divider (.week-dots-wide) the prototype does not draw. */
+.week-dots-wide{border-top:0;padding-top:0}
+/* UP NEXT reads amber. The prototype uses raw --amber, which measures 2.88:1 on cream in LIGHT
+   mode; --amber-deep is the app token for amber TEXT and resolves to #FFB070 in dark, which is the
+   prototype's own accent colour anyway. Same look in dark, legible in light. */
+.up-next .coach-top .kicker{color:var(--amber-deep)}
+
+/* Prototype gives its section actions min-width:56px; shortening "+ New" to "New" had ours at 33px. */
+.section-heading .text-button{min-width:56px;min-height:44px}

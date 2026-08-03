@@ -64,11 +64,11 @@
       <section id="view-train" class="view" aria-labelledby="trainTitle">
         <!-- v2 Train has ONE order, every time: your plan, your routines, the session library,
              then the plan shelf. The grid of boxes is gone; rows live in grouped inset lists. -->
-        <div class="page-lead"><p class="kicker accent">TRAIN</p><h1 id="trainTitle">What are we hitting?</h1><p>One order, every time: your plan, your routines, then the session library.</p></div>
+        <div class="page-lead"><p class="kicker accent">TRAIN</p><h1 id="trainTitle">Train</h1><p>One order, every time: your plan, your routines, then the session library.</p></div>
         <div id="planHero"></div>
-        <div class="section-heading"><div><p class="kicker">SAVED</p><h2>Your routines</h2></div><button class="text-button" onclick="openRoutineEditor()">+ New</button></div>
+        <div class="section-heading"><div><p class="kicker">YOUR ROUTINES</p><h2>Your routines</h2></div><button class="text-button" onclick="openRoutineEditor()">New</button></div>
         <div id="routineList" class="group"></div>
-        <div class="section-heading"><div><p class="kicker">SINGLE SESSIONS</p><h2>Sessions</h2></div><span id="workoutCount" class="section-count"></span></div>
+        <div class="section-heading"><div><p class="kicker">SESSIONS</p><h2>Sessions</h2></div><span id="workoutCount" class="section-count"></span></div>
         <div id="workoutGoals" class="filter-row" aria-label="Filter workouts by goal"></div>
         <div id="workoutList" class="group"></div>
         <div class="fold-2">
@@ -78,7 +78,7 @@
       </section>
 
       <section id="view-library" class="view" aria-labelledby="libraryTitle">
-        <div class="page-lead compact-lead"><p class="kicker accent">YOUR GYM</p><h1 id="libraryTitle">Exercise library</h1></div>
+        <div class="page-lead compact-lead"><p class="kicker accent">YOUR GYM</p><h1 id="libraryTitle">Library</h1></div>
         <div class="search-wrap"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="librarySearch" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('library',this.value)" aria-label="Search exercise library"></div>
         <div id="libraryQuickPicks" class="quick-picks"></div>
         <div id="muscleFilters" class="filter-row" aria-label="Filter by muscle group"></div>
@@ -91,7 +91,7 @@
       </section>
 
       <section id="view-progress" class="view" aria-labelledby="progressTitle">
-        <div class="page-lead compact-lead"><p class="kicker accent">STRENGTH</p><h1 id="progressTitle">Getting stronger.</h1></div>
+        <div class="page-lead compact-lead"><p class="kicker accent">STRENGTH</p><h1 id="progressTitle">Progress</h1></div>
         <!-- Intent-based structure (council 2026-07-28): This week (what happened) then Direction
              (where it's going) then Record (what it has been). DOM order IS visual order - modules
              keep a permanent address; a no-evidence module compresses in place, never moves. -->
