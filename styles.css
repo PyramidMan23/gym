@@ -1792,3 +1792,44 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   background:linear-gradient(150deg,var(--hi,#FFC98A),var(--amber2,#FF7A24));color:var(--on-amber);
   overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 16px -8px rgba(var(--bloom-amber),.9)}
 .brand>span svg{width:22px;height:22px;display:block}
+
+/* ---- Progress > WEEK, ported from the prototype ---- */
+.wk-kicker{margin:2px 0 8px;color:var(--taupe);font-size:11px;font-weight:700;letter-spacing:.1em}
+.wk-kicker-2{margin-top:26px}
+.wk-hero{display:flex;align-items:baseline;gap:8px;margin-bottom:14px}
+.wk-hero strong{font-size:54px;font-weight:800;letter-spacing:-.05em;line-height:1;
+  font-variant-numeric:tabular-nums lining-nums}
+.wk-hero small{font-size:18px;font-weight:700;color:var(--taupe)}
+.wk-delta{margin-left:auto;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.wk-delta.up{color:var(--teal-deep)}
+.wk-delta.down{color:var(--danger)}
+.wk-delta.flat{color:var(--faint);font-weight:600}
+.wk-chart{width:100%;height:110px;display:block;margin:0 0 18px;overflow:visible}
+.wk-area{fill:rgba(var(--bloom-amber),.20);stroke:none}
+.wk-line{fill:none;stroke:var(--amber);stroke-width:1.6;vector-effect:non-scaling-stroke;
+  stroke-linecap:round;stroke-linejoin:round}
+.wk-dot{fill:var(--amber)}
+.wk-empty{color:var(--faint);font-size:12.5px;margin:0 0 18px}
+.wk-stats{margin-bottom:4px}
+.wk-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;
+  padding:12px 16px;font-size:14.5px;font-weight:700;color:var(--cream)}
+.wk-stats .wk-row+.wk-row{border-top:1px solid var(--hair)}
+.wk-val{display:flex;align-items:baseline;gap:8px;font-size:17px;font-weight:800;
+  font-variant-numeric:tabular-nums lining-nums}
+.wk-val .wk-delta{margin-left:0;font-size:11.5px}
+.wk-muscle{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.wk-mname{flex:none;width:88px;font-size:13.5px;font-weight:700;color:var(--cream);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-mbar{flex:1;height:9px;border-radius:5px;background:var(--hair);overflow:hidden;display:block}
+.wk-mbar i{display:block;height:100%;border-radius:5px;
+  background:linear-gradient(90deg,var(--amber-soft),var(--amber))}
+.wk-mval{flex:none;min-width:22px;text-align:right;font-size:13.5px;font-weight:800;
+  color:var(--cream-dim);font-variant-numeric:tabular-nums lining-nums}
+/* The design's Week pane is these four blocks. The app's older modules stay in the DOM (their
+   renderers still run and Goals is still reachable) but are not painted here.
+   TODO(design): Mark - your Week pane has no Goals board. Say if you want it back below. */
+.prog-group[data-seg="week"] .section-heading,
+.prog-group[data-seg="week"] #progressStats,
+.prog-group[data-seg="week"] #weeklyRecap,
+.prog-group[data-seg="week"] #muscleVolume,
+.prog-group[data-seg="week"] #goalBoard{display:none}

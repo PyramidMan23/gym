@@ -815,8 +815,56 @@ function renderProgress(){
   renderWeekChart();
   renderPrFeed();
   renderCalisthenics();
+  renderWeekPane();
   document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>Your progress starts at one</strong><small>Finish a workout and it will appear here.</small></span></div>`;
   renderProgressSegments();
+}
+// ---- Progress > WEEK, ported from the prototype ------------------------------------------------
+// Four blocks, in this order: volume hero with a week-on-week delta, an area chart of recent weeks,
+// a grouped stat list, then sets per muscle. Every number is real: weeklyRecap for the figures and
+// their deltas, weeklyVolumes for the chart, muscleVolume for the bars, summarizeSession for time.
+function deltaChip(n,invert){
+  if(!n)return '<span class="wk-delta flat">no change</span>';
+  const up=n>0, good=invert?!up:up;
+  return `<span class="wk-delta ${good?'up':'down'}">${up?'\u25B2':'\u25BC'} ${Math.abs(Math.round(n))}</span>`;
+}
+function renderWeekPane(){
+  const host=document.getElementById('weekPane');if(!host)return;
+  const rc=Core.weeklyRecap(state.history,muscleLookup);
+  const weeks=Core.weeklyVolumes(state.history,8);
+  // Minutes under the bar this week, from the same summaries the receipt uses.
+  const start=(()=>{const d=new Date();const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);d.setHours(0,0,0,0);return d.getTime();})();
+  const mins=state.history.filter(x=>x.started>=start).reduce((a,x)=>a+Core.summarizeSession(x).durationMinutes,0);
+  // Area chart over the recent weeks. Flat/no data draws nothing rather than a fake line.
+  const vals=weeks.map(w=>w.volume);
+  const max=Math.max(1,...vals);
+  const W=100,H=42;
+  const pts=vals.map((v,i)=>[vals.length>1?(i/(vals.length-1))*W:0,H-(v/max)*H]);
+  const line=pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const area=vals.length>1?`${line} L${W} ${H} L0 ${H} Z`:'';
+  const chart=vals.some(v=>v>0)?`<svg class="wk-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Volume over the last ${vals.length} weeks">`
+      +`<path class="wk-area" d="${area}"></path><path class="wk-line" d="${line}"></path>`
+      +`<circle class="wk-dot" cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="2.2"></circle></svg>`
+    :'<p class="wk-empty">No volume logged yet.</p>';
+  const rows=[
+    ['Sets',rc.sets,rc.setsDelta,false],
+    ['Sessions',rc.workouts,rc.workoutsDelta,false],
+    ['Personal records',rc.prs,rc.prsDelta,false],
+  ].map(([label,val,d])=>`<div class="wk-row"><span>${label}</span><span class="wk-val">${val}${deltaChip(d)}</span></div>`).join('')
+   +`<div class="wk-row"><span>Time under the bar</span><span class="wk-val">${mins}m</span></div>`;
+  // Sets per muscle, direct sets only, biggest first.
+  const mv=Core.muscleVolume(state.history,muscleLookup);
+  const list=Object.entries(mv).map(([m,v])=>({m,d:v.direct||0})).filter(r=>r.d>0).sort((a,b)=>b.d-a.d);
+  const mMax=Math.max(1,...list.map(r=>r.d));
+  const muscles=list.length?list.map(r=>`<div class="wk-muscle"><span class="wk-mname">${esc(r.m)}</span>`
+      +`<span class="wk-mbar"><i style="width:${Math.round(r.d/mMax*100)}%"></i></span>`
+      +`<span class="wk-mval">${r.d}</span></div>`).join('')
+    :'<p class="wk-empty">Log a set to fill this board.</p>';
+  host.innerHTML=`<p class="kicker wk-kicker">VOLUME THIS WEEK</p>`
+    +`<div class="wk-hero"><strong>${compact(rc.volume)}</strong><small>kg</small>${deltaChip(rc.volumeDelta)}</div>`
+    +chart
+    +`<div class="group wk-stats">${rows}</div>`
+    +`<p class="kicker wk-kicker wk-kicker-2">SETS PER MUSCLE</p>${muscles}`;
 }
 // ---- Progress segments (v2) -----------------------------------------------------------------
 // The SAME modules, one intent visible at a time instead of a 3000px scroll. Nothing is rebuilt or
@@ -1473,7 +1521,7 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
       +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
     +`</header>`
     +`<div class="ex-rail" aria-hidden="true"><i style="width:${Math.round(doneFrac*100)}%"></i></div>`
-    +`<p class="ex-count">${doneCount}/${total} set${total===1?'':'s'}</p>`
+    
     +`${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}`
     +`${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}`
     +targetStrip

@@ -1,4 +1,4 @@
-const CACHE='gym-w31-20260803-v2-logo';
+const CACHE='gym-w32-20260803-v2-week';
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(self.clients.matchAll({type:'window'}).then(list=>list[0]?list[0].focus():self.clients.openWindow('./')));});
 // Update is user-controlled (release truth): no auto-skipWaiting on install - the waiting worker sits
 // until the app's "Update ready" pill posts SKIP_WAITING, so a refresh is never yanked mid-set.
