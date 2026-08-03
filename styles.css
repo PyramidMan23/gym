@@ -196,7 +196,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @keyframes settleDone{0%{transform:translateX(0) scaleY(1)}30%{transform:translateX(3px) scaleY(1)}60%{transform:translateX(0) scaleY(.94) translateY(-1px);opacity:.85}100%{transform:none;opacity:1}}
 .set-row.just-done{animation:settleDone .28s var(--ease)}
 .set-row.just-done::after{content:'';position:absolute;inset:0;border-radius:var(--r1);box-shadow:0 0 0 2px var(--amber);opacity:0;animation:afterimage .42s var(--ease);pointer-events:none}
-@keyframes afterimage{0%{opacity:.5}100%{opacity:0}}.set-row.completed .set-number{color:var(--amber-deep)}.set-row.completed .set-input{background:var(--card-solid);border-color:var(--amber-soft)}.set-number{text-align:center;color:var(--taupe);font-weight:800;font-variant-numeric:tabular-nums lining-nums}.set-input{width:100%;height:44px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);text-align:center;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums lining-nums}.set-done{width:48px;height:48px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--taupe);font-size:18px;transition:transform .15s var(--ease),background .15s var(--ease)}.set-done.done{background:var(--amber);border-color:var(--amber);color:var(--on-amber);transform:scale(1.06)}.add-set{width:calc(100% - 28px);margin:8px 14px 14px;height:44px;border:0;border-radius:var(--radius);background:var(--glass-2);color:var(--amber-deep);font-weight:800}.add-exercise-button{margin-top:14px}.danger-link{display:block;margin:20px auto 0;border:0;background:transparent;color:var(--danger);height:44px;font-weight:700}
+@keyframes afterimage{0%{opacity:.5}100%{opacity:0}}.set-row.completed .set-number{color:var(--amber-deep)}.set-row.completed .set-input{background:var(--card-solid);border-color:var(--amber-soft)}.set-number{text-align:center;color:var(--taupe);font-weight:800;font-variant-numeric:tabular-nums lining-nums}.set-input{width:100%;height:44px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);text-align:center;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums lining-nums}.set-done{width:48px;height:48px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--taupe);font-size:18px;transition:transform .15s var(--ease),background .15s var(--ease)}.set-done.done{background:var(--amber);border-color:var(--amber);color:var(--on-amber);transform:scale(1.06)}/* Design: h46, r15, 1px rgba(var(--w),.07) on rgba(var(--w),.05), --acc ink, 14px/800. */
+.add-set{width:calc(100% - 28px);margin:8px 14px 14px;height:46px;border:1px solid rgba(var(--w),.07);border-radius:15px;background:rgba(var(--w),.05);color:var(--acc);font-weight:800;font-size:14px}.add-exercise-button{margin-top:14px}.danger-link{display:block;margin:20px auto 0;border:0;background:transparent;color:var(--danger);height:44px;font-weight:700}
 .bottom-nav{position:fixed;z-index:20;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:calc(100vw - 24px);max-width:736px;height:var(--nav-height);padding:7px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow)}.bottom-nav button{position:relative;z-index:1;border:0;border-radius:var(--r1);background:transparent;color:var(--taupe);display:grid;place-content:center;gap:2px}.bottom-nav button span{font-size:19px;line-height:1}.bottom-nav button small{font-size:10px;font-weight:700}.bottom-nav button.active{color:var(--amber-deep)}
 .rest-pill{display:none;position:fixed;z-index:40;right:14px;bottom:14px;align-items:center;gap:9px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-tint);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);color:var(--cream);padding:10px 13px;box-shadow:var(--glass-edge),var(--shadow)}.rest-pill.show{display:flex}.rest-pill span,.rest-pill small{font-size:10px;color:var(--amber-deep);font-weight:700}.rest-pill strong{font-weight:800;font-size:16px;font-variant-numeric:tabular-nums lining-nums}
 dialog{color:var(--cream)}dialog:not([open]){display:none!important}dialog::backdrop{background:rgba(7,18,36,.48);backdrop-filter:blur(2px)}.sheet{width:min(100vw,760px);max-width:none;max-height:min(88vh,88dvh);margin:auto 0 0;border:0;border-radius:10px 10px 0 0;padding:0;background:var(--glass-solid);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);overflow:hidden}.sheet[open]{display:flex;flex-direction:column}.sheet-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 18px max(22px,env(safe-area-inset-bottom))}.sheet[open]{animation:sheetUp .22s var(--ease) both}@keyframes sheetUp{from{transform:translateY(30px);opacity:.6}}.sheet-handle{width:28px;height:3px;border-radius:0;background:var(--hair-bright);margin:2px auto 14px}.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.sheet-head h2{font-weight:800;font-size:24px;letter-spacing:-.02em;margin:0}.close-button{width:44px;height:44px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass-2);color:var(--cream);font-size:20px}.field{display:grid;gap:6px;margin-bottom:14px}.field label{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--taupe)}.field input,.field select,.field textarea{width:100%;min-height:50px;border:1px solid var(--hair);border-radius:var(--r2);background:var(--glass);color:var(--cream);padding:0 13px;font-size:16px}.field textarea{padding:12px;resize:vertical}.picker-search{position:sticky;top:0;margin-bottom:10px}.picker-filters{margin-top:0;margin-bottom:4px}
@@ -549,7 +550,8 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 .workout-clock{font-size:44px}
 /* Pause sits beside Finish: quiet secondary weight, same 50px target height. */
 .workout-actions{display:flex;align-items:center;gap:8px}
-.pause-button{padding:0 16px;min-height:50px;border-radius:var(--radius);font-weight:800;background:var(--glass-2);border:1px solid var(--hair);color:var(--cream);transition:transform .12s var(--ease)}
+/* Design: h44, r15, 1px rgba(var(--w),.09) on rgba(var(--w),.05), --ink ink, 13.5px/700. */
+.pause-button{padding:0 14px;height:44px;min-height:44px;border-radius:15px;font-weight:700;font-size:13.5px;background:rgba(var(--w),.05);border:1px solid rgba(var(--w),.09);color:var(--ink);transition:transform .12s var(--ease)}
 .pause-button:active{transform:scale(.98)}
 /* Cream, not taupe: at 11px the muted ink measured 4.48:1 on glass-2 in dark — under the 4.5 bar. */
 /* :not([hidden]) — a bare `display` would beat the UA hidden rule and leave a phantom chip laid out. */
@@ -596,7 +598,8 @@ button.mv-row:active{transform:scale(.985)}
 /* ---- Set footer: add-set + drop-set side by side. */
 .set-footer{display:flex;gap:8px;margin:8px 14px 14px}
 .set-footer .add-set{flex:1;width:auto;margin:0}
-.add-drop{flex:none;min-width:84px;height:44px;border:1px solid rgba(var(--bloom-teal),.5);border-radius:var(--radius);background:rgba(var(--bloom-teal),.1);color:var(--teal);font-weight:800;font-size:13px}
+/* Design: h46, r15, NO border, rgba(var(--tl),.09) fill, --teal2 ink, 14px/800. */
+.add-drop{flex:none;min-width:84px;height:46px;border:0;border-radius:15px;background:rgba(var(--tl),.09);color:var(--teal2);font-weight:800;font-size:14px}
 /* Drop-set rows: teal down-arrow number + tint; a shape+glyph cue, never colour-only. */
 .set-row.drop-set{background:rgba(var(--bloom-teal),.07)}
 .set-row.drop-set .set-number{color:var(--teal);font-size:15px}
@@ -917,7 +920,8 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 
 /* --- 4. One accent per intent inside the workout. "+ Add set" is the action; "+ Drop" is a
    variant of it, so it stops competing as a second coloured button. --- */
-.add-drop{border-color:var(--hair)!important;color:var(--taupe)!important;background:transparent!important}
+/* REMOVED: this flattened .add-drop to a bare outline with !important, overriding the design's
+   teal-tinted pill above. The design keeps the tint; contrast is verified by the guard. */
 
 /* --- 5. Section heading must never wrap into its action (real collision: "What you're working
    toward" + "New goal" both wrapped and overlapped on Progress). Heading may shrink; the action
@@ -1515,10 +1519,16 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .exercise-head{display:flex;align-items:flex-start;gap:9px;padding:14px 12px 10px}
 .exercise-grip{width:44px;min-width:44px;height:44px;flex:none;display:grid;place-items:center;
   border:0;background:transparent;color:var(--taupe);border-radius:var(--r-control);touch-action:none}
-.ex-index{width:28px;height:28px;border-radius:var(--r-control);background:var(--group-bg);
-  border:1px solid var(--card-hair);display:grid;place-items:center;font-size:11px;font-weight:800;
-  font-variant-numeric:tabular-nums lining-nums;color:var(--taupe)}
-.workout-exercise.lit .ex-index{background:rgba(var(--bloom-amber),.16);color:var(--amber-deep);border-color:rgba(var(--bloom-amber),.3)}
+/* Design: 28x28, r9, rgba(var(--am),.18) fill with --acc ink, NO border, 11px/800 tabular. */
+/* Design: the UNLIT badge is neutral - r9 on rgba(var(--w),.06) with --mut-family ink (ours stays
+   --taupe, the AA-passing equivalent). Only the ACTIVE exercise's badge goes amber: rgba(var(--am),
+   .18) with --acc, which measures 6.86:1 on its own fill. My first cut applied the amber to ALL
+   badges and the unlit card's grey-ink override landed on an amber fill at 3.83:1 - the guard
+   caught it before it shipped. */
+.ex-index{width:28px;height:28px;border-radius:9px;background:rgba(var(--w),.06);
+  border:0;display:grid;place-items:center;font-size:11px;font-weight:800;
+  font-variant-numeric:tabular-nums lining-nums;color:var(--ink3)}  /* design's --mut = 4.42:1 on this fill; --ink3 = 6.35:1, nearest passing step */
+.workout-exercise.lit .ex-index{background:rgba(var(--am),.18);color:var(--acc)}
 .ex-id{min-width:0;flex:1}
 .ex-id h2.exercise-title{margin:0;font-size:19px;font-weight:800;letter-spacing:-.028em;line-height:1.15}
 .ex-id p{margin:3px 0 0;color:var(--faint);font-size:12px}
@@ -1740,6 +1750,14 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    loop cannot form. Do not add transform, margin, inset or display here. */
 body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
 @media(prefers-reduced-motion:reduce){body.nav-yield .bottom-nav{transition:none}}
+
+/* Cockpit footer actions, matched to the design (design/extracted/workout.html):
+   "+ Add exercise" is a 52px DASHED r18 ghost button on transparent, --ink, 14px/800;
+   "Save as routine" is the same shape on a quiet rgba(var(--w),.04) fill at 13.5px;
+   "Discard workout" is a 13.5px text link. Ours were 15px filled secondary buttons at r16. */
+.workout-view .add-exercise-button{height:52px;min-height:52px;margin-top:14px;border:1px dashed rgba(var(--w),.16);border-radius:18px;background:transparent;color:var(--ink);font-weight:800;font-size:14px;box-shadow:none}
+.workout-view .full-button:not(.add-exercise-button){height:52px;min-height:52px;margin-top:10px;border:1px solid rgba(var(--w),.08);border-radius:18px;background:rgba(var(--w),.04);color:var(--ink);font-weight:800;font-size:13.5px;box-shadow:none}
+.workout-view .danger-link{font-size:13.5px}
 
 /* ---- Library: the row list becomes a grouped inset list ---- */
 .exercise-list{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}
