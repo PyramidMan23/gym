@@ -1833,3 +1833,9 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .prog-group[data-seg="week"] #weeklyRecap,
 .prog-group[data-seg="week"] #muscleVolume,
 .prog-group[data-seg="week"] #goalBoard{display:none}
+
+/* Mark: "i dont wanna zoom in and out off the app". The viewport meta stops pinch-zoom; these stop
+   the two other ways a phone zooms a web app: a double-tap, and iOS auto-zooming any input whose
+   font-size is under 16px when it gains focus. */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+input,select,textarea{font-size:16px}
