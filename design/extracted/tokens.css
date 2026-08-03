@@ -1,0 +1,96 @@
+/* ===== sheet 2 (__dc-atomics) ===== */
+.fx { display: flex; }
+.col { display: flex; flex-direction: column; }
+.grid { display: grid; }
+.ac { align-items: center; }
+.jc { justify-content: center; }
+.jb { justify-content: space-between; }
+.f1 { flex: 1 1 0%; }
+.noshrink { flex-shrink: 0; }
+.wrap { flex-wrap: wrap; }
+.fw5 { font-weight: 500; }
+.fw6 { font-weight: 600; }
+.fw7 { font-weight: 700; }
+.fw8 { font-weight: 800; }
+.fs11 { font-size: 11px; }
+.fs12 { font-size: 12px; }
+.fs13 { font-size: 13px; }
+.fs14 { font-size: 14px; }
+.fs15 { font-size: 15px; }
+.fs16 { font-size: 16px; }
+.fs20 { font-size: 20px; }
+.fs22 { font-size: 22px; }
+.upper { text-transform: uppercase; }
+.tc { text-align: center; }
+.nowrap { white-space: nowrap; }
+.gap8 { gap: 8px; }
+.gap10 { gap: 10px; }
+.gap12 { gap: 12px; }
+.gap16 { gap: 16px; }
+.gap24 { gap: 24px; }
+.m0 { margin: 0px; }
+.mt8 { margin-top: 8px; }
+.mt12 { margin-top: 12px; }
+.mt16 { margin-top: 16px; }
+.mb8 { margin-bottom: 8px; }
+.mb12 { margin-bottom: 12px; }
+.mb16 { margin-bottom: 16px; }
+.posrel { position: relative; }
+.posabs { position: absolute; }
+.round { border-radius: 50%; }
+.ohide { overflow: hidden; }
+.bbox { box-sizing: border-box; }
+.pointer { cursor: pointer; }
+.w100 { width: 100%; }
+.b0 { border-width: medium; border-style: none; border-color: currentcolor; border-image: none; }
+/* ===== sheet 3 (anon) ===== */
+:root { color-scheme: light dark; --w: 255,255,255; --sh: 0,0,0; --am: 255,138,61; --tl: 46,197,224; --dg: 231,144,134; --sf: 255,176,112; --bg: #0B0C0D; --desk: #08090a; --desk2: #111315; --ink: #F4F1EA; --ink2: #C2C7CB; --ink3: #A7AEB5; --mut: #8A9097; --mut2: #7d848b; --mut3: #6b7279; --mut4: #5f666d; --mut5: #4f565c; --amber: #FF8A3D; --amber2: #FF7A24; --acc: #FFB070; --soft: #FFB070; --hi: #FFC98A; --warm: #FFC48A; --onAmber: #1a1206; --teal: #2EC5E0; --teal2: #4FD6EC; --danger: #e79086; --c1: #1a1d20; --c2: #141618; --c3: #1c2023; --c4: #14171a; --c5: #1e2225; --c6: #1c1f22; --sheet: #121417; --receipt: #141719; --confirm: #161a1c; --segOn: #2b2f33; --chrome: rgba(11,12,13,.72); --chrome2: rgba(11,12,13,.82); --navBg: rgba(26,20,13,.58); --restBg: rgba(20,22,24,.86); --toast: rgba(28,31,34,.94); --scrim: rgba(6,7,8,.62); --scrim2: rgba(6,7,8,.7); }
+@media (prefers-color-scheme: light) {
+  :root { --w: 20,15,8; --sh: 224,214,194; --am: 224,110,31; --tl: 11,110,119; --dg: 170,70,60; --sf: 239,138,61; --bg: #F4F0E7; --desk: #E7E0D2; --desk2: #F6F2E9; --ink: #211C17; --ink2: #4A443C; --ink3: #5A5348; --mut: #665F54; --mut2: #6E675E; --mut3: #7C7466; --mut4: #8B8372; --mut5: #9A9280; --amber: #E06E1F; --amber2: #C85F14; --acc: #9A480A; --soft: #EF8A3D; --hi: #F7B57C; --warm: #9A480A; --onAmber: #211C17; --teal: #0B6E77; --teal2: #0B6E77; --danger: #AA463C; --c1: #FFFFFF; --c2: #FBF7EF; --c3: #FFFFFF; --c4: #FAF6EC; --c5: #FFFFFF; --c6: #FDFAF3; --sheet: #FBF7EF; --receipt: #FCFAF4; --confirm: #FBF7EF; --segOn: #FFFFFF; --chrome: rgba(251,247,239,.74); --chrome2: rgba(251,247,239,.84); --navBg: rgba(251,247,239,.62); --restBg: rgba(251,247,239,.9); --toast: rgba(251,247,239,.96); --scrim: rgba(60,45,25,.34); --scrim2: rgba(60,45,25,.42); }
+}
+body { margin: 0px; background: var(--desk); }
+a { color: var(--acc); text-decoration: none; }
+a:hover { color: var(--amber); }
+.gs::-webkit-scrollbar { display: none; }
+.gs { scrollbar-width: none; }
+@keyframes gvIn { 
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes shIn { 
+  0% { opacity: 0; transform: translateY(28px); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes fadeIn { 
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes popTick { 
+  0% { transform: scale(1); }
+  45% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+@keyframes ringPulse { 
+  0% { box-shadow: 0 0 0 0 rgba(var(--am),.5); }
+  100% { box-shadow: 0 0 0 14px rgba(var(--am),0); }
+}
+@keyframes sweep { 
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes rcIn { 
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes restBreathe { 
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes ringIn { 
+  0% { opacity: 0; transform: rotate(-90deg) scale(0.9); }
+  100% { opacity: 1; transform: rotate(-90deg) scale(1); }
+}
+@keyframes ringNum { 
+  0% { opacity: 0; transform: translateY(6px) scale(0.94); }
+  100% { opacity: 1; transform: none; }
+}
