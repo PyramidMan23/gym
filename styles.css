@@ -1068,13 +1068,17 @@ body.reordering{-webkit-user-select:none;user-select:none}
    Two columns even on small phones - the whole point is less scrolling. */
 .workout-card{position:relative;display:block;min-height:0;padding:0;overflow:hidden}
 .workout-open{width:100%;text-align:left;color:inherit;background:transparent;border:0;padding:13px 50px 12px 14px}
-.workout-card .workout-start{position:absolute;top:6px;right:6px;width:44px;height:44px;margin:0;display:grid;place-items:center;border:0;border-radius:var(--r1);background:transparent;color:var(--amber-deep)}
+/* Design: the row's play control is a 44x44 r15 TILE tinted rgba(var(--am),.15) with --acc ink - it
+   is not a bare glyph. This rule had flattened it to transparent. */
+.workout-card .workout-start{position:absolute;top:6px;right:6px;width:44px;height:44px;margin:0;display:grid;place-items:center;border:0;border-radius:15px;background:rgba(var(--am),.15);color:var(--acc);font-size:11px}
 .workout-card .workout-start svg{width:20px;height:20px}
 /* Plans ride a horizontal shelf: one row of swipeable posters instead of a stack of full cards. */
 #planList{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:min(76%,290px);overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(var(--gutter)*-1);padding:2px var(--gutter) 6px}
 #planList::-webkit-scrollbar{display:none}
 #planList .plan-card{scroll-snap-align:start;min-height:118px}
-.workout-meta{margin-top:7px;color:var(--faint);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+/* Design: 11.5px, regular weight, no uppercasing - it reads 'strength - 55 min - 5 lifts'. Ink is
+   --faint not the design's --mut2, which measures 4.47:1 (documented AA deviation). */
+.workout-meta{margin-top:7px;color:var(--faint);font-size:11.5px;font-weight:400;text-transform:none;font-variant-numeric:tabular-nums lining-nums}
 .workout-mins{margin:6px 0 10px;color:var(--taupe);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
 /* Quiet, permanent, never a warning: structure copy, not a disclaimer banner. */
 .workout-disclaimer{margin:14px 0 0;color:var(--taupe);font-size:11px;line-height:1.5}
@@ -1650,7 +1654,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   border-radius:var(--r-control);font-size:15px;letter-spacing:.06em}
 .routine-start{min-width:64px;min-height:44px;padding:0 14px;border:0;border-radius:var(--r-control);
   background:rgba(var(--bloom-amber),.15);color:var(--amber-deep);font-size:13px;font-weight:800}
-.workout-start{width:44px;height:44px;flex:none;margin-right:12px;border:0;border-radius:var(--r-control);
+.workout-start{width:44px;height:44px;flex:none;margin-right:12px;border:0;border-radius:15px;
   background:rgba(var(--bloom-amber),.15);color:var(--amber-deep);display:grid;place-items:center}
 .workout-start svg{width:14px;height:14px}
 
@@ -1706,7 +1710,13 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    and lifts rather than vanishing, and pointer-events go with it so the CTA receives the tap - the
    nav is one scroll gesture away and returns the moment the overlap clears. Chrome only: nothing
    about the card, CTA, ring, gutter, spacing or paint moves, so the ported design is untouched. */
-body.nav-yield .bottom-nav{opacity:0;transform:translateY(8px) scale(.98);pointer-events:none}
+/* GEOMETRY-STABLE ON PURPOSE. An earlier version also applied transform:translateY(8px) scale(.98),
+   which MOVES the nav's bounding rect - so the next scroll measured the displaced rect, found no
+   overlap, released the yield, and the nav sprang back into the collision. Codex named the failure:
+   a feedback oscillation that flickers the bar and can eat taps. opacity and pointer-events do not
+   affect layout, so the rect the collision test reads is identical whether yielded or not, and the
+   loop cannot form. Do not add transform, margin, inset or display here. */
+body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
 @media(prefers-reduced-motion:reduce){body.nav-yield .bottom-nav{transition:none}}
 
 /* ---- Library: the row list becomes a grouped inset list ---- */
@@ -1752,9 +1762,10 @@ body.nav-yield .bottom-nav{opacity:0;transform:translateY(8px) scale(.98);pointe
 
 /* ---- Segmented control. The selected tab carries a filled chip AND aria-selected,
    never colour alone. The chip is 30px tall inside a 44px tap area. ---- */
-.segmented{display:flex;gap:4px;margin:2px 0 16px;padding:4px;border-radius:var(--r-control);
+/* Design: the segmented track is r15 on rgba(var(--w),.055); its buttons stay r12. */
+.segmented{display:flex;gap:4px;margin:2px 0 16px;padding:4px;border-radius:15px;
   background:var(--group-bg);border:1px solid var(--card-hair)}
-.seg-button{flex:1;min-height:44px;border:0;border-radius:var(--r-chip);background:transparent;
+.seg-button{flex:1;min-height:44px;border:0;border-radius:12px;background:transparent;font-size:12.5px;font-weight:700;
   color:var(--taupe);font-size:13px;font-weight:800;letter-spacing:.01em;
   transition:background .2s var(--ease),color .2s var(--ease)}
 .seg-button.on{background:var(--card-solid);color:var(--cream);box-shadow:var(--shadow)}
@@ -1883,7 +1894,9 @@ body.nav-yield .bottom-nav{opacity:0;transform:translateY(8px) scale(.98);pointe
 /* ---- Section headings are KICKERS ONLY. The prototype has zero <h2> on Train. ---- */
 .section-heading h2{display:none}
 .section-heading .kicker{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--taupe);margin:0}
-.section-heading{align-items:baseline;margin:24px 0 10px}
+/* Design's section action ('New', 'Manage'): 13px/700, --acc, 44x56 minimum, right aligned. */
+.section-heading .text-button{min-height:44px;min-width:56px;font-size:13px;font-weight:700;text-align:right}
+.section-heading{align-items:baseline;margin:22px 0 10px}   /* design: 22px 0 10px */
 /* Train/Library/Progress lead with a plain h1; only Today keeps its date kicker. */
 #view-train .page-lead>.kicker,#view-library .page-lead>.kicker,#view-progress .page-lead>.kicker{display:none}
 #view-train .page-lead h1,#view-library .page-lead h1,#view-progress .page-lead h1{font-size:32px;font-weight:800;letter-spacing:-.035em}
