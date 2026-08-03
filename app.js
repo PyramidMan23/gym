@@ -1827,6 +1827,7 @@ function progressToNextSet(fromExIndex){
 const WEIGHT_STEPS=[1,2.5,5];
 function padStep(){return padTarget?.key==='weight'?(Number(state.preferences.weightStep)||2.5):1;}
 function openPad(exIdx,setIdx,key){
+  padTyped=false; // a fresh open means the next digit replaces the prefilled value
   if(!state.activeSession)return;
   padTarget={exIdx,setIdx,key};
   renderPad();
@@ -1836,13 +1837,15 @@ function padValue(){const {exIdx,setIdx,key}=padTarget||{};return Number(state.a
 function renderPad(){
   const {key}=padTarget||{};const isW=key==='weight';const step=Number(state.preferences.weightStep)||2.5;
   const timed=!isW&&!!exerciseById(state.activeSession?.exercises[padTarget?.exIdx]?.exerciseId)?.timed;
-  const steps=isW?`<div class="pad-steps" role="group" aria-label="Weight step">${WEIGHT_STEPS.map(s=>`<button class="pad-step${s===step?' on':''}" onclick="padSetStep(${s})" aria-pressed="${s===step}">${s} kg</button>`).join('')}</div>`:'';
-  document.getElementById('padContent').innerHTML=`<div class="sheet-head"><h2>${isW?'Weight':timed?'Seconds':'Reps'}</h2><button class="close-button" onclick="closePad()" aria-label="Done">×</button></div>`
+  const steps=isW?`<div class="pad-steps" role="group" aria-label="Weight step">${WEIGHT_STEPS.map(s=>`<button class="pad-step${s===step?' on':''}" onclick="padSetStep(${s})" aria-pressed="${s===step}">±${s}</button>`).join('')}</div>`:'';
+  const liftName=exerciseById(state.activeSession?.exercises[padTarget?.exIdx]?.exerciseId)?.name||'';
+  document.getElementById('padContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${isW?'WEIGHT':timed?'SECONDS':'REPS'}</p>${liftName?`<h2>${esc(liftName)}</h2>`:`<h2>${isW?'Weight':timed?'Seconds':'Reps'}</h2>`}</div><button class="close-button" onclick="closePad()" aria-label="Done">×</button></div>`
     +`<div class="pad-value"><strong id="padDisplay" data-val="${esc(String(padValue()))}">${esc(String(padValue()))}</strong><small>${isW?'kg':timed?'sec':'reps'}</small></div>`
     +(isW?`<p class="pad-plates" id="padPlates">${plateLine(padValue())}</p>`:'')
     +steps
     +`<div class="pad-controls"><button class="pad-adjust" aria-label="Decrease" onpointerdown="padHoldStart(-1)" onpointerup="padHoldStop()" onpointerleave="padHoldStop()" onpointercancel="padHoldStop()">−</button><button class="pad-adjust" aria-label="Increase" onpointerdown="padHoldStart(1)" onpointerup="padHoldStop()" onpointerleave="padHoldStop()" onpointercancel="padHoldStop()">+</button></div>`
-    +`<div class="sheet-actions"><button class="secondary-button" onclick="padKeyboard()">Keyboard</button><button class="primary-button" onclick="closePad()">Done</button></div>`;
+    +`<div class="pad-keys">${['1','2','3','4','5','6','7','8','9',isW?'.':'','0'].map(k=>k?`<button class="pad-key" onclick="padDigit('${k}')">${k}</button>`:'<span class="pad-key-gap"></span>').join('')}<button class="pad-key pad-back" onclick="padBackspace()" aria-label="Delete last digit">⌫</button></div>`
+    +`<div class="sheet-actions"><button class="primary-button full-button" onclick="closePad()">Done</button></div>`;
 }
 function padSetStep(s){state.preferences.weightStep=s;saveState();renderPad();}
 // Plate math under the pad numeral: what to load per side for the current weight.
@@ -1853,6 +1856,42 @@ function plateLine(v){
   const b=Core.plateBreakdown(v,bar);
   if(!b.perSide.length)return `Empty bar (${bar} kg)`;
   return `Per side: ${b.perSide.join(' · ')}${b.exact?'':` - ${b.remainder} kg won't plate`}`;
+}
+// Keypad (design parity). The FIRST digit REPLACES the pre-filled target - typing 8 on a prefilled
+// 60 means 8, not 608 - and every later key appends. Entry is clamped (500 kg / 100 reps / 999 s)
+// so a fat-finger cannot log a number the lifter never did.
+let padTyped=false;
+function padCommit(next){
+  if(!padTarget)return;
+  const {exIdx,setIdx,key}=padTarget;
+  updateSet(exIdx,setIdx,key,String(next));
+  const inp=document.querySelector(`.set-input[data-ex="${exIdx}"][data-set="${setIdx}"][data-key="${key}"]`);
+  if(inp)inp.value=String(next);
+  const disp=document.getElementById('padDisplay');if(disp)disp.textContent=String(next);
+  const pl=document.getElementById('padPlates');if(pl&&key==='weight')pl.textContent=plateLine(Number(next)||0);
+}
+function padMax(){
+  const key=padTarget?.key;
+  if(key==='weight')return 500;
+  const ex=state.activeSession?.exercises[padTarget?.exIdx];
+  return exerciseById(ex?.exerciseId)?.timed?999:100;
+}
+function padDigit(d){
+  if(!padTarget)return;
+  const cur=padTyped?String(padValue()):'';
+  if(d==='.'&&cur.includes('.'))return;
+  let next=(padTyped?cur:'')+d;
+  if(next==='.')next='0.';
+  if(Number(next)>padMax())return;
+  padTyped=true;
+  padCommit(next);
+}
+function padBackspace(){
+  if(!padTarget)return;
+  const cur=String(padValue());
+  const next=padTyped&&cur.length>1?cur.slice(0,-1):'0';
+  padTyped=true;
+  padCommit(next==='' ? '0' : next);
 }
 function padAdjust(dir){
   if(!padTarget)return;

@@ -1906,3 +1906,13 @@ input,select,textarea{font-size:16px}
 .adopt-last{display:none}
 /* The NOW row's done circle carries an amber ring in the design. */
 .set-row.now .set-done{border-color:var(--amber);color:var(--amber-deep)}
+
+/* ---- Number pad keypad, ported from the prototype ---- */
+.pad-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 14px}
+.pad-key{min-height:56px;border:1px solid var(--card-hair);border-radius:var(--r-control);
+  background:var(--group-bg);color:var(--cream);font-size:22px;font-weight:800;
+  font-variant-numeric:tabular-nums lining-nums}
+.pad-key:active{background:rgba(var(--bloom-amber),.14)}
+.pad-back{color:var(--amber-deep);font-size:20px}
+.pad-key-gap{display:block;min-height:56px}
+.pad-value+.pad-plates{margin-top:4px}
