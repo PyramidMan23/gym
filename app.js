@@ -1509,7 +1509,7 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
     // .exercise-grip: layout-check does closest('.exercise-head') on every grip it finds, and a
     // collapsed card has no header. data-index, which the drag test selects, is unchanged.
     return `<article class="workout-exercise done-card" data-index="${index}" style="--done:1">`
-      +`<button class="done-row" type="button" aria-label="${esc(item?.name||'Exercise')} finished: ${esc(doneSummary)}. Tap to reopen, or drag to reorder" onpointerdown="gripDown(event,${index})" onclick="reopenExercise(${index})" oncontextmenu="return false">`
+      +`<button class="done-row" type="button" aria-label="${esc(item?.name||'Exercise')} finished: ${esc(doneSummary)}. Tap to reopen, or drag to reorder" onpointerdown="gripDown(event,${index},true)" onclick="reopenExercise(${index})" oncontextmenu="return false">`
       +`<span class="done-mark" aria-hidden="true">✓</span>`
       +`<span class="row-text"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(doneSummary)}</small></span>`
       +`<span class="done-edit">Edit</span></button></article>${ssLink}`;
@@ -1529,7 +1529,7 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
   const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
   const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed)).join('');
   return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
-    +`<header class="exercise-head">`
+    +`<header class="exercise-head" onpointerdown="gripDown(event,${index},true)">`
       +`<button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
       +`<div class="ex-id"><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div>`
       +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
@@ -2181,19 +2181,42 @@ function moveWorkoutExercise(index,delta){
 const GRIP_ICON='<svg viewBox="0 0 10 16" aria-hidden="true"><circle cx="2" cy="2" r="1.5"/><circle cx="8" cy="2" r="1.5"/><circle cx="2" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="2" cy="14" r="1.5"/><circle cx="8" cy="14" r="1.5"/></svg>';
 const DRAG_EDGE=72,DRAG_SPEED=14,DRAG_SLOP=4; // autoscroll band px / max px per frame / px before a press counts as a drag
 let drag=null;
-function gripDown(event,index){
+// hold=true => LONG-PRESS to arm (whole-card surfaces). Without it a stray 8px drag lifted a card,
+// which is why finished rows "moved too easy": the entire row is the handle. Movement before the
+// hold fires cancels the gesture so the list still scrolls normally under a finger.
+const HOLD_MS=360, HOLD_CANCEL_PX=8;
+function gripDown(event,index,hold){
   if(drag||event.button>0||!state.activeSession)return;
   const handle=event.currentTarget,card=handle.closest('.workout-exercise');if(!card)return;
   drag={index,to:index,handle,card,id:event.pointerId,sid:state.activeSession.id,startY:event.clientY+scrollY,lastY:event.clientY,lifted:false,frame:0,
+    armed:!hold,pending:!!hold,startX:event.clientX,
     // Listeners on document, not the handle: pointer capture retargets to the handle and they still
     // bubble here, so the gesture survives even where setPointerCapture is refused.
     off:[[document,'pointermove',gripMove],[document,'pointerup',gripUp],[document,'pointercancel',gripCancel],[document,'keydown',gripKey],[document,'visibilitychange',gripHide]]};
   try{handle.setPointerCapture(event.pointerId);}catch{}
   drag.off.forEach(([el,type,fn])=>el.addEventListener(type,fn));
+  if(hold){
+    card.classList.add('drag-pending');
+    drag.holdTimer=setTimeout(()=>{
+      if(!drag)return;
+      drag.armed=true;drag.pending=false;
+      drag.startY=drag.lastY+scrollY;      // re-anchor so the lift does not jump
+      card.classList.remove('drag-pending');
+      buzz(12);                            // the "it is yours now" tick
+      liftDrag();
+    },HOLD_MS);
+  }
 }
 function gripMove(event){
   if(!drag||event.pointerId!==drag.id)return;
   drag.lastY=event.clientY;
+  // Still waiting on the long press: any real movement means the finger is scrolling, not dragging.
+  if(drag.pending){
+    const moved=Math.max(Math.abs(event.clientY+scrollY-drag.startY),Math.abs(event.clientX-drag.startX));
+    if(moved>HOLD_CANCEL_PX)endDrag(false);
+    return;
+  }
+  if(!drag.armed)return;
   if(!drag.lifted&&Math.abs(event.clientY+scrollY-drag.startY)>DRAG_SLOP)liftDrag();
 }
 // Geometry is measured ONCE, at lift: every frame after that is transform-only, so the drag never
@@ -2268,6 +2291,7 @@ function gripHide(){if(document.hidden)endDrag(false);}
 // One exit for every path (drop, pointercancel, Escape, tab hidden): styles are always stripped
 // before anything else, so no cancel can leave a zombie transform behind.
 function endDrag(commit){
+  if(drag){clearTimeout(drag.holdTimer);drag.card&&drag.card.classList.remove('drag-pending');}
   if(!drag)return;
   const d=drag;drag=null;
   if(d.frame)cancelAnimationFrame(d.frame);

@@ -1938,3 +1938,15 @@ input,select,textarea{font-size:16px}
   font-variant-numeric:tabular-nums lining-nums;text-align:right}
 .why-row b.why-teal{color:var(--teal-deep)}
 .why-row b.why-amber{color:var(--amber-deep)}
+
+/* ---- Long-press to reorder (Mark: finished rows moved too easily, unfinished ones were hard) ----
+   The whole header of an open card and the whole finished row are now long-press handles, so any
+   exercise is grabbable, not just a 44px badge. They keep touch-action:pan-y so the list scrolls
+   normally under a finger; only the small numbered grip stays touch-action:none for an instant,
+   precise drag. `drag-pending` is the 360ms "I felt that" cue: the card sinks slightly and lifts
+   its shadow, transform/opacity only, so it dies under the reduced-motion kill-switch. */
+.exercise-head{touch-action:pan-y}
+.done-row{touch-action:pan-y}
+.workout-exercise.drag-pending{transform:scale(.985);box-shadow:var(--shadow),0 0 0 1px rgba(var(--bloom-amber),.35);
+  transition:transform .36s var(--ease),box-shadow .36s var(--ease)}
+.workout-exercise.drag-lift{transform:scale(1.03)}
