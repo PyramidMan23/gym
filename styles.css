@@ -944,7 +944,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
    Matches the routine card's ••• + Start layout, because it IS the same kind of object. */
 .desk-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;
   margin:12px 0;padding:15px 15px 15px 18px;border-left:3px solid var(--teal)}
-.desk-text{min-width:0}
+.desk-text{border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:0;min-width:0}
 .desk-text strong{display:block;font-weight:800;font-size:16px}
 .desk-text small{display:block;margin-top:3px;color:var(--taupe);font-size:12px}
 .desk-actions{display:flex;gap:7px}
@@ -1926,7 +1926,13 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 /* ---- Brand mark: Mark's pyramid bench-press logo, lifted from the prototype along with its
    32px gradient tile (150deg #FFC98A -> #FF7A24, r11, inset top-light + amber cast). ---- */
 .brand>span{position:relative;width:32px;height:32px;display:grid;place-items:center;border-radius:11px;
-  background:linear-gradient(150deg,var(--hi,#FFC98A),var(--amber2,#FF7A24));color:var(--on-amber);
+  /* HARDCODED ON PURPOSE (2026-08-04). Measured in the prototype in BOTH schemes: this tile is
+     linear-gradient(150deg,#FFC98A,#FF7A24) in light AND dark - it does not follow the theme. These
+     were var(--hi,#FFC98A)/var(--amber2,#FF7A24), which was safe only while those tokens did NOT
+     exist. Adopting the design's token block DEFINED them, killing the fallbacks and silently
+     recolouring the logo in light mode. Codex named this exact mechanism: a newly defined inherited
+     custom property changes any existing var(--x, fallback) consumer by replacing its fallback. */
+  background:linear-gradient(150deg,#FFC98A,#FF7A24);color:var(--on-amber);
   overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 16px -8px rgba(var(--bloom-amber),.9)}
 .brand>span svg{width:22px;height:22px;display:block}
 

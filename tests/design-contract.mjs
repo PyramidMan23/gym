@@ -168,6 +168,17 @@ for (const a of ANCHORS) {
   if (Math.abs(p.h - m.h) > TOL) d.push(`height ${m.h} vs ${p.h}`);
   if (p.radius !== m.radius) d.push(`radius ${m.radius} vs ${p.radius}`);
   if (p.hasGradient !== m.hasGradient) d.push(`gradient ${m.hasGradient ? 'present' : 'ABSENT'} vs ${p.hasGradient ? 'present' : 'absent'}`);
+  // PAINT AND INK, added 2026-08-04 after Codex pointed out the gate CAPTURED these and never
+  // compared them - so a wrong gradient angle, wrong stops, wrong tint, wrong border or wrong text
+  // colour all passed silently. That is precisely the drift this gate exists to catch.
+  if (p.backgroundImage !== m.backgroundImage) d.push(`background-image
+            app:   ${m.backgroundImage}
+            proto: ${p.backgroundImage}`);
+  if (p.backgroundColor !== m.backgroundColor) d.push(`background-color ${m.backgroundColor} vs ${p.backgroundColor}`);
+  if (p.borderWidth !== m.borderWidth) d.push(`border-width ${m.borderWidth} vs ${p.borderWidth}`);
+  if (p.borderColor !== m.borderColor) d.push(`border-color ${m.borderColor} vs ${p.borderColor}`);
+  if (p.color !== m.color) d.push(`color ${m.color} vs ${p.color}`);
+  if (p.letterSpacing !== m.letterSpacing) d.push(`letter-spacing ${m.letterSpacing} vs ${p.letterSpacing}`);
   if (p.fontSize !== m.fontSize) d.push(`font-size ${m.fontSize} vs ${p.fontSize}`);
   if (p.fontWeight !== m.fontWeight) d.push(`font-weight ${m.fontWeight} vs ${p.fontWeight}`);
   if (p.childCount !== m.childCount) d.push(`children ${m.childCount} vs ${p.childCount}`);

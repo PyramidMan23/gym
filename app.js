@@ -323,7 +323,7 @@ function renderDeskReset(){
   // browser-flow selects `.desk-card` and asserts it clears the card below it (Mark's 2026-07-28
   // report), and that clearance is now the group's own margin. Same guarantee, new referent.
   document.getElementById('todayGroup')?.classList.add('desk-card');
-  slot.innerHTML=`<div class="group-row desk-row"><span class="row-glyph row-glyph-teal" aria-hidden="true">↺</span><span class="desk-text" role="button" tabindex="0" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(deskMeta(day.exerciseIds.length))}</small></span><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></div>`;
+  slot.innerHTML=`<div class="group-row desk-row"><span class="row-glyph row-glyph-teal" aria-hidden="true">↺</span><button type="button" class="desk-text" onclick="openPlan('plan-desk')" aria-label="Desk Reset plan details"><strong>Desk Reset${done?' <span class="done-badge">✓ Done</span>':''}</strong><small>${esc(deskMeta(day.exerciseIds.length))}</small></button><button class="desk-start" onclick="startDeskReset()">${done?'Again':'Start'}</button></div>`;
 }
 function startDeskReset(){
   const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
