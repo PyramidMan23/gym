@@ -1509,10 +1509,12 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
     // .exercise-grip: layout-check does closest('.exercise-head') on every grip it finds, and a
     // collapsed card has no header. data-index, which the drag test selects, is unchanged.
     return `<article class="workout-exercise done-card" data-index="${index}" style="--done:1">`
-      +`<button class="done-row" type="button" aria-label="${esc(item?.name||'Exercise')} finished: ${esc(doneSummary)}. Tap to reopen, or drag to reorder" onpointerdown="gripDown(event,${index},true)" onclick="reopenExercise(${index})" oncontextmenu="return false">`
+      +`<button class="done-row" type="button" aria-label="${esc(item?.name||'Exercise')} finished: ${esc(doneSummary)}. Tap to reopen" onclick="reopenExercise(${index})">`
       +`<span class="done-mark" aria-hidden="true">✓</span>`
       +`<span class="row-text"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(doneSummary)}</small></span>`
-      +`<span class="done-edit">Edit</span></button></article>${ssLink}`;
+      +`<span class="done-edit">Edit</span></button>`
+      +`<button class="done-grip" type="button" aria-label="Drag to reorder ${esc(item?.name||'this exercise')}" onpointerdown="gripDown(event,${index})" oncontextmenu="return false"><span class="grip-dots" aria-hidden="true"></span></button>`
+      +`</article>${ssLink}`;
   }
   // The design's evidence line carries the DATE of that last exposure, not just the numbers.
   const lastSess=state.history.find(s=>(s.exercises||[]).some(e=>e.exerciseId===exercise.exerciseId&&Core.doneSets(e).length));
@@ -1529,8 +1531,8 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
   const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
   const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed)).join('');
   return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
-    +`<header class="exercise-head" onpointerdown="gripDown(event,${index},true)">`
-      +`<button class="exercise-grip" type="button" aria-label="Reorder exercise: drag it, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
+    +`<header class="exercise-head">`
+      +`<button class="exercise-grip" type="button" aria-label="Drag to reorder ${esc(item?.name||'this exercise')}, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="grip-dots" aria-hidden="true"></span><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
       +`<div class="ex-id"><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div>`
       +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
     +`</header>`

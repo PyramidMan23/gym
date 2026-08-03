@@ -1950,3 +1950,22 @@ input,select,textarea{font-size:16px}
 .workout-exercise.drag-pending{transform:scale(.985);box-shadow:var(--shadow),0 0 0 1px rgba(var(--bloom-amber),.35);
   transition:transform .36s var(--ease),box-shadow .36s var(--ease)}
 .workout-exercise.drag-lift{transform:scale(1.03)}
+
+/* ---- Drag handles that actually work on a finger ----
+   touch-action:pan-y hands vertical panning to the browser, so on a real phone the micro-movement
+   of a held finger makes Chrome claim the gesture and fire pointercancel - the drag "flashes and
+   nothing happens". A drag surface must therefore be touch-action:none, which means it has to be a
+   HANDLE rather than the whole card, or the list could never be scrolled. So: every exercise, open
+   or finished, carries its own visible grip; you scroll anywhere else. */
+.exercise-head{touch-action:auto}
+.done-row{touch-action:auto}
+.grip-dots{display:block;width:14px;height:10px;opacity:.75;
+  background-image:radial-gradient(currentColor 1.4px,transparent 1.5px);
+  background-size:5px 5px;background-position:0 0}
+.exercise-grip{flex-direction:column;gap:4px;align-content:center}
+.workout-exercise.lit .exercise-grip{color:var(--amber-deep)}
+/* The finished row keeps its own grip on the right, so the row itself is only a tap-to-reopen. */
+.workout-exercise.done-card{display:flex;align-items:center}
+.done-card .done-row{flex:1;min-width:0}
+.done-grip{width:44px;height:44px;flex:none;margin-right:8px;display:grid;place-items:center;
+  border:0;background:transparent;color:var(--taupe);border-radius:var(--r-control);touch-action:none}

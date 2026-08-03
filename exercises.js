@@ -179,6 +179,7 @@ const DUCK_EXERCISES = [
   {id:'co7',name:'BOSU Sit-Up',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Crunch',equip:['BOSU','Bodyweight'],equipment:'BOSU ball'},
   {id:'co8',timed:true,name:'Suitcase Carry',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Carry'],family:'Carry',equip:['Kettlebell','Dumbbell'],equipment:'Kettlebell / dumbbell (anti-lateral)'},
   {id:'co9',name:'Bird Dog',muscle:'Core',muscles:['Core'],patterns:['Anti-Rotation'],family:'Bird Dog',equip:['Bodyweight'],equipment:'Bodyweight'},
+  {id:'co21',name:'Garhammer Raise',muscle:'Core',muscles:['Core','Legs'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar','Band','Bodyweight'],equipment:'Elbows supported in ab straps or a band cradle, knees driven up in a short arc (lower abs)'},
   {id:'co10',name:'Hanging Knee Raise',muscle:'Core',muscles:['Core','Grip','Legs'],patterns:['Isolation'],family:'Leg Raise',equip:['Pull-Up Bar'],equipment:'Pull-up bar, knees to chest (leg-raise regression)'},
   {id:'co11',name:'Dragon Flag (Tuck)',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Dragon Flag',equip:['Bench','Bodyweight'],equipment:'Lying on the bench, gripping behind the head (tuck progression)'},
   {id:'co12',name:'Full Dragon Flag',muscle:'Core',muscles:['Core'],patterns:['Isolation'],family:'Dragon Flag',equip:['Bench','Bodyweight'],equipment:'Straight-body lower on the bench (advanced)'},
