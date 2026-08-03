@@ -326,6 +326,25 @@ try {
   assert.equal(inset.after - inset.before, 24,
     'the capsule must ride on --sai-bottom - an unchanged position means it still reads raw env()');
 
+  // TAP-HIGHLIGHT GATE (the tab-swap flash, 2026-08-03). Android Chrome paints a translucent BLUE
+  // rectangle on every tap unless -webkit-tap-highlight-color is transparent. This app never
+  // declared it, which is what Mark saw for months and what six builds hunted in the wrong place
+  // (the pane transition). No headless test can RENDER it - the highlight needs real touch input -
+  // so this gate reads the declared value instead, which is the part that can regress.
+  const tapHi = await evaluate(`(() => {
+    const val = el => getComputedStyle(el).webkitTapHighlightColor || '';
+    const clear = c => !c || /rgba\(0, 0, 0, 0\)|transparent/.test(c);
+    const bad = [];
+    for (const el of document.querySelectorAll('button, a, .bottom-nav button, input')) {
+      if (!el.getClientRects().length) continue;
+      if (!clear(val(el))) bad.push((el.className || el.tagName) + ':' + val(el));
+    }
+    return { body: val(document.body), bad: [...new Set(bad)].slice(0, 5) };
+  })()`);
+  assert.ok(/rgba\(0, 0, 0, 0\)|transparent/.test(tapHi.body),
+    `-webkit-tap-highlight-color must be transparent or Android paints a blue box on every tap, got ${tapHi.body}`);
+  assert.deepEqual(tapHi.bad, [], `these controls still show the UA tap highlight: ${tapHi.bad.join(' | ')}`);
+
   await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   assert.equal(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`), true);
 

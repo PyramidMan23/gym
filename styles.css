@@ -1975,3 +1975,25 @@ input,select,textarea{font-size:16px}
    chips instead of 12px, and the chips carried a 13px top margin the design does not have.
    Prototype: margin 0 -20px 12px / padding 0 20px (our page gutter is 18px, so -18/18). */
 #workoutGoals{margin:0 -18px 12px;padding:0 18px;gap:7px}
+
+/* ============================================================
+   THE TAB-SWAP FLASH, SOLVED 2026-08-03 (w23-w27 + w28-w46 all missed it).
+   Mark's photo showed a BLUE RECTANGLE around the tapped nav button - not a
+   white pane flash. That is Android Chrome's DEFAULT -webkit-tap-highlight-color,
+   which this app never declared. Fuel (which never flashed) sets it transparent
+   on `*`; SliceCo (whose nav Mark says feels better) sets it transparent three
+   times. Gym never did, so every tap painted a translucent blue box.
+
+   Why six builds missed it: the tap highlight only renders for REAL TOUCH input.
+   Every gate in this repo drives synthetic events in headless Chrome with
+   --disable-gpu, so no test here can ever reproduce it. It is a UA behaviour, not
+   app state, which is why it happened on the website AND the installed PWA and
+   predated the redesign.
+
+   The app already draws its own press feedback (pressRing on the nav, --press-veil
+   on controls), so removing the UA highlight loses nothing.
+   ============================================================ */
+*{-webkit-tap-highlight-color:transparent}
+/* Belt and braces on the surfaces that are tapped hardest mid-set. */
+.bottom-nav button,.set-done,.set-input,.exercise-grip,.done-grip,.pad-key,.rir-chip,
+.filter-chip,.seg-button,button,a{-webkit-tap-highlight-color:transparent}
