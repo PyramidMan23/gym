@@ -1606,10 +1606,12 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .set-done.done{background:linear-gradient(135deg,var(--amber-soft),var(--amber));border-color:transparent;
   color:var(--on-amber);box-shadow:0 6px 16px -8px rgba(var(--bloom-amber),.9)}
 .set-footer{display:flex;gap:8px;padding:12px 14px 16px}
-.add-set{flex:1;min-height:46px;border:1px solid var(--card-hair);border-radius:var(--r-control);
-  background:var(--group-bg);color:var(--amber-deep);font-weight:800;font-size:14px}
-.add-drop{flex:none;padding:0 16px;min-height:46px;border:1px solid rgba(var(--bloom-teal),.35);
-  border-radius:var(--r-control);background:rgba(var(--bloom-teal),.09);color:var(--teal-deep);font-weight:800;font-size:14px}
+/* v2 rules, now carrying the design's values so the earlier block cannot be silently undone:
+   both h46 r15; Add set on rgba(var(--w),.05)+.07 edge with --acc; Drop teal-tinted, borderless. */
+.add-set{flex:1;min-height:46px;border:1px solid rgba(var(--w),.07);border-radius:15px;
+  background:rgba(var(--w),.05);color:var(--acc);font-weight:800;font-size:14px}
+.add-drop{flex:none;padding:0 16px;min-height:46px;border:0;border-radius:15px;
+  background:rgba(var(--tl),.09);color:var(--teal2);font-weight:800;font-size:14px}
 
 /* ---- RIR row: 0 to 4+ AND Skip, each a full 44px target ---- */
 .rir-row{margin:10px 14px 0;padding:13px 14px;border-radius:var(--r-group);
@@ -1756,7 +1758,7 @@ body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
    "Save as routine" is the same shape on a quiet rgba(var(--w),.04) fill at 13.5px;
    "Discard workout" is a 13.5px text link. Ours were 15px filled secondary buttons at r16. */
 .workout-view .add-exercise-button{height:52px;min-height:52px;margin-top:14px;border:1px dashed rgba(var(--w),.16);border-radius:18px;background:transparent;color:var(--ink);font-weight:800;font-size:14px;box-shadow:none}
-.workout-view .full-button:not(.add-exercise-button){height:52px;min-height:52px;margin-top:10px;border:1px solid rgba(var(--w),.08);border-radius:18px;background:rgba(var(--w),.04);color:var(--ink);font-weight:800;font-size:13.5px;box-shadow:none}
+.workout-view .full-button:not(.add-exercise-button){height:52px;min-height:52px;margin-top:10px;border:1px solid rgba(var(--w),.08);border-radius:18px;background:rgba(var(--w),.04);color:var(--ink);font-weight:700;font-size:13.5px;box-shadow:none}  /* design: 700 */
 .workout-view .danger-link{font-size:13.5px}
 
 /* ---- Library: the row list becomes a grouped inset list ---- */

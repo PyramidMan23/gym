@@ -1,3 +1,3 @@
 // Release-truth build id. Baked into sw.js CACHE ('gym-'+BUILD) and shown in Settings.
 // Bump on every deploy so the update pill and cache invalidation stay honest.
-const BUILD = 'w55-20260804-progress';
+const BUILD = 'w56-20260804-footer';
