@@ -62,6 +62,7 @@ const HARVEST = `(() => {
     if (!t || t.length > 60) continue;
     out.push({
       key: t, tag: el.tagName.toLowerCase(),
+      paints: (cs.backgroundImage||'none')!=='none' || parseFloat(cs.borderTopWidth)>0 || (()=>{const p=(cs.backgroundColor.match(/[0-9.]+/g)||[]).map(Number);return p.length>=3&&(p.length<4||p[3]>0.02);})(),
       depth: (() => { let d = 0; for (let n = el; n; n = n.parentElement) d++; return d; })(),
       w: Math.round(r.width), h: Math.round(r.height),
       radius: cs.borderRadius, bgImage: cs.backgroundImage, bgColor: cs.backgroundColor,
@@ -108,8 +109,16 @@ const index = list => {
     // same innerText and often the same box, and an arbitrary tie reported the container's inherited
     // font as drift - e.g. "QUICK START" resolved to the wrapping <div> (15px) instead of the
     // <p class="kicker"> (11px) that actually carries the design's value. Same trap as the contract gate.
-    if (!prev || (e.w * e.h) < (prev.w * prev.h)
-        || ((e.w * e.h) === (prev.w * prev.h) && e.depth > prev.depth)) m.set(e.key, e);
+    // The COMPONENT for a given text is the smallest element that PAINTS a surface; only when
+    // nothing painting matches do we fall back to the smallest bare text node. Smallest-box-first
+    // was wrong across documents: the design wraps chip labels in a transparent inner <span> that is
+    // SMALLER than the chip, so the design side resolved to the span (r0, transparent) while ours
+    // resolved to the painted chip - a phantom "radius 9 -> 0" on every chip in the app.
+    const better = !prev
+      || (e.paints && !prev.paints)
+      || (e.paints === prev.paints && (e.w * e.h) < (prev.w * prev.h))
+      || (e.paints === prev.paints && (e.w * e.h) === (prev.w * prev.h) && e.depth > prev.depth);
+    if (better) m.set(e.key, e);
   }
   return m;
 };
