@@ -287,12 +287,14 @@ try {
     'exactly ONE view may be painted mid-swap - a second painted view is an overlay, and an overlay over the bloom was the SECOND flash');
   assert.equal(pane.cornerIsOverlay, false,
     'nothing may cover the viewport corner mid-swap: an opaque layer hides the radial bloom and fading it tints the whole screen');
-  assert.equal(pane.incomingAnim, 'paneSlideRight', 'a forward swap slides the incoming view in from the right');
-  assert.equal(pane.incomingOpacity, '1', 'the incoming pane is fully opaque at all times');
-  assert.equal(pane.incomingAnimatesOpacity, false,
-    'the swap animation must touch TRANSFORM ONLY - any opacity keyframe re-introduces a blend or a tint');
-  assert.equal(pane.dirFwd, true, 'today -> progress is a forward move');
-  assert.equal(pane.dirBack, true, 'progress -> train is a backward move');
+  // MATCHED TO THE DESIGN 2026-08-04. The prototype has ONE view animation, `gvIn` (opacity 0->1 plus
+  // translateY(10px), .34s), and no directional left/right grammar at all - so the directional slide
+  // and its assertions are gone. The opacity prohibition went with them: it was added after the w25
+  // curtain bug, and both of that ban's causes are now gone (the animated bloom layers were deleted
+  // in w28; the flash was root-caused in w47 as the UA tap highlight). A blend needs TWO panes
+  // painted at once, and the assertion directly above still proves exactly one is - which is the
+  // real invariant. Gate that, not the implementation.
+  assert.equal(pane.incomingAnim, 'gvIn', 'the incoming view runs the design gvIn entrance, its only view animation');
   assert.equal(pane.ring, true, 'pointerdown on a tab must arm the press ring');
   assert.equal(pane.ringAnim, 'pressRing', 'the armed ring must actually run the droplet animation');
   await evaluate(`navigate('today'); true`);
