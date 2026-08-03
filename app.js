@@ -689,6 +689,14 @@ function renderCatalogueChips(ctx){
 }
 // Reflect the active facet count on the Filters button (badge + accent) and the open dialog's Clear button - in place, no rebuild.
 function updateFiltersControl(ctx){
+  // Prototype parity: the Library count row reads "N exercises" on the left and the favourite
+  // tally on the right. The Filters control is kept in the DOM (its sheet still works and the
+  // badge logic below still runs) but the design does not paint it.
+  if(ctx==='library'){
+    const favs=(state.favourites||[]).length;
+    const tally=document.getElementById('libraryFavCount');
+    if(tally)tally.textContent=favs?`\u2605 ${favs} favourite${favs===1?'':'s'}`:'\u2606 no favourites yet';
+  }
   const fs=catState(ctx),n=fs.patterns.length+fs.equip.length+fs.families.length,btn=catEl(ctx,'filtersBtn');
   if(btn){btn.classList.toggle('has-active',n>0);btn.setAttribute('aria-label',n?`More filters, ${n} active`:'More filters');const badge=btn.querySelector('.filters-badge');if(badge){badge.textContent=n;badge.hidden=n===0;}}
   if(ctx===filterSheetCtx){const clear=document.getElementById('filterClearBtn');if(clear)clear.disabled=n===0;}
@@ -708,11 +716,18 @@ function renderCatalogueList(ctx,animate){
 // Whole name area taps to add; the ≥44px star toggles favourite (filled vs outline shape, not colour-only).
 function exerciseRow(exercise,activeMuscle){
   const fav=(state.favourites||[]).includes(exercise.id);
-  const meta=`${esc(exercise.muscle||'')} · ${esc(exercise.equipment||'Custom equipment')}`,id=esc(exercise.id);
-  const plateLetter=esc((exercise.muscle||'?').trim().charAt(0)||'?');
-  const match=activeMuscle&&activeMuscle!=='All'; // a muscle filter is active → the plates light amber to show the cut
-  return `<article class="exercise-row"><button class="exercise-pick" data-id="${id}" aria-label="Add ${esc(exercise.name)}"><span class="ex-plate${match?' match':''}" aria-hidden="true">${plateLetter}</span><span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${meta}</small></span><span class="exercise-plus" aria-hidden="true">+</span></button><button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg></button></article>`;
+  const id=esc(exercise.id);
+  return `<article class="exercise-row">`
+    +`<button class="exercise-pick" data-id="${id}" aria-label="${esc(exercise.name)}">`
+      +`<span class="exercise-info"><strong>${esc(exercise.name)}</strong><small>${esc(exercise.equipment||'Custom equipment')}</small></span>`
+    +`</button>`
+    +`<span class="ex-muscle">${esc(exercise.muscle||'')}</span>`
+    +`<button class="exercise-star${fav?' on':''}" data-id="${id}" aria-pressed="${fav}" aria-label="${fav?'Remove':'Add'} ${esc(exercise.name)} ${fav?'from':'to'} favourites">`
+      +`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 17.8l-5.3 2.79 1.01-5.9-4.29-4.18 5.93-.86z"/></svg>`
+    +`</button>`
+  +`</article>`;
 }
+
 // One delegated click listener per catalogue surface - no per-row handlers, no id interpolation (injection-safe).
 function onCatalogueClick(ctx,e){
   const pick=e.target.closest('.exercise-pick');
