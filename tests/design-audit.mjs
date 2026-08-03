@@ -17,7 +17,7 @@ const APP = arg('--app', 'http://127.0.0.1:4173/?e2e=1');
 const PROTO = arg('--proto', 'file:///C:/Users/markh/OneDrive/Desktop/Gym%20v2%20Standalone.html');
 const LIGHT = process.argv.includes('--light');
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const TAB = { today: 'Today', train: 'Train', library: 'Library', progress: 'Progress' }[SCREEN];
+const TAB = { today: 'Today', train: 'Train', library: 'Library', progress: 'Progress', workout: null }[SCREEN];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function retry(fn, t = 15000) { const e = Date.now() + t; let l; while (Date.now() < e) { try { return await fn(); } catch (x) { l = x; await sleep(120); } } throw l; }
@@ -81,13 +81,19 @@ const SEED = `(() => new Promise(r => {
   setTimeout(()=>r(1),700);
 }))()`;
 
+// The cockpit is not a tab: both sides reach it by starting a session from Today.
+const ENTER_WORKOUT_PROTO = `(()=>{const c=[...document.querySelectorAll('button')].filter(b=>/^Start/.test((b.innerText||'').trim())&&b.getBoundingClientRect().width>200)[0]; if(c)c.click(); return !!c;})()`;
+const ENTER_WORKOUT_APP = `(()=>{ startQuickWorkout(); addExerciseToWorkout('lg22'); addExerciseToWorkout('lg8'); return 1; })()`;
+
 const proto = await open(PROTO);
-await proto.evaluate(goTo(TAB)); await sleep(1400);
+if (SCREEN === 'workout') { await proto.evaluate(goTo('Today')); await sleep(900); await proto.evaluate(ENTER_WORKOUT_PROTO); await sleep(1600); }
+else { await proto.evaluate(goTo(TAB)); await sleep(1400); }
 const P = await proto.evaluate(HARVEST); proto.close();
 
 const app = await open(APP);
 await app.evaluate(SEED); await sleep(900);
-await app.evaluate(goTo(TAB)); await sleep(1200);
+if (SCREEN === 'workout') { await app.evaluate(ENTER_WORKOUT_APP); await sleep(1500); }
+else { await app.evaluate(goTo(TAB)); await sleep(1200); }
 const A = await app.evaluate(HARVEST); app.close();
 
 // SMALLEST box wins for a given text, not the first in document order. A slot wrapper and the row
