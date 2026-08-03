@@ -1916,3 +1916,15 @@ input,select,textarea{font-size:16px}
 .pad-back{color:var(--amber-deep);font-size:20px}
 .pad-key-gap{display:block;min-height:56px}
 .pad-value+.pad-plates{margin-top:4px}
+
+/* ---- Exercise options sheet action rows, ported from the prototype ---- */
+.opt-row{display:flex;width:100%;align-items:center;gap:14px;min-height:72px;padding:14px 16px;
+  margin-bottom:10px;text-align:left;border:1px solid var(--card-hair);border-radius:var(--r-group);
+  background:var(--group-bg);color:var(--cream)}
+.opt-icon{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:14px;
+  background:rgba(var(--bloom-amber),.16);color:var(--amber-deep);font-size:19px;font-weight:800}
+.opt-danger .opt-icon{background:var(--danger-soft);color:var(--danger)}
+.opt-danger{border-color:var(--danger)}
+.opt-text{flex:1;min-width:0}
+.opt-text strong{display:block;font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+.opt-text small{display:block;margin-top:2px;color:var(--faint);font-size:12px;line-height:1.35}
