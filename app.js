@@ -639,12 +639,31 @@ function resumeWorkout(){ navigate('workout'); }
 function openPlan(id){
   const plan=plans.find(p=>p.id===id);if(!plan)return;
   // v2: a plan day collapses to its name + count and EXPANDS to reveal its exercises.
-  const dayList=plan.days.map((d,i)=>`<details class="plan-day"><summary><span class="pd-name">${i+1}. ${esc(d.name)}</span><span class="pd-count">${d.exerciseIds.length} exercises</span></summary><ul class="pd-list">${d.exerciseIds.map(x=>`<li>${esc(exerciseById(x)?.name||x)}</li>`).join('')}</ul></details>`).join('');
+  // A day may also carry a full {id,sets,reps,rest} scheme (Mark's chain). When it does it shows its
+  // dose and its own note, and can be STARTED from here - the Start sits in the expanded body rather
+  // than in the <summary>, because a button inside a summary toggles the details on every tap.
+  const dayList=plan.days.map((d,i)=>{
+    const scheme=Array.isArray(d.exercises)?d.exercises:null;
+    const rows=(scheme
+      ? scheme.map(e=>`<li><span>${esc(exerciseById(e.id)?.name||e.id)}</span><span class="pd-dose">${e.sets} x ${esc(String(e.reps))}${Core.isTimed(e.id)?'s':''}</span></li>`)
+      : d.exerciseIds.map(x=>`<li><span>${esc(exerciseById(x)?.name||x)}</span></li>`)).join('');
+    const note=d.note?`<p class="pd-note">${esc(d.note)}</p>`:'';
+    const start=scheme?`<div class="pd-start-row"><button class="workout-start" onclick="startPlanDay('${esc(plan.id)}',${i})" aria-label="Start ${esc(d.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button><span class="pd-start-text">Start this day</span></div>`:'';
+    return `<details class="plan-day"><summary><span class="pd-name">${i+1}. ${esc(d.name)}</span><span class="pd-count">${d.exerciseIds.length} exercises</span></summary>${note}<ul class="pd-list">${rows}</ul>${start}</details>`;
+  }).join('');
   const pv=Core.planVolume(plan.days,muscleLookup);
   const pvRows=MUSCLE_GROUPS.map(m=>({m,d:pv[m]?.direct||0,a:pv[m]?.assisting||0})).filter(r=>r.d||r.a).sort((x,y)=>y.d-x.d);
   const planned=pvRows.length?`<div class="section-heading"><div><p class="kicker">PLANNED</p><h2>Sets per muscle · one full cycle</h2></div></div><p class="mv-note">At 3 working sets per exercise, counted the same way as your weekly board - direct and assisting, never added.</p><div class="mv-board">${pvRows.map(r=>`<div class="mv-row mv-static"><span class="mv-name">${r.m}</span><span class="mv-tracks"><i class="mv-direct" style="width:${r.d/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i><i class="mv-assist" style="width:${r.a/Math.max(1,...pvRows.map(x=>Math.max(x.d,x.a)))*100}%"></i></span><span class="mv-nums"><strong>${r.d}</strong> direct · ${r.a} assist</span></div>`).join('')}</div>`:'';
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">TRAINING PLAN · ${esc(plan.tag)}</p><h2>${esc(plan.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">${esc(plan.note)}</p><div class="selected-list">${dayList}</div>${planned}<div class="sheet-actions"><button class="secondary-button" onclick="closeSheet()">Cancel</button><button class="primary-button" onclick="applyPlan('${plan.id}')">Add ${plan.days.length} routine${plan.days.length===1?'':'s'}</button></div>`;
   document.getElementById('sheet').showModal();
+}
+// Start one day of a scheme-carrying plan directly, with its real sets/reps/rest. Core.createSession
+// already branches on `exercises` vs `exerciseIds` (the w20 scheme path), so both shapes are passed and
+// the scheme wins where it exists - every older plan keeps its one-blank-set behaviour untouched.
+function startPlanDay(planId,dayIndex){
+  const plan=plans.find(p=>p.id===planId);const day=plan&&plan.days[dayIndex];if(!day)return;
+  closeSheet();
+  beginSession({id:`${plan.id}-d${dayIndex}`,name:day.name,exercises:day.exercises,exerciseIds:day.exerciseIds});
 }
 function applyPlan(id){
   const plan=plans.find(p=>p.id===id);if(!plan)return;

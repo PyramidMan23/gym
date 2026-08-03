@@ -587,5 +587,92 @@ const GYM_PLANS = [
       { name:'Session 1 · Knees',  exerciseIds:['lg8','lg12','lg11','lg24','lg18','lg17','gr3'] },
       { name:'Session 2 · Posterior + tib', exerciseIds:['lg4','lg13','lg25','lg19','ba11','mo5','mo3'] }
     ]
+  },
+
+  // ── Mark · Right-Side Chain (2026-08-03) ────────────────────────────────────────────────────────
+  // The first plan in this app built from a PERSON rather than from a goal tag. Mark's read on every
+  // build before this one: "I'm just doing generic exercises, it's not really made for me and my
+  // imbalances." He was right, and structurally so - a grep for imbalance/asymmetry/corrective across
+  // app.js, core.js and exercises.js returned seven matches and every single one was a COMMENT. His
+  // map lived in MarkOS and touched no code.
+  //
+  // Every choice below traces to something HE has reported about his own body over years. Not a
+  // template, not a diagnosis. The provisional calls are named in the notes so an assessment can
+  // overturn them rather than quietly contradict them.
+  //   - NO barbell back squat. His stated main injury trigger, and "always been bad at it" despite a
+  //     41-inch vertical - so it is a pattern problem, not a strength one. Belt Squat loads the knees
+  //     hard with ZERO spinal compression, and he owns the attachment.
+  //   - Hinge is the KICKSTAND RDL, left foot forward. His own discovery and the single most valuable
+  //     line in his whole map: no low-back pain even after a day of heavy gardening.
+  //   - NO overhead pressing. It loads the upper traps hardest and his traps are constantly tight.
+  //   - Pressing is FLOOR pressing only. Wingspan 204-206cm (ape index ~+16cm) means a full-depth
+  //     bench puts his shoulder into deep extension, the exact position that impinges. The floor caps
+  //     the range. The cable press is here because the shoulder blade stays free, unlike on a bench.
+  //   - Pull:push runs about 2:1. Left scapula wings, traps tight, right shoulder impinges, desk job.
+  //   - WEAKER SIDE FIRST on every one-sided movement, stronger side capped at the same clean reps.
+  //     His right leg carries less muscle than the left, and a two-legged lift lets the left hide it.
+  //   - Ankles and tibialis are PREREQUISITES, not accessories - left ankle sprained twice with
+  //     lasting stiffness, right foot turns out, 15 years of patellar tendonitis.
+  //   - PROVISIONALLY treated as hypermobile pending Beighton (violent jaw clicking, global joint
+  //     popping, the re-injury pattern). Under that assumption passive end-range stretching is the
+  //     wrong tool, so this plan builds CONTROL inside range: isometrics and slow eccentrics, never
+  //     hanging into end range. A low Beighton score would make this the wrong call and unlock real
+  //     mobility work - it is the one decision here a 5-minute test settles. Body/00_QUICK-ASSESSMENT.md.
+  // ponytail: days carry the same {id,sets,reps,rest} shape GYM_WORKOUTS already use, so
+  // Core.createSession's existing scheme path builds them with no new core code. exerciseIds is
+  // DERIVED below rather than hand-maintained, so the two lists cannot drift apart.
+  {
+    id:'plan-mark-chain', tag:'FOR MARK', name:'Mark · Right-Side Chain', goal:4,
+    blurb:'4 days · built around your map, not a template',
+    // Kept SHORT on purpose: rendered on a 390px phone the first draft ran ~1,200px of body text
+    // before you reached a single exercise. The per-day notes carry the reasoning; this carries only
+    // the rules that apply to every day. Found by looking at the screenshot, not by reading the code.
+    note:'Built from your own history, not a template. No back squat (your stated trigger), no overhead pressing, pressing capped at floor range, and hinges run off the kickstand RDL with the LEFT foot forward - the one pattern you have proven pain-free. Every one-sided movement runs the RIGHT side FIRST and caps the left at the same clean reps, so the strong side stops hiding the gap; tap the set number to tag L or R. Each day says why it is built the way it is. STOP RULES, and these end the exercise not just the set: tingling or numbness into the fingers, weakness, radiating pain, the shoulder giving way, or a pop that changes what you can do afterwards. This is training shaped around what you have told me. It is not treatment and it does not claim to fix anything.',
+    days:[
+      { name:'Day 1 · Lower · Knee', note:'No spinal load anywhere in this day, on purpose. The belt squat gives you heavy knee work with nothing on the back. ATG split squat and reverse Nordic are the two patterns that have historically helped tendon pain. Right leg leads every one-sided set.',
+        exercises:[
+          {id:'lg22', sets:4, reps:'6-10',  rest:150},
+          {id:'lg8',  sets:3, reps:'8-10',  rest:90},
+          {id:'lg41', sets:3, reps:'6-8',   rest:90},
+          {id:'lg19', sets:3, reps:'12-15', rest:60},
+          {id:'lg17', sets:3, reps:'10-12', rest:60},
+          {id:'st3',  sets:2, reps:'30-45', rest:45}
+        ]},
+      { name:'Day 2 · Pull + Scap', note:'The anti-desk day, and the one aimed straight at the shoulder pattern. The chest-supported row keeps the low back out of it entirely. Face pulls and Y-T-Ws are for the left scapula winging and the tight traps. Chin tucks last, when the neck is warm.',
+        exercises:[
+          {id:'ba7',  sets:4, reps:'8-10',  rest:105},
+          {id:'ba22', sets:3, reps:'10-12', rest:90},
+          {id:'sh7',  sets:3, reps:'12-15', rest:75},
+          {id:'mo13', sets:3, reps:'8-10',  rest:60},
+          {id:'gr3',  sets:3, reps:'30-45', rest:60},
+          {id:'mo14', sets:2, reps:'20-30', rest:30}
+        ]},
+      { name:'Day 3 · Lower · Hinge', note:'The kickstand RDL is the anchor of this whole plan - LEFT foot forward, weight through the left leg, exactly the setup that stayed pain-free through a day of gardening. Reverse hyper slow and controlled, never swung. Carries are the cleanest core work there is for a back like yours.',
+        exercises:[
+          {id:'lg4',  sets:4, reps:'8-10',  rest:120},
+          {id:'lg13', sets:3, reps:'5-8',   rest:105},
+          {id:'lg7',  sets:3, reps:'8-10',  rest:90},
+          {id:'lg20', sets:3, reps:'12-15', rest:90},
+          {id:'gr7',  sets:3, reps:'30-40', rest:75},
+          {id:'mo7',  sets:2, reps:'8-10',  rest:45}
+        ]},
+      { name:'Day 4 · Push (capped) + Arms', note:'The only pressing day, and deliberately the smallest: you have told me the right shoulder starts talking after about a month of consistent pressing, so this is the day to cut first if it does. Floor press so the bar stops before deep extension. The cable press keeps the shoulder blade free. Pallof last, for the rotational pattern.',
+        exercises:[
+          {id:'ch15', sets:4, reps:'6-8',   rest:150},
+          {id:'ba6',  sets:3, reps:'10-12', rest:90},
+          {id:'ch14', sets:3, reps:'10-12', rest:90},
+          {id:'sh8',  sets:3, reps:'15-20', rest:45},
+          {id:'ar2',  sets:3, reps:'10-12', rest:60},
+          {id:'ar17', sets:3, reps:'12-15', rest:60},
+          {id:'co20', sets:3, reps:'10-12', rest:60}
+        ]}
+    ]
   }
 ];
+
+// A plan day may carry a full {id,sets,reps,rest} scheme (Mark's chain) or a bare exerciseIds list
+// (every older plan). Derive exerciseIds from the scheme ONCE, here, so planVolume, the plan sheet and
+// applyPlan keep reading the single field they always have - and so the two can never disagree.
+for (const plan of GYM_PLANS) for (const day of plan.days) {
+  if (Array.isArray(day.exercises) && !day.exerciseIds) day.exerciseIds = day.exercises.map(e => e.id);
+}

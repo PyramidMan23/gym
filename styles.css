@@ -1562,6 +1562,12 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .pd-count::after{content:'\203A';font-size:17px;line-height:1;transform:rotate(90deg);transition:transform .2s var(--ease)}
 .plan-day[open] .pd-count::after{transform:rotate(-90deg)}
 .pd-list{margin:0 0 12px;padding:0 0 0 18px;color:var(--taupe);font-size:12.5px;line-height:1.6}
+/* A plan day carrying a real scheme shows its dose and starts from here (Mark's chain, 2026-08-03). */
+.pd-list li{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.pd-dose{flex:none;color:var(--faint);font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.pd-note{margin:0 0 10px;color:var(--faint);font-size:12px;line-height:1.55}
+.pd-start-row{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+.pd-start-text{font-size:13px;font-weight:700;color:var(--amber-deep)}
 
 /* ---- Library: the row list becomes a grouped inset list ---- */
 .exercise-list{border-radius:var(--r-group);background:var(--group-bg);border:1px solid var(--card-hair);overflow:hidden}

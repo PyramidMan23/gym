@@ -333,7 +333,11 @@ try {
   // so this gate reads the declared value instead, which is the part that can regress.
   const tapHi = await evaluate(`(() => {
     const val = el => getComputedStyle(el).webkitTapHighlightColor || '';
-    const clear = c => !c || /rgba\(0, 0, 0, 0\)|transparent/.test(c);
+    // NO BACKSLASHES OR BACKTICKS BELOW. This block is a template literal, so an escape never reaches
+    // the browser: the original rgba-escaped regex arrived with its parens acting as a CAPTURE GROUP,
+    // so it matched no real transparent value, every visible button landed in the bad list, and this
+    // gate could not pass. It shipped that way in w47 and was never re-run. String compare instead.
+    const clear = c => !c || c === 'transparent' || c.split(' ').join('') === 'rgba(0,0,0,0)';
     const bad = [];
     for (const el of document.querySelectorAll('button, a, .bottom-nav button, input')) {
       if (!el.getClientRects().length) continue;

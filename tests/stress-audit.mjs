@@ -139,8 +139,14 @@ try {
   const header = await evaluate(`document.querySelector('.workout-exercise .set-grid.header').textContent`);
   ok('timed: column header reads Sec', /Sec/.test(header) && !/Reps/.test(header), header);
   await evaluate(`openPad(0,0,'reps'); true`);
-  const padLabel = await evaluate(`document.querySelector('#padContent h2').textContent + '/' + document.querySelector('.pad-value small').textContent`);
-  ok('timed: pad reads Seconds', padLabel === 'Seconds/sec', padLabel);
+  // The v2 keypad moved the unit label into the kicker and gave the h2 to the LIFT NAME, so the old
+  // `#padContent h2 === 'Seconds'` read "Dead Hang" and this gate could not pass. It shipped that way
+  // and was never re-run. Assert the invariant instead: the pad must SAY seconds and the value must
+  // be unitted in sec - a timed hold logged as reps is the bug class that has already bitten twice.
+  const padLabel = await evaluate(`document.querySelector('#padContent .kicker').textContent + '/' + document.querySelector('.pad-value small').textContent`);
+  ok('timed: pad reads SECONDS', padLabel === 'SECONDS/sec', padLabel);
+  const padLift = await evaluate(`document.querySelector('#padContent h2').textContent`);
+  ok('timed: pad names the lift it belongs to', padLift === 'Dead Hang', padLift);
   await evaluate(`closePad(); true`);
   await evaluate(`updateSet(0,0,'reps','60'); toggleSet(0,0); setRir(0,3); finishWorkout(); true`);
   await waitFor(`state.activeSession === null && state.history.length === 1`);
@@ -159,8 +165,14 @@ try {
   // Progression target must be on the seconds axis.
   await evaluate(`startQuickWorkout(); addExerciseToWorkout('gr3'); true`);
   await waitFor(`!!state.activeSession`);
-  const targetLine = await evaluate(`document.querySelector('.target-line')?.textContent || ''`);
-  ok('timed: target is in seconds, not kg × reps', /\d+\s*s/.test(targetLine) && !/kg × \d/.test(targetLine), targetLine);
+  // The v2 cockpit replaced `.target-line` with the last->target strip; the old selector matched
+  // NOTHING, so this read '' and could not pass (`.target-line` now survives only as dead CSS).
+  // Re-pointed at the live element, because the invariant itself still matters: a hold shown as
+  // "kg x reps" is the exact bug that shipped twice. Fall back to the pre-target strip so a lift with
+  // no history still gets checked rather than silently skipped.
+  const targetLine = await evaluate(`(document.querySelector('.target-strip') || document.querySelector('.previous-strip'))?.textContent || ''`);
+  ok('timed: target strip renders at all', targetLine.length > 0, targetLine);
+  ok('timed: target is in seconds, not kg × reps', !/kg\s*[x×]\s*\d/.test(targetLine), targetLine);
   ok('timed: target adds time', /95 s/.test(targetLine), targetLine);
   // Detail sheet must not offer a rep-records table or a 1RM trend for a hold.
   await evaluate(`openExerciseDetail('gr3'); true`);
@@ -187,7 +199,9 @@ try {
   await evaluate(`addExerciseToWorkout('ch1'); updateSet(0,0,'weight','80'); updateSet(0,0,'reps','8'); toggleSet(0,0); setRir(0,3); finishWorkout(); true`);
   await waitFor(`state.history.length === 1`);
   await evaluate(`startQuickWorkout(); addExerciseToWorkout('ch1'); true`);
-  const healthyTarget = await evaluate(`document.querySelector('.target-line')?.textContent || ''`);
+  // `.target-line` again - dead since the v2 cockpit. The invariant is the w13 fix and must stay
+  // gated: with injury mode OFF a healthy lifter earns a target with no flare answer at all.
+  const healthyTarget = await evaluate(`document.querySelector('.target-strip')?.textContent || ''`);
   ok('injury off: progression target appears without check-ins', /80 kg × 9/.test(healthyTarget), healthyTarget);
   await freshWorkout({ injury: true });
   await waitFor(`!!document.getElementById('checkinCard')`);
