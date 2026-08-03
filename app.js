@@ -904,31 +904,34 @@ function renderCalisthenics(){
   if(r.gainedReps>0)gainWords.push(`+${r.gainedReps} rep${r.gainedReps===1?'':'s'}`);
   if(r.gainedSeconds>0)gainWords.push(`+${r.gainedSeconds}s`);
   if(deltaEl)deltaEl.textContent=gainWords.length?`${gainWords.join(' · ')} this block`:'no gain this block';
+  if(deltaEl)deltaEl.className='section-count cali-gain';
   const nameOf=id=>esc(exerciseById(id)?.name||id);
   // MAX SET · REPS. The previous best is a ghost fill BEHIND the current one plus a tick on the
   // scale, so a gained rep is visible rather than asserted. Scale is the whole board's best.
   const repMax=Math.max(r.repTarget,...r.reps.map(e=>Math.max(e.value,e.previousValue||0)));
   const repRows=r.reps.map(e=>{
     const pct=v=>`${Math.max(0,Math.min(100,(v/repMax)*100))}%`;
-    const vest=e.load>0?` <b>+${e.load} kg vest</b>`:'';
-    const deltaWord=e.previousValue==null?'first logged':(e.delta>0?`+${e.delta} rep${e.delta===1?'':'s'}`:(e.delta<0?`${e.delta} reps`:'held'));
-    return `<div class="cali-row"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}${vest}</span><span class="cali-val">${e.value}<small> reps</small></span></div>`
-      +`<div class="cali-bar" role="img" aria-label="${nameOf(e.exerciseId)}: ${e.value} reps${e.previousValue!=null?`, previous best ${e.previousValue}`:''}">`
-        +(e.previousValue!=null?`<i class="cali-ghost" style="width:${pct(e.previousValue)}"></i>`:'')
-        +`<i class="cali-fill" style="width:${pct(e.value)}"></i>`
-        // The tick is painted LAST: it marks where the previous best sat, and the current fill is
-        // wider than it whenever a rep was gained, so drawing it first hid the very cue it exists for.
-        +(e.previousValue!=null?`<u class="cali-tick" style="left:${pct(e.previousValue)}"></u>`:'')
+    const vest=e.load>0?` · +${e.load} kg vest`:'';
+    // Prototype parity: next tier is the next multiple of 5 above the current best.
+    const tier=Math.max(5,Math.ceil((e.value+1)/5)*5);
+    const chip=e.delta>0?`<span class="cali-chip up">+${e.delta}</span>`:(e.delta<0?`<span class="cali-chip down">${e.delta}</span>`:'');
+    const scale=v=>`${Math.max(0,Math.min(100,(v/tier)*100))}%`;
+    return `<div class="cali-row"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}${esc(vest)}</span>`
+      +`<span class="cali-val">${e.value}${chip}</span></div>`
+      +`<div class="cali-bar" role="img" aria-label="${nameOf(e.exerciseId)}: ${e.value} reps${e.previousValue!=null?`, previous best ${e.previousValue}`:''}, next tier ${tier}">`
+        +`<i class="cali-fill" style="width:${scale(e.value)}"></i>`
+        +(e.previousValue!=null?`<u class="cali-tick" style="left:${scale(e.previousValue)}"></u>`:'')
       +`</div>`
-      +`<small class="cali-note">${deltaWord}${e.loggedThisBlock?'':' · not trained this block'}</small></div>`;
+      +`<div class="cali-foot"><small>${e.previousValue!=null?`| was ${e.previousValue}`:(e.loggedThisBlock?'first logged':'not trained this block')}</small>`
+      +`<small>next tier ${tier}</small></div></div>`;
   }).join('');
   // HOLDS · SECONDS on teal time bars, measured against their own next tier.
   const holdRows=r.holds.map(e=>{
     const pct=Math.max(0,Math.min(100,(e.value/Math.max(1,e.nextTier))*100));
-    const deltaWord=e.previousValue==null?'first logged':(e.delta>0?`+${e.delta}s`:(e.delta<0?`${e.delta}s`:'held'));
-    return `<div class="cali-row hold"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}</span><span class="cali-val">${e.value}<small>s</small></span></div>`
+    const chip=e.delta>0?`<span class="cali-chip up">+${e.delta}s</span>`:(e.delta<0?`<span class="cali-chip down">${e.delta}s</span>`:'');
+    return `<div class="cali-row hold"><div class="cali-top"><span class="cali-name">${nameOf(e.exerciseId)}</span><span class="cali-val">${e.value}<small>s</small>${chip}</span></div>`
       +`<div class="cali-bar" role="img" aria-label="${nameOf(e.exerciseId)}: ${e.value} seconds, next tier ${e.nextTier}"><i class="cali-fill teal" style="width:${pct}%"></i></div>`
-      +`<small class="cali-note">${deltaWord} · next tier ${e.nextTier}s</small></div>`;
+      +`<div class="cali-foot"><small>${e.previousValue!=null?`| was ${e.previousValue}s`:'first logged'}</small><small>next tier ${e.nextTier}s</small></div></div>`;
   }).join('');
   // NEXT UNLOCK: the rule that fires next, stated as a rule and never as a promise.
   let unlock='';

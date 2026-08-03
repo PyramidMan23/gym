@@ -1839,3 +1839,15 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
    font-size is under 16px when it gains focus. */
 html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 input,select,textarea{font-size:16px}
+
+/* ---- Calisthenics rows, matched to the prototype ----
+   value + delta chip on the right of the number; bar with the previous-best tick; then
+   "| was N" bottom-left and "next tier N" bottom-right. */
+.cali-val{display:flex;align-items:baseline;gap:7px}
+.cali-chip{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.cali-chip.up{color:var(--teal-deep)}
+.cali-chip.down{color:var(--danger)}
+.cali-foot{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:5px}
+.cali-foot small{color:var(--faint);font-size:11px;font-weight:600}
+.cali-gain{color:var(--amber-deep);font-weight:800}
+.cali-name{font-size:14.5px}
