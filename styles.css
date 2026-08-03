@@ -1969,3 +1969,9 @@ input,select,textarea{font-size:16px}
 .done-card .done-row{flex:1;min-width:0}
 .done-grip{width:44px;height:44px;flex:none;margin-right:8px;display:grid;place-items:center;
   border:0;background:transparent;color:var(--taupe);border-radius:var(--r-control);touch-action:none}
+
+/* ---- Train filter rail spacing, measured against the prototype ----
+   Ours inherited .filter-row's `13px -18px 4px` margin, so the sessions list sat 4px under the
+   chips instead of 12px, and the chips carried a 13px top margin the design does not have.
+   Prototype: margin 0 -20px 12px / padding 0 20px (our page gutter is 18px, so -18/18). */
+#workoutGoals{margin:0 -18px 12px;padding:0 18px;gap:7px}
