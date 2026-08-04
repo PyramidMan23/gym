@@ -1,35 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gym">
+  <!--
+    Maskable variant: SAME artwork as icon.svg, but full-bleed (no rounded tile, no rim) because the
+    platform supplies the shape, and the mark shrunk to scale 14 so it sits inside the 40% safe zone
+    a circular mask can crop to. Never add a corner radius here - a masked icon with its own radius
+    reads as a sticker inside the OS shape.
+  -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFB566"/>
-      <stop offset="0.5" stop-color="#F0842E"/>
-      <stop offset="1" stop-color="#C0611C"/>
+    <linearGradient id="base" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#FFC98A"/>
+      <stop offset="0.42" stop-color="#FF9A4D"/>
+      <stop offset="1" stop-color="#E86210"/>
     </linearGradient>
-    <radialGradient id="sheen" cx="0.28" cy="0.22" r="0.75">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.12"/>
+    <radialGradient id="bloom" cx="0.26" cy="0.18" r="0.85">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.50"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.10"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <filter id="bshadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#5A2503" flood-opacity="0.28"/>
-    </filter>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#tile)"/>
-  <rect width="512" height="512" fill="url(#sheen)"/>
-  <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
-    <g fill="#FFFFFF" filter="url(#bshadow)">
-      <rect x="96" y="243" width="320" height="26" rx="13"/>
-      <rect x="150" y="181" width="36" height="150" rx="14"/>
-      <rect x="326" y="181" width="36" height="150" rx="14"/>
-      <rect x="112" y="201" width="30" height="110" rx="12"/>
-      <rect x="370" y="201" width="30" height="110" rx="12"/>
-      <rect x="90" y="223" width="18" height="66" rx="8"/>
-      <rect x="404" y="223" width="18" height="66" rx="8"/>
-    </g>
-    <g fill="#FFFFFF" opacity="0.35">
-      <rect x="96" y="243" width="320" height="6" rx="3"/>
-      <rect x="150" y="181" width="36" height="6" rx="3"/>
-      <rect x="326" y="181" width="36" height="6" rx="3"/>
-    </g>
+
+  <rect width="512" height="512" fill="url(#base)"/>
+  <rect width="512" height="512" fill="url(#bloom)"/>
+  <ellipse cx="196" cy="34" rx="330" ry="190" fill="url(#sheen)"/>
+
+  <!-- No drop-shadow filter here: its filter region composited as a faint rectangle over the flat
+       maskable background. Depth on this variant comes from the base gradient and sheen alone. -->
+  <g transform="translate(256 252) scale(14) translate(-12 -12)"
+     fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.9 7.5 20.1 4.6" stroke-width="1.9"/>
+    <path d="M3.6 5.5v4M20.4 2.6v4" stroke-width="2.8"/>
+    <path d="M9.9 12.3V6.4M14.1 12.3V5.6" stroke-width="1.7"/>
+    <path d="M12 9.2 18.2 18.3H5.8Z" fill="#FFFFFF" stroke-width="1.2"/>
+    <path d="M8 18.6 6.2 21.9M16 18.6 17.8 21.9" stroke-width="1.8"/>
   </g>
 </svg>

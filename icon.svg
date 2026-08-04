@@ -1,34 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gym">
+  <!--
+    Gym app icon, 2026 liquid-glass. Built from Mark's pyramid bench-press mark - the SAME paths the
+    app header draws, scaled 24 -> 512 - not the old dumbbell. The brand changed when v2 landed and
+    the icon files were never regenerated, so every install still showed the July glyph.
+
+    Layered back to front, the way the current OS icon language expects:
+      1  amber base gradient          the tile's own colour
+      2  radial bloom, top-left       where the light source sits
+      3  specular sheen, upper third  the glass tell, clipped to the tile
+      4  the mark + its drop shadow   so it reads as sitting ABOVE the glass, not printed on it
+      5  inner rim                    light at the top, warm shade at the bottom = a physical lens
+    The mark occupies the middle ~60%, inside the maskable safe zone, so the same artwork survives a
+    circular, squircle or rounded-rect mask without clipping.
+  -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFB566"/>
-      <stop offset="0.5" stop-color="#F0842E"/>
-      <stop offset="1" stop-color="#C0611C"/>
+    <linearGradient id="base" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#FFC98A"/>
+      <stop offset="0.42" stop-color="#FF9A4D"/>
+      <stop offset="1" stop-color="#E86210"/>
     </linearGradient>
-    <radialGradient id="sheen" cx="0.28" cy="0.22" r="0.75">
+    <radialGradient id="bloom" cx="0.26" cy="0.18" r="0.85">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
-      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.10"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </radialGradient>
-    <filter id="bshadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#5A2503" flood-opacity="0.28"/>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#6B2A00" stop-opacity="0.30"/>
+    </linearGradient>
+    <filter id="markShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#5A2000" flood-opacity="0.34"/>
     </filter>
+    <clipPath id="tile"><rect width="512" height="512" rx="114" ry="114"/></clipPath>
   </defs>
-  <rect width="512" height="512" rx="114" fill="url(#tile)"/>
-  <rect width="512" height="512" rx="114" fill="url(#sheen)"/>
-  <rect x="1.5" y="1.5" width="509" height="509" rx="112.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
-  <g fill="#FFFFFF" filter="url(#bshadow)">
-    <rect x="96" y="243" width="320" height="26" rx="13"/>
-    <rect x="150" y="181" width="36" height="150" rx="14"/>
-    <rect x="326" y="181" width="36" height="150" rx="14"/>
-    <rect x="112" y="201" width="30" height="110" rx="12"/>
-    <rect x="370" y="201" width="30" height="110" rx="12"/>
-    <rect x="90" y="223" width="18" height="66" rx="8"/>
-    <rect x="404" y="223" width="18" height="66" rx="8"/>
-  </g>
-  <g fill="#FFFFFF" opacity="0.35">
-    <rect x="96" y="243" width="320" height="6" rx="3"/>
-    <rect x="150" y="181" width="36" height="6" rx="3"/>
-    <rect x="326" y="181" width="36" height="6" rx="3"/>
+
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#base)"/>
+    <rect width="512" height="512" fill="url(#bloom)"/>
+    <ellipse cx="196" cy="34" rx="330" ry="190" fill="url(#sheen)"/>
+
+    <g filter="url(#markShadow)" transform="translate(256 250) scale(17.6) translate(-12 -12)"
+       fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.9 7.5 20.1 4.6" stroke-width="1.9"/>
+      <path d="M3.6 5.5v4M20.4 2.6v4" stroke-width="2.8"/>
+      <path d="M9.9 12.3V6.4M14.1 12.3V5.6" stroke-width="1.7"/>
+      <path d="M12 9.2 18.2 18.3H5.8Z" fill="#FFFFFF" stroke-width="1.2"/>
+      <path d="M8 18.6 6.2 21.9M16 18.6 17.8 21.9" stroke-width="1.8"/>
+    </g>
+
+    <rect x="1.5" y="1.5" width="509" height="509" rx="112.5" ry="112.5"
+          fill="none" stroke="url(#rim)" stroke-width="3"/>
   </g>
 </svg>
