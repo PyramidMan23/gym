@@ -93,3 +93,42 @@ history. Preview-on-tap stays; the gate is mutation-proven in browser-flow.
 Codex's closing note on pairing colour with labels/shape is already satisfied: every state in this
 app carries a word or a glyph, and `contrast-guard.mjs` verifies 989 elements across both schemes on
 every run. Worth re-checking any NEW state, not a standing gap.
+
+---
+
+## 2026-08-05 — Landing-surface review, Claude + Codex 5.6
+
+There is no marketing site: opening the app IS the landing. Two surfaces reviewed, both at w63 live.
+
+### FACTUAL DEFECT — fix regardless of anything else
+**The first-run privacy claim is false under the app's own supported configuration.** It reads
+"Your workouts stay in a private space on this device." The moment a user connects the OPTIONAL
+Google Drive backup, that stops being true. Codex caught this; conceded outright.
+Replacement copy: **"Stored on this device. Optional backup to your own Google Drive."**
+Still the most trust-building true thing the app can say, and it survives the user turning sync on.
+
+### Agreed by both engines
+1. **"41% WEEK CHARGED" is opaque pseudo-precision.** It is the mean of THREE ratios (sessions,
+   sets, volume) but the legend explains only TWO of them, so the number is literally unexplainable
+   from what is on screen. Replace the headline with plain counts: "THIS WEEK / 2 of 4 sessions /
+   9 of 48 working sets". (M)
+2. **Three advice sources can contradict each other on one screen.** Live right now: "That is today
+   handled" sits directly above "Take an easy week" which sits above "UP NEXT - Day B Push/Pull".
+   Needs ONE resolver producing ONE recommendation. (M)
+3. **First run renders a dashboard of zeroes behind the blur** - 0%, 0/4, 0/48 - which tells a
+   brand-new user they are already behind. Suppress the metrics until onboarding completes. (S)
+4. **Clock-driven greetings say nothing.** "Let's finish strong, Mark." is generated purely from
+   the hour and is absurd before a session. The data sub-line ("Last session set 1 PR.") is the
+   only informative line in the header. Cut to it. (S)
+5. **The real action is below the fold.** On an 844px viewport you scroll past a greeting, a ring,
+   a legend, a week strip and two advisory cards before reaching anything you can start. (M)
+6. **"Continue" conceals the outcome** on first run. "Start training" says what happens. (S)
+
+### DISPUTED - Mark's call, not a model's
+**Codex wants the ring DELETED entirely** and the 7-day strip promoted to hero graphic. Its argument
+is good: the strip carries cadence, which days trained, what remains - actionable - while the ring is
+"decoration masquerading as data" that duplicates "2 of 4 sessions".
+**Claude holds:** the ring is the one piece of visual identity the product has, and this app's own
+history is a user who rejected a minimal pass outright ("what the fuck is this design"). Deleting the
+only graphic on the landing screen to save space trades against the explicit "prettier" brief.
+Neither engine can settle this - it is a taste and identity call about Mark's own app. NOT actioned.
