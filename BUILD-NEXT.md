@@ -48,3 +48,48 @@ python -m http.server 4173   # then:
 node tests/browser-flow.mjs
 ```
 Live-verify new interactions in a real browser **after busting SW caches** (`caches.delete` + unregister — stale-SW false-verify bit twice on 2026-07-20). Codex adversarial diff review before every push.
+
+---
+
+## 2026-08-05 — Whole-app review, Claude + Codex 5.6 (Mark's ask: more intuitive, easier, prettier, more functional)
+
+Measured at 390x844 on the LIVE build w62, not estimated.
+Scroll heights: Today 1310px · Train 1171px · **Library 18,805px** · Progress 649-961px. Viewport 844px.
+Catalogue 255 exercises; a real lifter in this fixture had ever performed **3** of them.
+
+### CONFIRMED LIVE BUG (measured, not inferred)
+**The rest pill covers the reps-in-reserve chips by 50px.** Rest pill occupies y=762-830; the
+`.rir-chips` block occupies y=780-874. Finishing your last set starts the timer AND asks "how many
+reps left in the tank" at the same moment, and the timer sits on top of the answer. RIR is the input
+the entire double-progression engine runs on, so the app is occluding the one control that feeds it.
+Fix candidates: lift the RIR block above the pill's reserved space, or defer the pill until RIR is
+answered. Not fixed yet - reported to Mark 2026-08-05.
+
+### Agreed by both engines, ranked
+1. **Library defaults to YOUR exercises.** 18,805px of alphabetical catalogue where 3 entries matter.
+   Lead with recent + favourites + everything in your routines; put all 255 behind "Browse all".
+   Also: names and equipment truncate mid-word ("Assisted Pistol Sq...", "band o..."). (S/M)
+2. **The Today ring is 348px for one abstract number.** "30% WEEK CHARGED" blends sessions, sets and
+   volume into a figure nobody can act on, and eats 27% of the page. Replace with a compact status
+   line ("1 of 3 sessions - 8 of 30 sets") plus the one action: Start <next routine>. (M)
+3. **Exercise memory inside the cockpit.** Last 3 exposures, best comparable set, previous notes and
+   a "note for next time" field, per exercise, while training. Changes decisions at the moment they
+   are made rather than adding another chart. (M)
+4. **Warm-up sets + plates per side, inline.** Both are arithmetic the lifter currently does in their
+   head every session. The plate calculator exists but is not on the set row. (M)
+5. **A real rest-day state.** When nothing is due, say so and offer recovery, rather than filling the
+   screen with manufactured urgency. (S/M)
+6. **One dominant action per screen.** Today currently competes: ring, deload advisory, coach card,
+   Desk Reset, goal strip. (M)
+
+### DISPUTED - Codex is wrong here, and it is worth recording why
+Codex proposed: *"Remove the preview-on-card/start-on-play distinction: tapping the main card should
+start; use an explicit Preview link."* **Rejected.** That is a direct reversal of what Mark reported
+on 2026-08-05 in his own words: he kept starting workouts while trying to see what was in them and
+then had to hunt through the app to delete them. Codex was reviewing the structure without that
+history. Preview-on-tap stays; the gate is mutation-proven in browser-flow.
+
+### Not adopted
+Codex's closing note on pairing colour with labels/shape is already satisfied: every state in this
+app carries a word or a glyph, and `contrast-guard.mjs` verifies 989 elements across both schemes on
+every run. Worth re-checking any NEW state, not a standing gap.
