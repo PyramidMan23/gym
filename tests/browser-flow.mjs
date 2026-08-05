@@ -911,7 +911,58 @@ try {
   assert.deepEqual(extras.doseNums, [...extras.doseNums].sort((a,b)=>a-b),
     `dose rows must lead with the worst-served muscle, got ${JSON.stringify(extras.doseNums)}`);
 
-  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok', 'rir-not-occluded=ok', 'library-scope=ok', 'warmups=ok');
+  // ---- w66: correcting a logged workout ---------------------------------------------------------
+  // Ty logged a leg extension and a leg curl with 0 reps and no load, so two thirds of a real
+  // session counted as nothing and there was no way to put it right. An editor that CORRUPTS
+  // history would be worse than no editor, so the gate pins the destructive edges too.
+  const edit = await evaluate(`(() => {
+    const S=(w,r)=>({weight:String(w),reps:String(r),done:true});
+    state.activeSession=null;
+    state.history=[{id:'fixme',name:'Ty · PPL · Legs',started:Date.now()-86400000,
+      finished:Date.now()-86400000+3.6e6,exercises:[
+        {exerciseId:'lg3', sets:[S(50,10),S(50,8)]},          // 900 kg, correct
+        {exerciseId:'lg23',sets:[S('',0),S('',0),S('',0)]}    // Ty's bug: ticked, 0 reps, no load
+      ]}];
+    saveState();
+    const out={before:Core.summarizeSession(state.history[0])};
+    openHistoryEdit('fixme');
+    out.opened=/Edit Ty/.test(document.getElementById('sheetContent').textContent);
+    out.warned=(document.querySelectorAll('.he-warn').length);
+    // Correct the leg extension: 60 kg x 10, three sets.
+    for(let i=0;i<3;i++){ editHistorySet(1,i,'weight','60'); editHistorySet(1,i,'reps','10'); }
+    out.liveTotalBeforeSave=(document.querySelector('.he-live strong')||{}).textContent||'';
+    out.historyUntouchedBeforeSave=Core.summarizeSession(state.history[0]).volume;
+    saveHistoryEdit();
+    const after=state.history.find(s=>s.id==='fixme');
+    out.after=Core.summarizeSession(after);
+    out.idKept=!!after;
+    out.startedKept=after.started===state.history[0].started;
+    out.exerciseCount=after.exercises.length;
+    // Cancel must be genuinely free: open, change, cancel, nothing moves.
+    openHistoryEdit('fixme');
+    editHistorySet(0,0,'weight','999');
+    openHistory('fixme');           // this is what Cancel calls
+    out.afterCancel=Core.summarizeSession(state.history.find(s=>s.id==='fixme')).volume;
+    // Emptying an exercise removes it rather than leaving a ghost row.
+    openHistoryEdit('fixme');
+    removeHistorySet(1,0); removeHistorySet(1,0); removeHistorySet(1,0);
+    saveHistoryEdit();
+    out.afterEmptying=state.history.find(s=>s.id==='fixme').exercises.length;
+    closeSheet();
+    return out;
+  })()`);
+  assert.equal(edit.opened, true, 'the editor must open on the right session');
+  assert.ok(edit.warned >= 3, `each 0-rep set must be flagged in words, got ${edit.warned}`);
+  assert.equal(edit.before.volume, 900, 'the broken session starts at 900 kg');
+  assert.equal(edit.historyUntouchedBeforeSave, 900,
+    'editing must NOT touch stored history until Save - otherwise Cancel is a lie');
+  assert.equal(edit.after.volume, 900 + 60 * 30, 'the correction must land: 900 + 1800');
+  assert.equal(edit.idKept && edit.startedKept, true,
+    'a correction must keep the session id and its original timestamp, never re-log it');
+  assert.equal(edit.afterCancel, 900 + 60 * 30, 'Cancel must discard the draft entirely');
+  assert.equal(edit.afterEmptying, 1, 'an exercise emptied of sets is removed, not left as a ghost');
+
+  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok', 'rir-not-occluded=ok', 'library-scope=ok', 'warmups=ok', 'history-edit=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

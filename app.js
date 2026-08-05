@@ -2892,7 +2892,7 @@ function openHistory(id){
     +`<div class="selected-list">${rows}</div>`
     // Three stacked full-width buttons with no gap read as one cramped block (Mark 2026-08-05).
     // Grouped with real spacing, and the destructive action sits apart from the two safe ones.
-    +`<div class="sheet-stack">${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button></div>`
+    +`<div class="sheet-stack"><button class="secondary-button full-button" onclick="openHistoryEdit('${id}')">Edit sets</button>${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button></div>`
     +`<div class="sheet-stack sheet-stack-danger"><button class="secondary-button full-button danger-button" onclick="deleteHistory('${id}')">Delete workout</button></div>`;
   document.getElementById('sheet').showModal();
 }
@@ -2954,6 +2954,88 @@ function saveActiveAsRoutine(){
   if(!routine)return;
   // Stamping routineId makes this session count toward "Done this week" for the routine it just became.
   if(!session.routineId){session.routineId=routine.id;saveState();}
+}
+// ---- Editing a logged workout (2026-08-05) ------------------------------------------------------
+// Until now a finished session was immutable: you could delete it or file it, but a wrong number was
+// wrong forever. Ty logged a leg extension and a leg curl with 0 reps and no load, so two thirds of
+// a real session counted as nothing and there was no way to put it right. Deleting and re-logging
+// from memory is worse than editing - it destroys the timestamps and the PRs. So: edit in place.
+// The draft is a deep COPY; nothing touches history until Save, so Cancel is genuinely free.
+let historyDraft=null;
+function openHistoryEdit(id){
+  const session=state.history.find(s=>s.id===id);if(!session)return;
+  historyDraft=JSON.parse(JSON.stringify(session));
+  renderHistoryEdit();
+}
+function renderHistoryEdit(){
+  const d=historyDraft;if(!d)return;
+  // Volume recomputes as you type, so the correction proves itself before you commit it.
+  const live=Core.summarizeSession(d),cover=Core.volumeCoverage(d);
+  const rows=d.exercises.map((ex,ei)=>{
+    const item=exerciseById(ex.exerciseId),timed=!!item?.timed;
+    const bwF=Core.bodyweightFactor(ex.exerciseId);
+    const sets=(ex.sets||[]).map((set,si)=>{
+      const blank=String(set.weight??'')===''&&String(set.reps??'')==='';
+      const zero=!blank&&!(Number(set.reps)>0);
+      return `<div class="he-set${set.done?'':' he-undone'}">`
+        +`<span class="he-n">${si+1}</span>`
+        +`<input class="he-in" inputmode="decimal" value="${esc(String(set.weight??''))}" placeholder="${bwF!=null?'+kg':'kg'}" aria-label="Weight, exercise ${ei+1} set ${si+1}" oninput="editHistorySet(${ei},${si},'weight',this.value)">`
+        +`<input class="he-in" inputmode="numeric" value="${esc(String(set.reps??''))}" placeholder="${timed?'sec':'reps'}" aria-label="${timed?'Seconds':'Reps'}, exercise ${ei+1} set ${si+1}" oninput="editHistorySet(${ei},${si},'reps',this.value)">`
+        +`<button class="he-del" onclick="removeHistorySet(${ei},${si})" aria-label="Remove exercise ${ei+1} set ${si+1}">×</button>`
+        +`${blank?'<em class="he-warn">blank - not counted</em>':(zero?'<em class="he-warn">no reps - adds nothing</em>':'')}`
+      +`</div>`;
+    }).join('');
+    return `<div class="he-ex"><strong>${esc(item?.name||'Exercise')}</strong>${sets||'<em class="he-warn">no sets</em>'}`
+      +`<button class="he-add" onclick="addHistorySet(${ei})">+ Add set</button></div>`;
+  }).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">FIX A MISTAKE</p><h2>Edit ${esc(d.name)}</h2></div><button class="close-button" onclick="openHistory('${esc(d.id)}')">×</button></div>`
+    +`<p class="he-live"><strong>${compact(live.volume)} kg</strong> · ${live.completedSets} sets · ${cover.loaded} of ${cover.total} lifts carrying a load</p>`
+    +`<p class="he-help">Correct any weight or rep count below. A set with no reps logs as done but adds nothing to your total - that is usually the mistake.</p>`
+    +`<div class="he-list">${rows}</div>`
+    +`<div class="sheet-stack"><button class="primary-button full-button" onclick="saveHistoryEdit()">Save changes</button>`
+    +`<button class="secondary-button full-button" onclick="openHistory('${esc(d.id)}')">Cancel</button></div>`;
+  document.getElementById('sheet').showModal();
+}
+function editHistorySet(ei,si,field,value){
+  const set=historyDraft?.exercises?.[ei]?.sets?.[si];if(!set)return;
+  set[field]=value;
+  // A set given real numbers is a set that happened - tick it, or the correction would not count.
+  if(String(set.weight??'')!==''||String(set.reps??'')!=='')set.done=true;
+  // Only the live totals change while typing; re-rendering would blow away the caret mid-edit.
+  const live=Core.summarizeSession(historyDraft),cover=Core.volumeCoverage(historyDraft);
+  const el=document.querySelector('.he-live');
+  if(el)el.innerHTML=`<strong>${compact(live.volume)} kg</strong> · ${live.completedSets} sets · ${cover.loaded} of ${cover.total} lifts carrying a load`;
+}
+function addHistorySet(ei){
+  const ex=historyDraft?.exercises?.[ei];if(!ex)return;
+  const last=(ex.sets||[]).filter(s=>String(s.weight??'')!=='').pop();
+  ex.sets.push({weight:last?last.weight:'',reps:'',done:true});
+  renderHistoryEdit();
+}
+function removeHistorySet(ei,si){
+  const ex=historyDraft?.exercises?.[ei];if(!ex)return;
+  ex.sets.splice(si,1);
+  renderHistoryEdit();
+}
+function saveHistoryEdit(){
+  const d=historyDraft;if(!d)return;
+  const i=state.history.findIndex(s=>s.id===d.id);
+  if(i<0){historyDraft=null;return closeSheet();}
+  const before=Core.summarizeSession(state.history[i]).volume;
+  // Drop exercises left with no sets at all, so an emptied lift does not linger as a ghost row.
+  d.exercises=(d.exercises||[]).filter(ex=>(ex.sets||[]).length);
+  // PRs were detected against the ORIGINAL numbers, so a correction can invalidate them. Re-derive
+  // against the rest of history rather than leaving a personal best the new numbers do not support.
+  try{d.prs=Core.detectPRs(state.history.filter(s=>s.id!==d.id),d);}catch{d.prs=d.prs||[];}
+  state.history[i]=d;
+  saveState();
+  if(Sync)try{Sync.onSessionComplete(d);}catch{} // the stored copy must carry the correction too
+  const after=Core.summarizeSession(d).volume;
+  historyDraft=null;
+  renderToday();renderProgress();renderTrain();
+  openHistory(d.id);
+  const delta=after-before;
+  showToast(delta?`Updated · ${delta>0?'+':''}${compact(Math.abs(delta))} kg`:'Workout updated');
 }
 function deleteHistory(id){
   state.history=state.history.filter(s=>s.id!==id);
