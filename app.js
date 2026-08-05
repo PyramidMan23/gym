@@ -9,11 +9,20 @@ Core.setTimedExercises((typeof DUCK_EXERCISES !== 'undefined' ? DUCK_EXERCISES :
 // factor table and its sourcing live next to the catalogue in exercises.js.
 Core.setBodyweightModel({
   factorFor: id => (typeof gymBodyweightFactor === 'function' ? gymBodyweightFactor(exerciseById(id)) : null),
-  // The body mass logged NEAREST that session, so today's weigh-in never rewrites last month's
-  // numbers. A running session has no `started` yet at creation time, hence the Date.now() default.
+  // Resolution order, most authoritative first: the value PINNED on the session when it was
+  // finished (a completed session's numbers must never move again, whatever the lifter weighs
+  // later); then the latest weigh-in AT OR BEFORE it, NEVER a later one (council 2026-08-05: the
+  // first version took the nearest in either direction, so a new weigh-in changed old sessions);
+  // then a backfill the lifter explicitly confirmed for sessions older than their first weigh-in.
   // try/catch guards the temporal dead zone: `state` is declared further down this file, and a
   // ReferenceError here would take out volume for the whole app rather than degrading to "unknown".
-  bodyweightFor: session => { try { return Core.bodyweightNear(state && state.bodyweight, session && session.started); } catch { return null; } }
+  bodyweightFor: session => {
+    try {
+      if (Number(session && session.bodyweightKg) > 0) return Number(session.bodyweightKg);
+      return Core.bodyweightAsOf(state && state.bodyweight, session && session.started,
+        state && state.preferences && state.preferences.backfillBodyweight);
+    } catch { return null; }
+  }
 });
 const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
 const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
@@ -1465,9 +1474,34 @@ function saveBodyweight(){
   const kg=Number(document.getElementById('bwInput').value);
   if(!Number.isFinite(kg)||kg<=0)return showToast('Enter a weight in kg');
   if(!Array.isArray(state.bodyweight))state.bodyweight=[];
-  state.bodyweight.push({t:Date.now(),kg:Math.round(kg*10)/10});
+  const rounded=Math.round(kg*10)/10;
+  state.bodyweight.push({t:Date.now(),kg:rounded});
   saveState();closeSheet();renderProgress();showToast('Weight logged');
   checkGoalAchievements(); // new evidence - a bodyweight goal may have just landed
+  offerBodyweightBackfill(rounded);
+}
+// Sessions logged before a lifter's FIRST weigh-in have no measured body mass, so their calisthenics
+// cannot honestly be valued in kilograms. Silently borrowing today's weight for them would be the
+// retroactive fabrication this whole model exists to avoid (council 2026-08-05, Codex's objection,
+// upheld). So it is ASKED - once, one tap, with the count stated - and the answer is stored as a
+// preference rather than written into the sessions, so it stays reversible.
+function offerBodyweightBackfill(kg){
+  const pending=Core.sessionsAwaitingBodyweight(state.history,state.bodyweight,state.preferences.backfillBodyweight);
+  if(!pending.length)return;
+  document.getElementById('confirmContent').innerHTML=`<h2>Count your earlier calisthenics too?</h2>`
+    +`<p>${pending.length} session${pending.length===1?'':'s'} happened before your first weigh-in, so ${pending.length===1?'its':'their'} push-ups, pull-ups and dips are not counted in kilograms yet. Use <strong>${esc(String(kg))} kg</strong> for ${pending.length===1?'it':'them'}? That is an estimate for those older sessions only, and you can undo it in Settings.</p>`
+    +`<div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Leave them as reps</button><button class="primary-button" onclick="applyBodyweightBackfill(${Number(kg)})">Use ${esc(String(kg))} kg</button></div>`;
+  document.getElementById('confirmDialog').showModal();
+}
+function applyBodyweightBackfill(kg){
+  state.preferences.backfillBodyweight=Number(kg)||null;
+  saveState();closeConfirm();renderProgress();renderToday();
+  showToast(`Earlier sessions counted at ${kg} kg`);
+}
+function clearBodyweightBackfill(){
+  state.preferences.backfillBodyweight=null;
+  saveState();renderProgress();renderToday();openSettings();
+  showToast('Earlier sessions back to reps only');
 }
 // Exercises the lifter re-opened by tapping their done row. Session-scoped, deliberately not
 // persisted: reopening is a glance, not a state change worth surviving a reload.
@@ -2139,6 +2173,11 @@ function finishWorkout(){
   // same rule the app applied: without it the coach demanded a flare answer the app never
   // collected and froze on "repeat exactly as last time" forever (audit 2026-07-28).
   session.injuryMode=injuryMode();
+  // Pin the body mass this session's calisthenics are valued at. From this moment its numbers are
+  // fixed: a weigh-in next month can never retroactively change what today was worth. Only sessions
+  // logged BEFORE this build fall back to being derived (council 2026-08-05).
+  const bwNow=Core.bodyweightAsOf(state.bodyweight,session.started,state.preferences.backfillBodyweight);
+  if(bwNow)session.bodyweightKg=bwNow;
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
   checkGoalAchievements(); // the session just finished is new evidence against every declared goal
@@ -2691,6 +2730,8 @@ function openSettings(){
     +`<div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>`
     +syncSettingsMarkup()
     +`<p class="settings-note">Private by default. Your training data stays in this browser unless you export it.</p>`
+    +(state.preferences.backfillBodyweight
+      ? `<p class="settings-note">Sessions logged before your first weigh-in are counted at <strong>${esc(String(state.preferences.backfillBodyweight))} kg</strong>. <button class="text-button" onclick="clearBodyweightBackfill()">Undo</button></p>`:'')
     +`<p class="build-footer">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;
   document.getElementById('sheet').showModal();
   if(Sync)try{Sync.preload();}catch{} // warm GIS so the first Connect tap opens the popup in-gesture

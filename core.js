@@ -103,19 +103,29 @@
     };
   }
 
-  // The body mass to use for a session: the entry logged NEAREST that session's date, so a weigh-in
-  // today never silently rewrites what last month's sessions are worth. Falls back to the closest
-  // available entry in either direction, and to null when nothing has ever been logged.
-  function bodyweightNear(entries, timestamp) {
-    const list = (entries || []).filter(e => e && Number.isFinite(Number(e.kg)) && Number(e.kg) > 0);
-    if (!list.length) return null;
+  // The body mass to use for a session: the latest weigh-in AT OR BEFORE it. Never a later one.
+  // The first version of this took the nearest entry in either direction, which meant logging a
+  // weigh-in today could silently change what a session last month was worth - the exact instability
+  // it was written to prevent (council 2026-08-05, Codex found it; proven by running it).
+  // A session that predates every weigh-in has no measured body mass, so it returns null and its
+  // bodyweight work is reported as reps. `backfillKg` is the ONE escape hatch, and it only ever
+  // holds a value the lifter explicitly confirmed for their earlier sessions.
+  function bodyweightAsOf(entries, timestamp, backfillKg) {
     const at = num(timestamp) || Date.now();
-    let best = null, bestGap = Infinity;
-    for (const entry of list) {
-      const gap = Math.abs(num(entry.t) - at);
-      if (gap < bestGap) { bestGap = gap; best = entry; }
-    }
-    return best ? Number(best.kg) : null;
+    const prior = (entries || [])
+      .filter(e => e && Number(e.kg) > 0 && Number.isFinite(Number(e.kg)) && num(e.t) <= at)
+      .sort((a, b) => num(b.t) - num(a.t))[0];
+    if (prior) return Number(prior.kg);
+    return num(backfillKg) > 0 ? num(backfillKg) : null;
+  }
+  // Sessions logged before ANY weigh-in existed, that did bodyweight work the kg axis could have
+  // measured. This is the population a backfill confirmation would cover, and the count shown in it.
+  function sessionsAwaitingBodyweight(history, entries, backfillKg) {
+    return (history || []).filter(session => {
+      if (num(session?.bodyweightKg) > 0) return false;               // already pinned at completion
+      if (bodyweightAsOf(entries, session?.started, backfillKg)) return false;
+      return (session?.exercises || []).some(ex => bodyweightFactor(ex?.exerciseId) != null && doneSets(ex).length);
+    });
   }
 
   // A curated workout arrives as a SCHEME - [{id,sets,reps,rest}] - so the session opens with the
@@ -567,6 +577,9 @@
     // The chosen workout-volume variant survives the round-trip (Codex P3): silently falling back
     // to the default changes how many sets a one-tap start generates.
     if (['reduced', 'base', 'expanded'].includes(data.preferences?.workoutVolume)) preferences.workoutVolume = data.preferences.workoutVolume;
+    // The confirmed backfill weight is a DECISION the lifter made, not a derived value - losing it
+    // on import would silently drop their older calisthenics back to zero kilograms.
+    if (Number(data.preferences?.backfillBodyweight) > 0) preferences.backfillBodyweight = Number(data.preferences.backfillBodyweight);
     return {
       version: 2,
       routines: JSON.parse(JSON.stringify(data.routines)),
@@ -1212,7 +1225,7 @@
   }
 
   return { volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
-    setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightNear,
+    setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

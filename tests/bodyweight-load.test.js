@@ -172,12 +172,60 @@ test('openingLoads never pre-fills a belt onto a bodyweight movement', () => {
 });
 
 // ---- Which bodyweight ---------------------------------------------------------------------------
-test('a session is valued at the bodyweight logged NEAREST it, not the latest', () => {
+test('a session is valued at the latest weigh-in AT OR BEFORE it', () => {
   const log = [{ t: 1000, kg: 70 }, { t: 9000, kg: 90 }];
-  assert.strictEqual(Core.bodyweightNear(log, 1200), 70);
-  assert.strictEqual(Core.bodyweightNear(log, 8800), 90);
-  assert.strictEqual(Core.bodyweightNear([], 5000), null);
-  assert.strictEqual(Core.bodyweightNear([{ t: 1, kg: 0 }], 1), null, 'a zero weigh-in is not a bodyweight');
+  assert.strictEqual(Core.bodyweightAsOf(log, 1200), 70);
+  assert.strictEqual(Core.bodyweightAsOf(log, 9500), 90);
+  assert.strictEqual(Core.bodyweightAsOf([], 5000), null);
+  assert.strictEqual(Core.bodyweightAsOf([{ t: 1, kg: 0 }], 1), null, 'a zero weigh-in is not a bodyweight');
+});
+
+// THE council finding (2026-08-05). The first version took the nearest weigh-in in EITHER
+// direction, so logging a weigh-in today silently changed what a session last month was worth -
+// the exact instability the function was written to prevent. Verified by running it, then fixed.
+test('a FUTURE weigh-in can never change what a past session was worth', () => {
+  const day = 86400000;
+  const before = [{ t: 0, kg: 70 }];
+  const after = [{ t: 0, kg: 70 }, { t: 12 * day, kg: 95 }];
+  assert.strictEqual(Core.bodyweightAsOf(before, 10 * day), 70);
+  assert.strictEqual(Core.bodyweightAsOf(after, 10 * day), 70,
+    'adding a later weigh-in must not move an earlier session');
+});
+
+test('a session older than every weigh-in has NO body mass until one is confirmed', () => {
+  const log = [{ t: 9000, kg: 80 }];
+  assert.strictEqual(Core.bodyweightAsOf(log, 1000), null, 'borrowing a future weight is fabrication');
+  assert.strictEqual(Core.bodyweightAsOf(log, 1000, 78), 78, 'an explicitly confirmed backfill is allowed');
+});
+
+test('a pinned session bodyweight is what the app must use, whatever is logged later', () => {
+  // finishWorkout stamps session.bodyweightKg; the app resolves that FIRST. Modelled here the same
+  // way the app registers it, so the contract is gated rather than merely intended.
+  Core.setTimedExercises([]);
+  Core.setBodyweightModel({
+    factorFor: id => gymBodyweightFactor(byId(id)),
+    bodyweightFor: session => (Number(session?.bodyweightKg) > 0 ? Number(session.bodyweightKg)
+      : Core.bodyweightAsOf([{ t: 0, kg: 100 }], session?.started))
+  });
+  const pinned = { started: 5000, bodyweightKg: 80, exercises: [{ exerciseId: 'ba3', sets: [S('', 10)] }] };
+  assert.strictEqual(Core.calculateVolume(pinned), 800, 'the pinned 80 kg wins over the logged 100 kg');
+});
+
+test('sessionsAwaitingBodyweight finds exactly the sessions a backfill would cover', () => {
+  Core.setTimedExercises([]);
+  Core.setBodyweightModel({ factorFor: id => gymBodyweightFactor(byId(id)), bodyweightFor: () => null });
+  const log = [{ t: 9000, kg: 80 }];
+  const history = [
+    { id: 'old-cali', started: 1000, exercises: [{ exerciseId: 'ch8', sets: [S('', 20)] }] },
+    { id: 'old-barbell', started: 1000, exercises: [{ exerciseId: 'lg3', sets: [S(50, 5)] }] },
+    { id: 'new-cali', started: 9500, exercises: [{ exerciseId: 'ch8', sets: [S('', 20)] }] },
+    { id: 'pinned', started: 1000, bodyweightKg: 79, exercises: [{ exerciseId: 'ch8', sets: [S('', 20)] }] }
+  ];
+  const pending = Core.sessionsAwaitingBodyweight(history, log, null);
+  assert.deepStrictEqual(pending.map(s => s.id), ['old-cali'],
+    'only pre-first-weigh-in sessions with unmeasured bodyweight work qualify');
+  assert.deepStrictEqual(Core.sessionsAwaitingBodyweight(history, log, 78).map(s => s.id), [],
+    'once a backfill is confirmed nothing is still awaiting one');
 });
 
 test('Ty legs session: bodyweight loading does NOT paper over the real bug', () => {

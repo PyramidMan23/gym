@@ -2347,3 +2347,6 @@ body.kb-open{padding-bottom:var(--kb,0px)}
   border-radius:var(--r2,12px);background:rgba(var(--bloom-amber),.09);color:var(--amber-deep);
   font-size:13px;font-weight:800;text-align:center}
 .bw-prompt:active{background:rgba(var(--bloom-amber),.16)}
+/* The backfill decision is reversible, so it says so where every other data decision lives. */
+.settings-note{margin:14px 0 0;color:var(--taupe);font-size:12px;line-height:1.5}
+.settings-note strong{color:var(--cream);font-weight:800}
