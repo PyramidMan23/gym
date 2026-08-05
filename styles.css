@@ -2350,3 +2350,101 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 /* The backfill decision is reversible, so it says so where every other data decision lives. */
 .settings-note{margin:14px 0 0;color:var(--taupe);font-size:12px;line-height:1.5}
 .settings-note strong{color:var(--cream);font-weight:800}
+
+/* ============================================================
+   w63 pass - 2026-08-05. Whole-app review (Claude + Codex).
+   Rollback: delete from this banner to EOF.
+   ============================================================ */
+
+/* ---- The rest pill covered the RIR chips by a measured 50px --------------
+   The pill is fixed to the bottom; the RIR question renders inline in the
+   exercise card at the same moment the timer starts. scroll-margin-bottom
+   reserves the pill's height (plus the safe-area token every bottom-anchored
+   surface in this app reads) so scrollIntoView can never land it underneath. */
+.rir-row{scroll-margin-bottom:calc(96px + var(--sai-bottom, 0px))}
+
+/* ---- Library scope: Yours / All -----------------------------------------
+   The catalogue is a reference; your own short list is the thing you reach
+   for in a gym. Same segmented control as Progress, so there is one grammar
+   for "which slice am I looking at" across the app. */
+/* :not([hidden]) is load-bearing: a bare `display:flex` beats the UA [hidden]{display:none} rule,
+   so the scope row would still be laid out while hidden for a lifter with no exercises of their own.
+   Exactly the phantom-element class browser-flow caught on .paused-flag in July - the gate found it
+   again here within a minute of the CSS being written. */
+.seg-row:not([hidden]){display:flex}
+.seg-row{gap:6px;margin:12px 0 4px;padding:4px;border-radius:var(--r-card);
+  background:var(--glass-2);border:1px solid var(--hair)}
+.seg-row .seg-button{flex:1;min-height:40px;border:0;border-radius:12px;background:transparent;
+  color:var(--taupe);font-size:13px;font-weight:800;letter-spacing:.01em}
+.seg-row .seg-button.on{background:var(--card-bg);color:var(--cream);box-shadow:var(--elev-0)}
+/* Names and equipment truncated mid-word ("Assisted Pistol Sq...", "band o...").
+   Two lines is enough for every entry in the catalogue and reads as a sentence. */
+.exercise-info strong{white-space:normal;overflow:visible;text-overflow:clip;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.exercise-info small{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.exercise-pick{align-items:flex-start;padding-top:12px;padding-bottom:12px}
+
+/* ---- Today: one dominant action ----------------------------------------
+   The ring reported an abstract percentage and nothing to do about it. It
+   keeps its place, but the next thing to do now sits directly under it. */
+.today-cta{display:flex;align-items:center;gap:12px;width:100%;margin:14px 0 0;padding:14px 14px 14px 18px;
+  border:0;border-radius:var(--r-card);text-align:left;color:var(--on-amber);
+  background:linear-gradient(135deg,var(--amber-soft),var(--amber) 78%);
+  box-shadow:0 14px 30px -18px rgba(var(--bloom-amber),.7),inset 0 1px 0 rgba(255,255,255,.3)}
+.today-cta-copy{flex:1;min-width:0}
+.today-cta-copy small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:.95}
+.today-cta-copy strong{display:block;margin-top:3px;font-size:19px;font-weight:800;letter-spacing:-.02em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.today-cta .workout-start{background:rgba(20,15,8,.18);color:var(--on-amber);margin:0;flex:none}
+.today-cta .workout-start svg{width:16px;height:16px}
+/* Rest is a training decision, so it gets a real state instead of a blank space. Quiet surface on
+   purpose: nothing here should read as urgent. */
+.today-rest{margin:14px 0 0;padding:16px 18px;border-radius:var(--r-card);
+  border:1px solid var(--card-hair);background:var(--card-bg);box-shadow:var(--shadow)}
+.today-rest .kicker{color:var(--teal)}
+.today-rest strong{display:block;margin-top:6px;font-size:19px;font-weight:800;letter-spacing:-.02em}
+.today-rest small{display:block;margin-top:5px;color:var(--taupe);font-size:12.5px;line-height:1.5}
+.today-rest-actions{display:flex;align-items:center;gap:10px;margin-top:12px}
+.today-rest-actions .secondary-button{flex:1;margin:0}
+
+/* ---- Cockpit: exercise memory ------------------------------------------
+   Collapsed by default - the card is a logging surface first. Open, it is
+   the last three exposures, the best set on record, and a note that
+   survives to next session. */
+.ex-memory{margin:10px 0 0;border-top:1px solid var(--hair)}
+.ex-memory summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;
+  gap:6px;color:var(--taupe);font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.ex-memory summary::-webkit-details-marker{display:none}
+.ex-memory summary::after{content:'›';margin-left:auto;font-size:16px;transition:transform .18s var(--ease)}
+.ex-memory[open] summary::after{transform:rotate(90deg)}
+.mem-body{padding:2px 0 10px}
+.mem-row{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.mem-when{flex:none;width:78px;color:var(--faint);font-size:11px;font-weight:700}
+.mem-sets{flex:1;min-width:0;color:var(--cream);font-size:12.5px;font-variant-numeric:tabular-nums lining-nums}
+.mem-best{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0 2px}
+.mem-best span{color:var(--faint);font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.mem-best strong{color:var(--amber-deep);font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.mem-note{display:block;margin-top:8px}
+.mem-note span{display:block;margin-bottom:4px;color:var(--faint);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.mem-note textarea{width:100%;border:1px solid var(--hair);border-radius:var(--r2,12px);
+  background:var(--glass);color:var(--cream);padding:10px 12px;font-size:16px;resize:vertical}
+
+/* ---- Warm-ups + plates per side ---------------------------------------- */
+.add-warmup{border:0;background:transparent;color:var(--teal);font-size:12.5px;font-weight:800;min-height:44px;padding:0 10px}
+/* A warm-up row is marked by the WORD "WARM" in its set-number cell plus a lighter rail - never by
+   hue alone, which is the standing rule in this app. */
+.set-row.warmup-set .set-number{opacity:.85}
+.set-row.warmup-set .set-tag{color:var(--teal)}
+.plate-hint{margin:-2px 0 8px;padding:0 4px 0 56px;color:var(--faint);font-size:11.5px;
+  font-variant-numeric:tabular-nums lining-nums}
+.plate-hint strong{color:var(--cream);font-weight:800}
+/* ---- The ring earns less room -------------------------------------------
+   It was 250px wide inside a 348px block: 27% of the page for one blended
+   percentage nobody can act on. Reduced, with the counts and the next action
+   taking the space it gives back. The prototype's proportions are kept - only
+   the scale changes - so it still reads as the same object. */
+.charge-ring{width:min(168px,46vw);margin:2px auto 0}
+.cr-centre .hero-num{font-size:clamp(30px,10vw,38px)}
+.activity-legend{margin-top:10px}
+.week-dots{margin-top:12px}

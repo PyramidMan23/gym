@@ -182,7 +182,11 @@
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      const sets = exercise ? doneSets(exercise).map(set => ({ weight: num(set.weight), reps: num(set.reps) })) : [];
+      // Warm-up rungs are preparation, not evidence. They still count as work done (volume), but
+      // "last time you did X" and the opening prefill must describe WORKING sets or the app would
+      // quietly propose an empty bar as your next session's starting load.
+      const sets = exercise ? doneSets(exercise).filter(set => !set.warmup)
+        .map(set => ({ weight: num(set.weight), reps: num(set.reps) })) : [];
       if (sets.length) return sets;
     }
     return [];
@@ -1224,7 +1228,26 @@
     return { minutes: null, capped: true, estimated: false };
   }
 
-  return { volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
+  // Warm-up ladder to a working weight. Percentages are the standard ramp (empty bar, then ~55/70/85%),
+  // rounded to something loadable, de-duplicated, and never heavier than the work set itself. Returns
+  // [] when the working weight is light enough that a ramp is theatre rather than preparation.
+  // Reps descend as load climbs: you are grooving the movement, not fatiguing yourself before set 1.
+  function warmupSets(workingKg, barKg = 20, step = 2.5) {
+    const target = num(workingKg), bar = num(barKg) || 20, inc = num(step) || 2.5;
+    if (!(target > bar * 1.5)) return [];
+    const round = kg => Math.max(bar, Math.round(kg / inc) * inc);
+    const ladder = [{ kg: bar, reps: 8 }, { kg: round(target * 0.55), reps: 5 },
+      { kg: round(target * 0.70), reps: 3 }, { kg: round(target * 0.85), reps: 2 }];
+    const out = [];
+    for (const rung of ladder) {
+      if (rung.kg >= target) continue;                      // a warm-up at working weight is a work set
+      if (out.some(x => x.kg === rung.kg)) continue;        // two identical rungs help nobody
+      out.push(rung);
+    }
+    return out;
+  }
+
+  return { warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };

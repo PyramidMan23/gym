@@ -787,7 +787,101 @@ try {
     `the sheet scroller must add the keyboard height to its bottom padding, got ${keyboard.padWithKeyboard}`);
   assert.equal(keyboard.revealer, true, 'a focused field must be scrolled into view');
 
-  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok');
+  // ---- w63: the measured occlusion, the Library scope, warm-ups and plates -----------------------
+  // THE bug this build exists to fix. Measured on live 2026-08-05: the rest pill (fixed, bottom)
+  // covered the reps-in-reserve chips by 50px at the exact moment both appear. RIR is the input the
+  // whole double-progression engine reads, so the timer was hiding the control that feeds it.
+  const occlusion = await evaluate(`(async () => {
+    state.activeSession=null; state.routines=[];
+    const S=(w,r)=>({weight:String(w),reps:String(r),done:true});
+    state.history=[{id:'prev',started:Date.now()-3*86400000,finished:Date.now()-3*86400000+3e6,
+      exercises:[{exerciseId:'lg1',sets:[S(80,8),S(80,8)]}]}];
+    saveState();
+    beginSession({id:null,name:'Occlusion probe',exerciseIds:['lg1','ch1']});
+    const ex=state.activeSession.exercises[0];
+    ex.sets[0].weight='95'; ex.sets[0].reps='8';
+    toggleSet(0,0);                                   // completes the set: starts rest AND asks RIR
+    await new Promise(r=>setTimeout(r,1200));         // let the pill transition and the reveal settle
+    const row=document.querySelector('.rir-row'), pill=document.getElementById('restPill');
+    if(!row||!pill)return {rowFound:!!row,pillFound:!!pill};
+    const r=row.getBoundingClientRect(), p=pill.getBoundingClientRect();
+    const chips=row.querySelector('.rir-chips').getBoundingClientRect();
+    return {
+      rowFound:true, pillFound:true, pillShown:pill.classList.contains('show'),
+      chipsHiddenBehindPill:Math.round(Math.max(0,Math.min(chips.bottom,p.bottom)-Math.max(chips.top,p.top))),
+      chipsOnScreen:chips.top>=0 && chips.bottom<=window.innerHeight,
+      scrollMarginReserved:parseFloat(getComputedStyle(row).scrollMarginBottom)||0
+    };
+  })()`);
+  assert.equal(occlusion.pillShown, true, 'the probe must actually have a running rest timer');
+  assert.equal(occlusion.chipsHiddenBehindPill, 0,
+    `the rest pill must not cover the RIR chips, ${occlusion.chipsHiddenBehindPill}px overlap`);
+  assert.equal(occlusion.chipsOnScreen, true, 'the RIR chips must be on screen when asked for');
+  assert.ok(occlusion.scrollMarginReserved >= 90,
+    `the RIR row must reserve the pill's height, got ${occlusion.scrollMarginReserved}`);
+
+  const extras = await evaluate(`(() => {
+    state.activeSession=null; saveState();
+    const out={};
+    // Library defaults to YOUR exercises; search still spans the whole catalogue.
+    navigate('library'); renderCatalogue('library');
+    out.scopeHiddenWhenNothingOwned=(()=>{const h=state.history,r=state.routines,f=state.favourites;
+      state.history=[];state.routines=[];state.favourites=[];renderCatalogue('library');
+      const el=document.getElementById('libraryScope');
+      const hidden=el.hidden && getComputedStyle(el).display==='none';
+      state.history=h;state.routines=r;state.favourites=f;renderCatalogue('library');
+      return hidden;})();
+    out.scope=libraryScope;
+    out.yoursRows=document.querySelectorAll('#exerciseLibrary .exercise-row').length;
+    out.allRows=(setLibraryScope('all'),document.querySelectorAll('#exerciseLibrary .exercise-row').length);
+    setLibraryScope('yours');
+    onCatSearch('library','pistol');
+    out.searchSpansAll=document.querySelectorAll('#exerciseLibrary .exercise-row').length>0;
+    onCatSearch('library','');
+    // Warm-ups: added in front, flagged, and never counted as evidence.
+    beginSession({id:null,name:'Warmup probe',exerciseIds:['lg1']});
+    const before=state.activeSession.exercises[0].sets.length;
+    state.activeSession.exercises[0].sets[0].weight='100';
+    // Plates are read BEFORE the ramp is added: afterwards the active row is the empty bar, which
+    // correctly shows no plates at all. Checking it later would have tested the wrong row.
+    renderWorkout();
+    out.plateHint=(document.querySelector('.plate-hint')||{}).textContent||'';
+    addWarmup(0);
+    const sets=state.activeSession.exercises[0].sets;
+    out.warmupsAdded=sets.length-before;
+    out.warmupsInFront=sets.slice(0,out.warmupsAdded).every(s=>s.warmup===true);
+    out.workingSetLast=!sets[sets.length-1].warmup;
+    out.warmupAscending=sets.slice(0,out.warmupsAdded).every((s,i,a)=>i===0||Number(s.weight)>Number(a[i-1].weight));
+    out.warmTagRendered=(renderWorkout(),/WARM/.test(document.getElementById('workoutExercises').textContent));
+    // The empty-bar warm-up is now the active row, and an empty bar has no plates on it.
+    out.plateHintOnBar=(document.querySelector('.plate-hint')||{}).textContent||'';
+    // Exercise memory renders with real history behind it.
+    out.memoryPresent=!!document.querySelector('.ex-memory');
+    state.activeSession=null; saveState();
+    // Today: one dominant action, and a real rest state when the week is done.
+    navigate('today'); renderToday();
+    out.todayCta=(document.querySelector('.today-cta strong')||{}).textContent||'';
+    out.todayRest=!!document.querySelector('.today-rest');
+    return out;
+  })()`);
+  assert.equal(extras.scope, 'yours', 'the Library must open on your own exercises');
+  assert.ok(extras.yoursRows > 0 && extras.yoursRows < extras.allRows,
+    `YOURS must be a real subset, got ${extras.yoursRows} of ${extras.allRows}`);
+  assert.equal(extras.allRows, 255, 'Browse all must still reach the whole catalogue');
+  assert.equal(extras.searchSpansAll, true, 'search must span the catalogue even in YOURS scope');
+  assert.equal(extras.scopeHiddenWhenNothingOwned, true,
+    'the scope switch must be display:none (not merely [hidden]) when you own nothing');
+  assert.ok(extras.warmupsAdded >= 3, `a 100 kg lift needs a real ramp, got ${extras.warmupsAdded}`);
+  assert.equal(extras.warmupsInFront, true, 'warm-ups must be flagged and go in front');
+  assert.equal(extras.workingSetLast, true, 'the working set must remain last');
+  assert.equal(extras.warmupAscending, true, 'the ladder must climb');
+  assert.equal(extras.warmTagRendered, true, 'a warm-up row must say WARM, never rely on hue');
+  assert.ok(/per side/.test(extras.plateHint), `the active barbell row must show plates, got "${extras.plateHint}"`);
+  assert.equal(extras.plateHintOnBar, '', 'an empty-bar warm-up row must show no plates');
+  assert.equal(extras.memoryPresent, true, 'exercise memory must render when there is history');
+  assert.ok(extras.todayCta || extras.todayRest, 'Today must offer one dominant action or a rest state');
+
+  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok', 'rir-not-occluded=ok', 'library-scope=ok', 'warmups=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

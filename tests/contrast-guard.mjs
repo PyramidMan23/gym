@@ -317,11 +317,20 @@ try {
         sessions:[{title:'Probe block',exercises:[{exerciseId:'lg4',sets:3,reps:8,load:30,
           cue:'Confirmed once: repeat exactly as last time to build a tolerance base.'}]}]};});
       saveState(); navigate('today'); renderToday();
-      return {deload:!!document.querySelector('.deload-card'),desk:!!document.querySelector('.desk-card'),
+      // The deload advisory has TWO possible homes since 2026-08-05: its own card, or the Today rest
+      // state, which carries the same figures plus a recovery action. Exactly one renders at a time
+      // (they used to render both, one above the other). The guard audits whichever is on screen,
+      // and still fails if NEITHER is - what must be true is that the advice is visible and legible.
+      return {deload:!!document.querySelector('.deload-card, .today-rest'),
+        deloadHome:document.querySelector('.deload-card')?'card':(document.querySelector('.today-rest')?'rest':'none'),
+        deloadNotDuplicated:!(document.querySelector('.deload-card')&&document.querySelector('.today-rest')),
+        desk:!!document.querySelector('.desk-card'),
         cue:!!document.querySelector('.coach-cue'),notes:!!document.querySelector('.coach-notes')};
     })()`);
     await settle();
     assert.ok(seeded.deload, 'contrast guard must actually render the deload advisory to audit it');
+    assert.ok(seeded.deloadNotDuplicated,
+      `the deload advice must have exactly one home, found it in both (${seeded.deloadHome})`);
     assert.ok(seeded.desk, 'contrast guard must actually render the Desk Reset row to audit it');
     assert.ok(seeded.cue, 'contrast guard must actually render a coach cue to audit it');
     assert.ok(seeded.notes, 'contrast guard must actually render the plan-notes disclosure to audit it');

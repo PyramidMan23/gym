@@ -324,12 +324,16 @@ function renderToday(){
   document.getElementById('todayTitle').textContent=(hour<12?'Morning':hour<18?'Ready to train':'Let’s finish strong')+nameBit+'.';
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
-  renderDeload();
+  // Computed ONCE and shared, so the rest state and the deload card can never both claim the same
+  // message (the first draft rendered "back off this week" twice, one above the other).
+  const rest=restDayRead(weekly);
+  renderDeload(rest);
   renderCoach();
   renderDeskReset();
   renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
+  renderTodayAction(rest);
   // A paused session must not read as "in progress" with a live pulse - the card states the real state.
   const live=state.activeSession,livePaused=!!live?.pausedAt;
   document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
@@ -344,8 +348,11 @@ function renderToday(){
 // Deload awareness (2026-07-28). Volume that only ever climbs is how a return to training becomes
 // the next injury: the exact failure mode this app exists to prevent, and nothing modelled it.
 // Advisory only: it never blocks a session and never changes a prescription.
-function renderDeload(){
+function renderDeload(rest){
   const slot=document.getElementById('deloadSlot');if(!slot)return;
+  // When the rest state is already telling this story at the top of the page, the card would be a
+  // second copy of it. The card keeps the exact figures, so it wins and the rest state defers.
+  if(rest&&rest.source==='deload'){slot.innerHTML='';return;}
   const check=Core.deloadCheck(state.history);
   slot.innerHTML=check.due
     ?`<section class="deload-card card" aria-label="Easy week suggested"><p class="kicker">EASY WEEK SUGGESTED</p><p>${esc(check.reason)}</p></section>`
@@ -379,6 +386,48 @@ function renderDeskReset(){
 function startDeskReset(){
   const day=DESK_PLAN&&DESK_PLAN.days[0];if(!day)return;
   beginSession({id:'plan-desk',name:'Desk Reset',exerciseIds:day.exerciseIds});
+}
+// Today led with a 348px ring reporting "30% WEEK CHARGED" - a number blending sessions, sets and
+// volume that nobody can act on, eating 27% of the page (measured 2026-08-05, both engines flagged
+// it). The ring stays, smaller, and now has to earn its place by being followed by the ONE thing to
+// do next. Plain counts sit beside it because "1 of 4 sessions" is actionable and a percentage is not.
+function renderTodayAction(rest){
+  const host=document.getElementById('todayAction'); if(!host)return;
+  if(state.activeSession){host.innerHTML='';return;} // the resume card already owns this job
+  if(rest){
+    // A real rest state, rather than manufacturing urgency to fill the screen. Recovery is a
+    // training decision, so the app names it as one and offers the recovery work it already has.
+    host.innerHTML=`<div class="today-rest"><p class="kicker">${esc(rest.kicker)}</p><strong>${esc(rest.title)}</strong><small>${esc(rest.detail)}</small>`
+      +`<div class="today-rest-actions"><button class="secondary-button" onclick="startDeskReset()">Desk Reset · 5 min</button>`
+      +`<button class="text-button" onclick="navigate('train')">Train anyway</button></div></div>`;
+    return;
+  }
+  const mine=ownProgrammingDay();
+  const routine=mine?state.routines.find(r=>r.name===mine.day.name):null;
+  if(routine){
+    host.innerHTML=`<button class="today-cta" onclick="startRoutine('${esc(routine.id)}')"><span class="today-cta-copy"><small>UP NEXT</small><strong>${esc(routine.name)}</strong></span><span class="workout-start" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></button>`;
+    return;
+  }
+  host.innerHTML=`<button class="today-cta" onclick="navigate('train')"><span class="today-cta-copy"><small>GET STARTED</small><strong>Pick a session</strong></span><span class="workout-start" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></button>`;
+}
+// Rest is EARNED, not a gap in the calendar. Two honest triggers, both from data the app already
+// computes: every routine done this week, or a deload the app itself is advising. Nothing else
+// counts - a lifter who simply has not trained today is not resting, they are behind.
+function restDayRead(){
+  const trainedToday=(state.history||[]).some(s=>{
+    const d=new Date(Number(s.started)||0),n=new Date();
+    return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+  });
+  if(trainedToday)return {source:'today',kicker:'DONE TODAY',title:'That is today handled.',
+    detail:'Eat, sleep, and let it stick. The next session will be here tomorrow.'};
+  const deload=Core.deloadCheck(state.history);
+  if(deload&&deload.due)return {source:'deload',kicker:'EASY WEEK SUGGESTED',title:'Back off this week.',
+    detail:deload.reason};
+  const routines=(state.routines||[]).filter(r=>r.exerciseIds&&r.exerciseIds.length);
+  const done=Core.routinesDoneThisWeek(state.history);
+  if(routines.length&&routines.every(r=>done.has(r.id)))return {source:'week',kicker:'WEEK COMPLETE',title:'Every routine is done.',
+    detail:'You have trained everything you planned this week. Rest is part of the plan.'};
+  return null;
 }
 function renderActivityRings(weekly){
   const goals=state.preferences;
@@ -821,6 +870,36 @@ function applyPlan(id){
 const MUSCLE_ORDER=['Chest','Back','Shoulders','Arms','Grip','Legs','Core','Full Body','Cardio','Mobility','Calisthenics','Stretches'];
 const FILTERS_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>';
 function newFilterState(){return {query:'',muscle:'All',patterns:[],equip:[],families:[]};}
+// The Library was 18,805px of alphabetical catalogue - 22 screens - for 255 exercises, of which a
+// real lifter had ever performed THREE (measured 2026-08-05). A catalogue is a reference; what you
+// actually need to reach in a gym is your own short list. So the default scope is YOURS: everything
+// you have logged, starred, or put in a routine. The full catalogue is one tap away and search
+// always spans everything, because searching for something you have never done is the whole point
+// of a search box.
+let libraryScope='yours';
+function yourExerciseIds(){
+  const ids=new Set();
+  for(const session of state.history||[]) for(const ex of session.exercises||[]) if(ex&&ex.exerciseId)ids.add(ex.exerciseId);
+  for(const id of state.favourites||[]) ids.add(id);
+  for(const routine of state.routines||[]) for(const id of routine.exerciseIds||[]) ids.add(id);
+  return ids;
+}
+// Most-recently-trained first, then the rest of your list alphabetically. Recency is what makes a
+// short list feel like it read your mind; alphabetical inside the tail keeps it findable.
+function yourExercisesOrdered(){
+  const ids=yourExerciseIds();
+  const lastDone=new Map();
+  for(const session of state.history||[]) for(const ex of session.exercises||[]){
+    const t=Number(session.started)||0;
+    if(ex&&ex.exerciseId&&t>(lastDone.get(ex.exerciseId)||0))lastDone.set(ex.exerciseId,t);
+  }
+  return allExercises().filter(e=>ids.has(e.id)).sort((a,b)=>{
+    const ta=lastDone.get(a.id)||0,tb=lastDone.get(b.id)||0;
+    if(ta!==tb)return tb-ta;
+    return a.name.localeCompare(b.name);
+  });
+}
+function setLibraryScope(scope){libraryScope=scope==='all'?'all':'yours';renderCatalogue('library');}
 let libraryFilter=newFilterState();
 let pickerFilterState=newFilterState();
 const CAT={
@@ -834,7 +913,18 @@ function catAdd(ctx,id){(ctx==='library'?quickExercise:pickExercise)(id);} // ad
 function renderCatalogue(ctx){
   const input=catEl(ctx,'search'); if(input)input.value=catState(ctx).query;
   const list=catEl(ctx,'list'); if(list)list._catKey=null; // force a rebuild on a fresh open
-  renderCatalogueQuick(ctx);renderCatalogueChips(ctx);renderCatalogueList(ctx,false);
+  renderLibraryScope();renderCatalogueQuick(ctx);renderCatalogueChips(ctx);renderCatalogueList(ctx,false);
+}
+// Yours / All. The counts are on the buttons because the whole point is to show how much of the
+// catalogue you are being spared. Hidden entirely for a lifter with nothing of their own yet -
+// a switch between "nothing" and "everything" is not a choice worth offering.
+function renderLibraryScope(){
+  const host=document.getElementById('libraryScope'); if(!host)return;
+  const mine=yourExerciseIds().size;
+  if(!mine){host.innerHTML='';host.hidden=true;return;}
+  host.hidden=false;
+  const seg=[['yours',`Yours · ${mine}`],['all',`All · ${allExercises().length}`]];
+  host.innerHTML=seg.map(([id,label])=>`<button class="seg-button${libraryScope===id?' on':''}" role="tab" aria-selected="${libraryScope===id}" onclick="setLibraryScope('${id}')">${esc(label)}</button>`).join('');
 }
 function renderCatalogueQuick(ctx){
   const host=catEl(ctx,'quick'); if(!host)return;
@@ -864,14 +954,29 @@ function updateFiltersControl(ctx){
   if(ctx===filterSheetCtx){const clear=document.getElementById('filterClearBtn');if(clear)clear.disabled=n===0;}
 }
 function renderCatalogueList(ctx,animate){
-  const fs=catState(ctx),list=Core.filterExercises(allExercises(),fs);
-  const count=catEl(ctx,'count'); if(count)count.textContent=`${list.length} exercise${list.length===1?'':'s'}${fs.query?' found':''}`;
+  const fs=catState(ctx);
+  // A search always spans the WHOLE catalogue: looking up something you have never done is exactly
+  // what the search box is for, so scope must never hide it.
+  const scoped=(ctx==='library'&&libraryScope==='yours'&&!fs.query)?yourExercisesOrdered():allExercises();
+  let list=Core.filterExercises(scoped,fs);
+  // filterExercises sorts by its own ranking; the YOURS list is deliberately recency-ordered, so
+  // restore that order when no query is narrowing it.
+  if(ctx==='library'&&libraryScope==='yours'&&!fs.query){
+    const rank=new Map(scoped.map((e,i)=>[e.id,i]));
+    list=[...list].sort((a,b)=>(rank.get(a.id)??1e9)-(rank.get(b.id)??1e9));
+  }
+  const count=catEl(ctx,'count');
+  if(count)count.textContent=fs.query?`${list.length} found`
+    :(ctx==='library'&&libraryScope==='yours'?`${list.length} of yours`:`${list.length} exercise${list.length===1?'':'s'}`);
   const host=catEl(ctx,'list'); if(!host)return;
   // Skip the 239-row rebuild when the filtered id-set + query-state is unchanged (favourite toggles patch stars in place, so the DOM stays correct).
-  const key=(fs.query?'q:':'')+list.map(e=>e.id).join(',');
+  const key=(fs.query?'q:':'')+(ctx==='library'?libraryScope+':':'')+list.map(e=>e.id).join(',');
   if(host._catKey===key)return;
   host._catKey=key;
-  host.innerHTML=list.length?list.map(e=>exerciseRow(e,fs.muscle)).join(''):`<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+  const empty=(ctx==='library'&&libraryScope==='yours'&&!fs.query)
+    ? `<div class="empty-card card"><strong>Nothing here yet</strong>Exercises you log, star or put in a routine show up here. <button class="text-button" onclick="setLibraryScope('all')">Browse all ${allExercises().length}</button></div>`
+    : `<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+  host.innerHTML=list.length?list.map(e=>exerciseRow(e,fs.muscle)).join(''):empty;
   if(animate&&!REDUCED_MOTION){host.style.animation='none';void host.offsetWidth;host.style.animation='catFade .18s var(--ease)';}
 }
 // Row markup carries the exact id in data-id (never interpolated into a handler string); a delegated listener does the work.
@@ -1751,8 +1856,64 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
     +targetStrip
     +`<div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>`
     +setRows+rirRow
-    +`<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button><button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div>`
+    +memoryMarkup(exercise,index,timed)
+    +`<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button>${warmupButton(exercise,index,target,timed)}<button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div>`
   +`</article>${ssLink}`;
+}
+// Exercise memory, in the cockpit, where the decision is actually made. The app already held all of
+// this (recentSessionsFor, the standing cue, per-session notes) but only ever surfaced ONE previous
+// set, on a different screen. Collapsed by default so the card stays a logging surface; one tap
+// opens the last three exposures, the best set on record, and a note that persists to next time.
+function memoryMarkup(exercise,index,timed){
+  const id=exercise.exerciseId;
+  const recent=Core.recentSessionsFor(state.history,id,3);
+  const note=state.exerciseCues?.[id];
+  if(!recent.length&&!note?.text)return '';
+  const unit=timed?'s':'reps';
+  const rows=recent.map(entry=>{
+    const top=entry.sets.reduce((best,x)=>(x.weight>best.weight||(x.weight===best.weight&&x.reps>best.reps))?x:best,entry.sets[0]);
+    const line=entry.sets.map(x=>timed?`${x.reps} s`:`${x.weight||'-'} kg × ${x.reps}`).join(' · ');
+    return `<div class="mem-row"><span class="mem-when">${esc(formatDate(entry.started))}</span><span class="mem-sets">${esc(line)}</span></div>`;
+  }).join('');
+  // The best set ON RECORD, not just in the last three - that is the number worth chasing.
+  let best=null;
+  for(const entry of Core.recentSessionsFor(state.history,id,50))
+    for(const set of entry.sets)
+      if(!best||set.weight>best.weight||(set.weight===best.weight&&set.reps>best.reps))best=set;
+  const bestLine=best?`<div class="mem-best"><span>Best on record</span><strong>${timed?`${best.reps} s`:`${best.weight||'-'} kg × ${best.reps} ${unit}`}</strong></div>`:'';
+  return `<details class="ex-memory"><summary>Last ${recent.length} time${recent.length===1?'':'s'}${note?.text?' · your note':''}</summary>`
+    +`<div class="mem-body">${rows}${bestLine}`
+    +`<label class="mem-note"><span>Note for next time</span><textarea rows="2" placeholder="Seat height, grip, how it felt…" onchange="saveExerciseCueText('${esc(id)}',this.value)">${esc(note?.text||'')}</textarea></label>`
+    +`</div></details>`;
+}
+// One writer for the standing cue, so the cockpit field and the options sheet cannot drift apart.
+function saveExerciseCueText(id,text){
+  if(!state.exerciseCues)state.exerciseCues={};
+  const clean=String(text||'').trim();
+  if(clean)state.exerciseCues[id]={text:clean,updated:Date.now()};
+  else delete state.exerciseCues[id];
+  saveState();showToast(clean?'Note saved for next time':'Note cleared');
+}
+// Warm-up sets are arithmetic every lifter does in their head, every session. Offered only when
+// there is a real working weight to ramp TO, and only while the exercise is still unstarted -
+// adding warm-ups after your top set would be nonsense.
+function warmupButton(exercise,index,target,timed){
+  if(timed||Core.doneSets(exercise).length)return '';
+  const kg=Number(target?.weight)||Number(exercise.sets?.[0]?.weight)||0;
+  const rungs=Core.warmupSets(kg,Number(state.preferences.barWeight)||20,Number(state.preferences.weightStep)||2.5);
+  if(!rungs.length)return '';
+  return `<button class="add-warmup" onclick="addWarmup(${index})" title="Add ${rungs.length} ramp-up sets below your working weight">+ Warm-up</button>`;
+}
+function addWarmup(index){
+  const ex=state.activeSession?.exercises[index];if(!ex)return;
+  const target=Core.nextTarget(state.history,ex.exerciseId,{step:Number(state.preferences.weightStep)||2.5});
+  const kg=Number(target?.weight)||Number(ex.sets?.[0]?.weight)||0;
+  const rungs=Core.warmupSets(kg,Number(state.preferences.barWeight)||20,Number(state.preferences.weightStep)||2.5);
+  if(!rungs.length)return showToast('No warm-up needed for that load');
+  // Warm-ups go IN FRONT and are flagged, so nothing downstream counts them as working sets.
+  ex.sets.unshift(...rungs.map(r=>({weight:String(r.kg),reps:String(r.reps),done:false,warmup:true})));
+  saveState();renderWorkout();buzz(15);
+  showToast(`${rungs.length} warm-up sets added`);
 }
 // RIR (reps-in-reserve) capture on the finished exercise. One tap → stored on the session exercise,
 // chips collapse to a small confirmed note. 'skip' is an honest non-answer (keeps progression conservative).
@@ -1770,7 +1931,7 @@ function rirRowMarkup(exercise,index,show){
   // Honest label: with drop sets present, the RIR refers to the last WORKING (non-drop) set.
   const label=(exercise.sets||[]).some(s=>s.drop)?'Last working set - reps left in tank:':'Last set - reps left in tank:';
   // "Reps in reserve" is lifting jargon; the app asks a plain question instead of assuming it.
-  return `<div class="rir-row"><span class="rir-label">${label}<small class="rir-help">How many more could you have done? 0 = nothing left, 4+ = easy</small></span><div class="rir-chips">${chips}</div></div>`;
+  return `<div class="rir-row" id="rirRow${index}"><span class="rir-label">${label}<small class="rir-help">How many more could you have done? 0 = nothing left, 4+ = easy</small></span><div class="rir-chips">${chips}</div></div>`;
 }
 function setRir(index,value){
   const ex=state.activeSession?.exercises[index];if(!ex)return;
@@ -1839,17 +2000,37 @@ function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,
   const w=Number(set.weight)||0,r=Number(set.reps)||0;
   const pw=Number(firstPrev?.weight)||0,pr=Number(firstPrev?.reps)||0;
   const beats=!!(set.done&&firstPrev&&(w>pw||(w===pw&&r>pr)));
-  const tag=set.drop?'DROP':(beats?'PR':(isActive&&!set.done?'NOW':''));
+  const tag=set.warmup?'WARM':(set.drop?'DROP':(beats?'PR':(isActive&&!set.done?'NOW':'')));
   const unitB=timed?'s':'reps';
   const cell=(k,val,ph,unit,label)=>`<span class="set-cell"><input class="set-input" type="number" inputmode="${k==='weight'?'decimal':'numeric'}" min="0" step="${k==='weight'?'0.5':'1'}" value="${esc(val)}" placeholder="${ph}" ${cellAttrs(k)} onchange="updateSet(${exerciseIndex},${setIndex},'${k}',this.value)" aria-label="${label}"><small class="set-unit" aria-hidden="true">${unit}</small></span>`;
-  return `<div class="set-grid set-row ${completion.className}${isActive&&!set.done?' now':''}${pf}${set.drop?' drop-set':''}${beats?' beats':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}">`
+  // Plates per side for the row you are about to lift. Barbell-loadable movements only, and only on
+  // the active row - printing it on every line would be noise, and on a machine it would be a lie.
+  const plateLine=(isActive&&!set.done&&bwFactor==null&&!timed)?platesHint(exerciseIndex,set.weight):'';
+  return `<div class="set-grid set-row ${completion.className}${isActive&&!set.done?' now':''}${pf}${set.drop?' drop-set':''}${set.warmup?' warmup-set':''}${beats?' beats':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}">`
     +`<button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side"><b>${set.drop?'↓':setIndex+1}</b>${set.side?`<em>${set.side}</em>`:''}${tag?`<small class="set-tag">${tag}</small>`:''}</button>`
     +(bwFactor!=null
       ? cell('weight',set.weight,'+0','+kg',`Added weight for set ${setIndex+1} (blank means bodyweight only)`)
       : cell('weight',set.weight,previous?.weight||'-','kg',`Weight for set ${setIndex+1}`))
     +cell('reps',set.reps,previous?.reps||'-',unitB,`${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}`)
     +`<button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button>`
-  +`</div>${adopt}`;
+  +`</div>${plateLine}${adopt}`;
+}
+// Only barbell-family kit loads in plates. Anything else (dumbbell, machine, cable, band) gets
+// nothing rather than a made-up breakdown.
+const PLATE_KIT=['Barbell','EZ Bar','Trap Bar'];
+function platesHint(exerciseIndex,weight){
+  const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return '';
+  const item=exerciseById(ex.exerciseId);
+  if(!item||!(item.equip||[]).some(k=>PLATE_KIT.includes(k)))return '';
+  const kg=Number(weight)||0,bar=Number(state.preferences.barWeight)||20;
+  if(!(kg>bar))return '';
+  const b=Core.plateBreakdown(kg,bar);
+  if(!b.perSide.length)return '';
+  const counted=[];
+  for(const p of b.perSide){const last=counted[counted.length-1];
+    if(last&&last.p===p)last.n++;else counted.push({p,n:1});}
+  const text=counted.map(c=>`${c.n}×${c.p}`).join(' + ');
+  return `<div class="plate-hint">${bar} kg bar + <strong>${esc(text)}</strong> per side${b.remainder?` · ${b.remainder} kg short`:''}</div>`;
 }
 // Explicit set-1 adoption: fill (never auto) set 1 from last session's first set; the lifter can still edit.
 function adoptLast(exerciseIndex){
@@ -1997,6 +2178,22 @@ function startRest(seconds,exerciseIndex=0){
   restDeadline=Date.now()+restTotalSeconds*1000;restExerciseIndex=exerciseIndex;
   clearInterval(restTimer);document.getElementById('restPill').classList.add('show');
   tickRest();restTimer=setInterval(tickRest,1000);
+  revealRirRow(exerciseIndex);
+}
+// Finishing the last set starts the timer AND asks for reps-in-reserve in the same instant, and the
+// pill is fixed to the bottom - measured on live 2026-08-05, it covered the chips by 50px. RIR is
+// what the entire double-progression engine reads, so the timer was hiding the control that feeds
+// it. The row now carries scroll-margin-bottom past the pill and is brought into view when the pill
+// appears. Deferred a frame because the pill's own transition changes the geometry being measured.
+function revealRirRow(exerciseIndex){
+  requestAnimationFrame(()=>setTimeout(()=>{
+    const row=document.getElementById('rirRow'+exerciseIndex);
+    if(!row||!row.getClientRects().length)return;
+    const pill=document.getElementById('restPill');
+    if(!pill||!pill.classList.contains('show'))return;
+    const r=row.getBoundingClientRect(),p=pill.getBoundingClientRect();
+    if(r.bottom>p.top)try{row.scrollIntoView({block:'end',behavior:'smooth'});}catch{}
+  },80));
 }
 // Council 2026-07-23: rest is RECOVERY (teal) until the last 10s, when it becomes an ACTION (amber).
 // The label changes with the hue - never hue alone, Mark is colour-blind.
