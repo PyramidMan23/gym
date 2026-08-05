@@ -2335,3 +2335,15 @@ body.kb-open{padding-bottom:var(--kb,0px)}
   font-size:9.5px;font-weight:700;letter-spacing:.03em}
 .wk-rank{margin:12px 0 0;color:var(--taupe);font-size:12.5px;font-weight:600}
 @media(prefers-reduced-motion:reduce){.wkb i{transition:none}}
+
+/* ---- Work axes (2026-08-05) ---------------------------------------------
+   Kilograms, reps and seconds are different quantities and are never summed.
+   This block states the parts of a session the kg headline cannot carry, so
+   calisthenics stops reading as "you did nothing". */
+.work-axes{display:grid;gap:6px;margin:12px 0 0}
+.work-axes span{color:var(--taupe);font-size:12.5px;line-height:1.45}
+.work-axes strong{color:var(--cream);font-weight:800}
+.bw-prompt{width:100%;min-height:48px;margin-top:10px;border:1px solid rgba(var(--bloom-amber),.34);
+  border-radius:var(--r2,12px);background:rgba(var(--bloom-amber),.09);color:var(--amber-deep);
+  font-size:13px;font-weight:800;text-align:center}
+.bw-prompt:active{background:rgba(var(--bloom-amber),.16)}

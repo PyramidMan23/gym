@@ -4,6 +4,17 @@ const Core = DuckGymCore;
 // Hold-type exercises store SECONDS in the `reps` field. Register them with Core once, here, so
 // volume/e1RM/PR/progression all agree - exercises.js loads before app.js (see index.html).
 Core.setTimedExercises((typeof DUCK_EXERCISES !== 'undefined' ? DUCK_EXERCISES : []).filter(e => e.timed).map(e => e.id));
+// Bodyweight load model. Registered the same way and for the same reason: one source of truth, so
+// volume, coverage and the load-gap check can never disagree about what a movement loads. The
+// factor table and its sourcing live next to the catalogue in exercises.js.
+Core.setBodyweightModel({
+  factorFor: id => (typeof gymBodyweightFactor === 'function' ? gymBodyweightFactor(exerciseById(id)) : null),
+  // The body mass logged NEAREST that session, so today's weigh-in never rewrites last month's
+  // numbers. A running session has no `started` yet at creation time, hence the Date.now() default.
+  // try/catch guards the temporal dead zone: `state` is declared further down this file, and a
+  // ReferenceError here would take out volume for the whole app rather than degrading to "unknown".
+  bodyweightFor: session => { try { return Core.bodyweightNear(state && state.bodyweight, session && session.started); } catch { return null; } }
+});
 const Coach = (typeof DuckGymCoach !== 'undefined') ? DuckGymCoach : null;
 const Sync = (typeof DuckGymSync !== 'undefined') ? DuckGymSync : null;
 const Profiles = (typeof DuckGymProfiles !== 'undefined') ? DuckGymProfiles : null;
@@ -1691,7 +1702,8 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
       +`<button class="why-target" type="button" onclick="openTargetWhy(${index})" aria-label="Why this target">why?</button></div>`
     +`</div>`:`<div class="previous-strip">${esc(prevText)}</div>`;
   const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
-  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed)).join('');
+  const bwFactor=Core.bodyweightFactor(exercise.exerciseId);
+  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed,bwFactor)).join('');
   return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
     +`<header class="exercise-head">`
       +`<button class="exercise-grip" type="button" aria-label="Drag to reorder ${esc(item?.name||'this exercise')}, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="grip-dots" aria-hidden="true"></span><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
@@ -1783,7 +1795,7 @@ function openTargetWhy(index){
 // amber fill, next-up = amber rail + ring + the word NOW, prefilled = italic + muted, drop = DROP,
 // a set that beats last session = PR. Only the active exercise passes isActive, so exactly one NOW
 // row exists in the whole session.
-function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed){
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,bwFactor){
   const completion=Core.setCompletionState(set.done,setIndex+1);
   const pf=set.prefilled&&!set.done?' prefilled':'';
   const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;
@@ -1798,7 +1810,9 @@ function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed)
   const cell=(k,val,ph,unit,label)=>`<span class="set-cell"><input class="set-input" type="number" inputmode="${k==='weight'?'decimal':'numeric'}" min="0" step="${k==='weight'?'0.5':'1'}" value="${esc(val)}" placeholder="${ph}" ${cellAttrs(k)} onchange="updateSet(${exerciseIndex},${setIndex},'${k}',this.value)" aria-label="${label}"><small class="set-unit" aria-hidden="true">${unit}</small></span>`;
   return `<div class="set-grid set-row ${completion.className}${isActive&&!set.done?' now':''}${pf}${set.drop?' drop-set':''}${beats?' beats':''}" data-ex="${exerciseIndex}" data-set="${setIndex}" data-status="${completion.status}">`
     +`<button class="set-number" onclick="cycleSide(${exerciseIndex},${setIndex})" title="Tap to tag left/right side" aria-label="${set.drop?'Drop set':'Set'} ${setIndex+1}${set.side?`, ${set.side==='L'?'left':'right'} side`:''}. Tap to tag side"><b>${set.drop?'↓':setIndex+1}</b>${set.side?`<em>${set.side}</em>`:''}${tag?`<small class="set-tag">${tag}</small>`:''}</button>`
-    +cell('weight',set.weight,previous?.weight||'-','kg',`Weight for set ${setIndex+1}`)
+    +(bwFactor!=null
+      ? cell('weight',set.weight,'+0','+kg',`Added weight for set ${setIndex+1} (blank means bodyweight only)`)
+      : cell('weight',set.weight,previous?.weight||'-','kg',`Weight for set ${setIndex+1}`))
     +cell('reps',set.reps,previous?.reps||'-',unitB,`${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}`)
     +`<button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button>`
   +`</div>${adopt}`;
@@ -2147,6 +2161,7 @@ function openReceipt(session){
   // Catch a forgotten load at the ONE moment it is still cheap to fix - before the session becomes
   // history and the number starts disagreeing with an identical session next week.
   const gaps=Core.loadGaps(state.history.filter(x=>x.id!==session.id),session);
+  const workBlock=workBreakdown(Core.sessionWork(session));
   const gapBlock=gaps.length?`<div class="receipt-gap"><strong>${gaps.length} lift${gaps.length===1?'':'s'} logged without a load</strong><small>${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} · last time ${g.lastWeight} kg`).join(' · ')}. Your kg total leaves ${gaps.length===1?'it':'them'} out.</small></div>`:'';
   const prBlocks=prs.map(pr=>{
     const item=exerciseById(pr.exerciseId);
@@ -2162,7 +2177,7 @@ function openReceipt(session){
     return `<div class="receipt-next-row" style="--i:${i}"><span>${esc(item?.name||'Exercise')}</span><strong>${esc(val)}${word?` <em>${esc(word)}</em>`:''}</strong></div>`;
   }).join('');
   const nextBlock=nextRows?`<div class="receipt-next"><p class="kicker">NEXT SESSION</p><div class="receipt-next-rows">${nextRows}</div></div>`:'';
-  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p>${verdictBlock}<div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${gapBlock}${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
+  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p>${verdictBlock}<div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${workBlock}${gapBlock}${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
   const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;overlay.style.display='grid';
   requestAnimationFrame(()=>overlay.classList.add('show'));
   document.getElementById('receiptCard').querySelector('.primary-button').focus();
@@ -2505,6 +2520,26 @@ function openCustomExercise(){
 }
 function saveCustomExercise(){const name=document.getElementById('customName').value.trim();if(!name)return showToast('Name the exercise');state.customExercises.push({id:`c${Date.now()}`,name,muscle:document.getElementById('customMuscle').value,equipment:document.getElementById('customEquipment').value.trim()||'Custom equipment',custom:true});saveState();closeSheet();renderLibrary();showToast('Custom exercise added');}
 
+// Work happens on three axes and they are DIFFERENT quantities, so they are never summed into one
+// figure: kilograms lifted, reps of bodyweight work the kilogram axis cannot honestly describe, and
+// seconds held. Reporting only the first is exactly how Ty's calisthenics came to read as nothing.
+// Every line is suppressed when it has nothing to say, so a pure barbell session looks unchanged.
+function workBreakdown(work){
+  if(!work)return '';
+  const parts=[];
+  if(work.bodyweightKg>0)
+    parts.push(`<span><strong>${compact(work.bodyweightKg)} kg</strong> of that is bodyweight, counted at your ${work.bodyweightUsed} kg</span>`);
+  if(work.seconds>0)
+    parts.push(`<span><strong>${work.seconds}s</strong> held</span>`);
+  // Lever work (hanging leg raise, nordic curl, dragon flag) has no honest body-mass multiplier, so
+  // it is counted in reps rather than handed a fabricated load. Saying so out loud is the point.
+  if(work.setsUncounted>0)
+    parts.push(`<span><strong>${work.setsUncounted} set${work.setsUncounted===1?'':'s'} · ${work.repsUncounted} reps</strong> of work with no load to measure</span>`);
+  const prompt=work.needsBodyweight
+    ? `<button class="bw-prompt" onclick="closeSheet();setTimeout(openBodyweightLog,300)">Add your bodyweight so your calisthenics count</button>`:'';
+  if(!parts.length&&!prompt)return '';
+  return `<div class="work-axes">${parts.join('')}</div>${prompt}`;
+}
 // The MINUTES tile reads "1618" for a session left open overnight, so an implausible wall time is
 // reported as unknown rather than as a number that is certainly wrong (Core.sessionMinutes).
 function durationTile(summary){
@@ -2518,18 +2553,34 @@ function openHistory(id){
   // name the lifts that were logged bare AFTER being loaded before - that gap IS the inconsistency.
   const cover=Core.volumeCoverage(session),gaps=Core.loadGaps(state.history,session);
   const gapIds=new Set(gaps.map(g=>g.exerciseId));
+  const work=Core.sessionWork(session);
+  // Two different situations wear the same shape, and only one of them is a mistake. A lift whose
+  // load was FORGOTTEN reads as an omission; a hanging leg raise simply has no measurable load and
+  // must never be described as if the lifter left something out.
+  const missing=cover.total-cover.loaded;
   const coverNote=cover.total&&!cover.complete
-    ? `<p class="vol-note">Kilograms count the <strong>${cover.loaded} of ${cover.total}</strong> lifts that carried a load. ${cover.total-cover.loaded} ${cover.total-cover.loaded===1?'was':'were'} logged without one, so ${cover.total-cover.loaded===1?'it adds':'they add'} nothing to the total.</p>`:'';
+    ? (gaps.length
+      ? `<p class="vol-note">Kilograms count the <strong>${cover.loaded} of ${cover.total}</strong> lifts that carried a load. ${missing} ${missing===1?'was':'were'} logged without one, so ${missing===1?'it adds':'they add'} nothing to the total.</p>`
+      : `<p class="vol-note">Kilograms count the <strong>${cover.loaded} of ${cover.total}</strong> lifts that carry a measurable load. The rest is real work on a different axis, not a gap.</p>`)
+    :'';
   const gapNote=gaps.length
     ? `<p class="vol-gap"><strong>Missing a load.</strong> ${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} (last time ${g.lastWeight} kg)`).join(', ')}. Add the weight and this session's total will match the work you actually did.</p>`:'';
   const rows=session.exercises.map(ex=>{
     const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex),timed=!!item?.timed;
-    const line=sets.length?sets.map(s=>timed?`${s.reps||0} s`:`${s.weight?`${s.weight} kg`:'no load'} × ${s.reps||0}`).join(' · '):'No completed sets';
+    const bwF=Core.bodyweightFactor(ex.exerciseId);
+    const cell=s=>timed?`${s.reps||0} s`
+      :bwF!=null?`${work.bodyweightUsed?`${Math.round(work.bodyweightUsed*bwF)} kg`:'bodyweight'}${s.weight?` +${s.weight}`:''} × ${s.reps||0}`
+      // "no load" is a FLAG, so it is reserved for a lift this lifter has loaded before and did not
+      // this time. A movement with nothing to measure just states its reps.
+      :s.weight?`${s.weight} kg × ${s.reps||0}`
+      :gapIds.has(ex.exerciseId)?`no load × ${s.reps||0}`
+      :`${s.reps||0} reps`;
+    const line=sets.length?sets.map(cell).join(' · '):'No completed sets';
     return `<div class="selected-row${gapIds.has(ex.exerciseId)?' row-gap':''}"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${esc(line)}</small></span></div>`;
   }).join('');
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
     +`<div class="metric-grid">${durationTile(summary)}<div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div>`
-    +coverNote+gapNote
+    +workBreakdown(work)+coverNote+gapNote
     +`<div class="selected-list">${rows}</div>`
     // Three stacked full-width buttons with no gap read as one cramped block (Mark 2026-08-05).
     // Grouped with real spacing, and the destructive action sits apart from the two safe ones.

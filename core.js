@@ -20,12 +20,102 @@
   const isTimed = exerciseId => TIMED_IDS.has(exerciseId);
   const bestSecondsOf = sets => sets.reduce((best, set) => Math.max(best, num(set.reps)), 0);
 
+  // Bodyweight load model (2026-08-05). A calisthenics set IS loaded work - by the lifter's own
+  // mass - so counting a push-up as 0 kg is wrong. Registered rather than threaded, same reasoning
+  // as TIMED_IDS: one source of truth so no caller can forget it. Empty default = the pre-2026-08-05
+  // behaviour, i.e. only what is typed in the weight field counts.
+  //   bwFactorFor(exerciseId) -> the share of body mass the movement loads, or null when there is
+  //     no honest basis for one (lever work like a hanging leg raise). null is NOT zero: it means
+  //     "this movement does not belong on the kilogram axis", and the app reports it as reps.
+  //   bwForSession(session)   -> the lifter's body mass in kg at the time of THAT session, or null
+  //     when they have never logged one. Never invented: no bodyweight logged, no bodyweight load.
+  let BW_FACTOR = () => null;
+  let BW_FOR_SESSION = () => null;
+  const setBodyweightModel = model => {
+    BW_FACTOR = typeof model?.factorFor === 'function' ? model.factorFor : () => null;
+    BW_FOR_SESSION = typeof model?.bodyweightFor === 'function' ? model.bodyweightFor : () => null;
+  };
+  const bodyweightFactor = exerciseId => (isTimed(exerciseId) ? null : BW_FACTOR(exerciseId));
+
+  // What one set actually loaded, in kg, for work accounting. For a bodyweight movement the typed
+  // weight field is ADDED weight (a dip belt), so it is summed on top rather than replacing.
+  // PRs, e1RM and progression deliberately do NOT use this - they stay on the raw typed value,
+  // because the thing that progresses on a pull-up is reps, and on a WEIGHTED pull-up it is the belt.
+  function effectiveLoad(exerciseId, set, bodyweightKg) {
+    const factor = bodyweightFactor(exerciseId);
+    if (factor == null) return num(set?.weight);
+    const bw = num(bodyweightKg);
+    return bw > 0 ? bw * factor + num(set?.weight) : num(set?.weight);
+  }
+
   // kg × seconds is not volume. A hold's work is time under tension, carried on its own axis, so
   // timed exercises add zero to the kg ledger rather than a fabricated number.
   function calculateVolume(session) {
+    const bw = BW_FOR_SESSION(session);
     return (session?.exercises || []).reduce((total, exercise) =>
       total + (isTimed(exercise?.exerciseId) ? 0
-        : doneSets(exercise).reduce((sum, set) => sum + num(set.weight) * num(set.reps), 0)), 0);
+        : doneSets(exercise).reduce((sum, set) =>
+            sum + effectiveLoad(exercise?.exerciseId, set, bw) * num(set.reps), 0)), 0);
+  }
+
+  // The honest whole picture of a session, on the three axes work actually happens on. They are
+  // never summed into one figure: kilograms, repetitions and seconds are different quantities, and
+  // a single headline number is exactly how Ty's calisthenics came to be reported as nothing.
+  function sessionWork(session) {
+    const bw = num(BW_FOR_SESSION(session));
+    let externalKg = 0, bodyweightKg = 0, seconds = 0, repsUncounted = 0, setsUncounted = 0;
+    let liftsUncounted = 0, needsBodyweight = false;
+    for (const exercise of session?.exercises || []) {
+      const id = exercise?.exerciseId, sets = doneSets(exercise);
+      if (!sets.length) continue;
+      if (isTimed(id)) { for (const set of sets) seconds += num(set.reps); continue; }
+      const factor = bodyweightFactor(id);
+      if (factor == null) {
+        // No load model. If a weight was typed it is real external load; if not, this is genuine
+        // work that the kilogram axis cannot describe, and it is counted in reps instead.
+        let typed = 0, reps = 0;
+        for (const set of sets) { typed += num(set.weight) * num(set.reps); reps += num(set.reps); }
+        if (typed > 0) externalKg += typed;
+        else { repsUncounted += reps; setsUncounted += sets.length; liftsUncounted += 1; }
+        continue;
+      }
+      if (!bw) {
+        // A bodyweight movement was trained but the lifter has never logged their body mass, so
+        // there is nothing honest to multiply. Say so rather than silently reporting zero.
+        needsBodyweight = true;
+        let reps = 0;
+        for (const set of sets) { reps += num(set.reps); externalKg += num(set.weight) * num(set.reps); }
+        repsUncounted += reps; setsUncounted += sets.length; liftsUncounted += 1;
+        continue;
+      }
+      for (const set of sets) {
+        bodyweightKg += bw * factor * num(set.reps);
+        externalKg += num(set.weight) * num(set.reps); // a dip belt is still external load
+      }
+    }
+    return {
+      kg: Math.round(externalKg + bodyweightKg),
+      externalKg: Math.round(externalKg),
+      bodyweightKg: Math.round(bodyweightKg),
+      seconds: Math.round(seconds),
+      repsUncounted, setsUncounted, liftsUncounted, needsBodyweight,
+      bodyweightUsed: bw || null
+    };
+  }
+
+  // The body mass to use for a session: the entry logged NEAREST that session's date, so a weigh-in
+  // today never silently rewrites what last month's sessions are worth. Falls back to the closest
+  // available entry in either direction, and to null when nothing has ever been logged.
+  function bodyweightNear(entries, timestamp) {
+    const list = (entries || []).filter(e => e && Number.isFinite(Number(e.kg)) && Number(e.kg) > 0);
+    if (!list.length) return null;
+    const at = num(timestamp) || Date.now();
+    let best = null, bestGap = Infinity;
+    for (const entry of list) {
+      const gap = Math.abs(num(entry.t) - at);
+      if (gap < bestGap) { bestGap = gap; best = entry; }
+    }
+    return best ? Number(best.kg) : null;
   }
 
   // A curated workout arrives as a SCHEME - [{id,sets,reps,rest}] - so the session opens with the
@@ -1042,13 +1132,18 @@
   // measures; `total` is what was trained. Timed holds are excluded from both - they are not on the
   // kg axis at all (see calculateVolume), so counting them as "missing" would be a lie.
   function volumeCoverage(session) {
+    const bw = num(BW_FOR_SESSION(session));
     let loaded = 0, total = 0;
     for (const exercise of session?.exercises || []) {
-      if (isTimed(exercise?.exerciseId)) continue;
+      const id = exercise?.exerciseId;
+      if (isTimed(id)) continue;
       const sets = doneSets(exercise);
       if (!sets.length) continue;
       total += 1;
-      if (sets.some(set => num(set.weight) > 0)) loaded += 1;
+      // A bodyweight movement counts as loaded once we know the lifter's body mass - it does not
+      // need a typed weight, because the load is the lifter.
+      const carried = bodyweightFactor(id) != null ? bw > 0 : sets.some(set => num(set.weight) > 0);
+      if (carried) loaded += 1;
     }
     return { loaded, total, complete: loaded === total };
   }
@@ -1062,6 +1157,9 @@
     for (const exercise of session?.exercises || []) {
       const id = exercise?.exerciseId;
       if (!id || isTimed(id)) continue;
+      // A bodyweight movement has no weight to forget: its blank field means "no belt", which is
+      // correct and must never be nagged about. Only movements whose load must be TYPED qualify.
+      if (bodyweightFactor(id) != null) continue;
       const sets = doneSets(exercise);
       if (!sets.length || sets.some(set => num(set.weight) > 0)) continue;
       // previousPerformance skips the session under inspection only when it is not yet in history;
@@ -1079,7 +1177,9 @@
   function openingLoads(history, exerciseIds) {
     const out = {};
     for (const id of new Set(exerciseIds || [])) {
-      if (isTimed(id)) continue;
+      // Never seed a bodyweight movement: its weight field is ADDED weight, and pre-filling a belt
+      // the lifter has not put on would be inventing work, not remembering it.
+      if (isTimed(id) || bodyweightFactor(id) != null) continue;
       const top = previousPerformance(history, id).reduce((best, set) => Math.max(best, num(set.weight)), 0);
       if (top > 0) out[id] = top;
     }
@@ -1112,6 +1212,7 @@
   }
 
   return { volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
+    setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightNear,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

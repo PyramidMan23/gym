@@ -677,3 +677,71 @@ const GYM_PLANS = [
 for (const plan of GYM_PLANS) for (const day of plan.days) {
   if (Array.isArray(day.exercises) && !day.exerciseIds) day.exerciseIds = day.exercises.map(e => e.id);
 }
+
+// ---- Bodyweight load factors (2026-08-05) ------------------------------------------------------
+// Mark: "can we count bodyweight there? lets really make sure this makes 100% sense."
+//
+// A calisthenics set IS loaded work - by the lifter's own mass - so counting it as 0 kg is wrong.
+// But multiplying FULL bodyweight by reps is equally wrong: a push-up does not load 100% of body
+// mass, and a hanging leg raise is a lever problem with no body-mass multiplier at all. So this
+// table exists ONLY where there is a published or geometrically obvious basis, and every movement
+// NOT in it stays off the kilogram axis and is reported as sets and reps instead. Guessing a factor
+// would put a fabricated number in the one figure the lifter compares week to week.
+//
+// Sources / basis for each value:
+//   Push-Up        0.70  Suprak et al. 2011 (J Strength Cond Res) measured 67% of body mass at the
+//                        top and 75% at the bottom of a traditional push-up; 0.70 is the mid-range.
+//   Knee Push-Up   0.52  Same study, modified (knees-down) variant sits near half body mass.
+//   Incline Push-Up 0.55 Hand-elevated variants measured across roughly 41-74% BM depending on
+//                        height; 0.55 is the middle of the usable range for a bench-height incline.
+//   Pike Push-Up   0.75  Hips high shifts mass forward over the hands; above a flat push-up.
+//   Pull-Up/Chin   1.00  The whole body hangs from the bar. Only the forearms above the grip are
+//                        unloaded, which is inside the noise of a bodyweight estimate.
+//   Bar Dip        1.00  Same geometry as a pull-up: the entire body is supported by the arms.
+//   Bench Dip      0.45  Feet on the floor carry a large share; roughly half body mass on the arms.
+//   Squat pattern  0.65  Shanks and feet do not travel; commonly cited as 60-70% of body mass.
+//   Single-leg     0.80  One leg carries body mass less its own segment; between a squat and 1.0.
+//
+// Applied as: effective load = bodyweight x factor + whatever is typed in the weight field, so a
+// weighted pull-up is bodyweight + the belt. `assist:true` families SUBTRACT the typed value.
+// Timed holds never appear here - they are on the seconds axis (see the `timed` flag).
+const GYM_BW_FACTORS = {
+  // Ids READ OUT of the catalogue, never remembered: the first draft of this table guessed four of
+  // them and landed a 0.45 factor on a Rope Triceps Pushdown and 0.75 on a Seated Barbell Overhead
+  // Press. The coverage print below is what caught it, which is why it is a permanent test.
+  // Every id here is pinned to its exercise NAME by tests/bodyweight-load.test.js, because the first
+  // draft of this table guessed four ids and landed 0.45 on a Rope Triceps Pushdown and 0.75 on a
+  // Seated Barbell Overhead Press. A wrong id now fails a gate loudly instead of quietly loading the
+  // wrong movement. These win over both the equipment guard and the family default, which is what
+  // lets a Deficit Push-Up count: its dumbbells are HANDLES, not load.
+  byId: {
+    cs7: 0.52,   // Knee Push-Up - knees-down carries near half body mass
+    cs6: 0.55,   // Incline Push-Up - hands elevated unloads the arms
+    cs26: 0.80,  // Decline Push-Up - feet elevated shifts mass onto the hands
+    cs9: 0.75,   // Pike Push-Up - hips high, mass forward over the hands
+    cs27: 0.80,  // Pseudo-Planche Push-Up - hands at the hips lengthens the lever
+    ar21: 0.45,  // Bench Dip - feet on the floor carry a large share
+    ch17: 0.72   // Deficit Push-Up - hands on dumbbell HANDLES; the kit is a riser, not a load
+  },
+  byFamily: {
+    'Push-Up': 0.70,
+    'Pull-Up': 1.00,
+    'Dip': 1.00,
+    'Split Squat': 0.80,
+    'Step-Up': 0.80
+  }
+};
+// Resolve id override first, then family. Returns null for every movement with no honest basis -
+// lever work (leg raise, dragon flag, dead bug, bird dog), conditioning, mobility and stretching.
+function gymBodyweightFactor(exercise) {
+  if (!exercise || exercise.timed) return null;
+  // A named override wins: it has been checked by eye against the catalogue and pinned by a test.
+  if (Object.prototype.hasOwnProperty.call(GYM_BW_FACTORS.byId, exercise.id)) return GYM_BW_FACTORS.byId[exercise.id];
+  // Otherwise the family default applies only when there is NO external kit: a dumbbell split
+  // squat's load is the dumbbell, and adding body mass on top would double-count what the lifter
+  // already typed. BOSU / Slant Board / Bench / Pull-Up Bar / Hang Board are supports, not load.
+  const EXTERNAL = ['Barbell', 'EZ Bar', 'Trap Bar', 'Dumbbell', 'Kettlebell', 'Cable', 'Smith', 'Machine', 'Band', 'Tib Bar', 'Wrist Axe', 'Plate', 'Rope'];
+  if ((exercise.equip || []).some(kit => EXTERNAL.includes(kit))) return null;
+  const byFamily = GYM_BW_FACTORS.byFamily[exercise.family];
+  return typeof byFamily === 'number' ? byFamily : null;
+}
