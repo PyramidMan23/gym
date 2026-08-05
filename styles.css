@@ -2519,3 +2519,8 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 .activity-card .activity-heading{display:flex}
 .activity-card .activity-heading h2{font-size:22px;font-weight:800;letter-spacing:-.025em;margin:3px 0 0}
 .activity-card .activity-detail{margin:3px 0 0;color:var(--taupe);font-size:13px;font-weight:600}
+/* A new user should not meet a scoreboard of zeroes through the onboarding blur. Nothing about the
+   week is worth reporting before there is a week. */
+body.first-run-open .activity-card,
+body.first-run-open #weekDots,
+body.first-run-open #todayHero{visibility:hidden}

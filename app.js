@@ -3287,7 +3287,12 @@ function openFirstRunSheet(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training on this phone?</h2></div>
     <p class="first-run-sub"><strong>Log your lifts, see what's actually working, get stronger.</strong> Stored on this device. Optional backup to your own Google Drive, which only you can see. You can add other people later from the profile menu.</p>
     <div class="field"><label>YOUR NAME</label><input id="firstRunName" placeholder="Your name" onkeydown="if(event.key==='Enter')submitFirstRun()"></div>
-    <button class="primary-button full-button" onclick="submitFirstRun()">Continue</button>`;
+    <button class="primary-button full-button" onclick="submitFirstRun()">Start training</button>`;
+  // "Continue" conceals the outcome; "Start training" says what happens next.
+  // And a brand-new user must not be greeted, through the blur, by a wall of zeroes telling them
+  // they are already behind ("0 of 4 sessions", "0 of 48 working sets"). The week's numbers have
+  // nothing to report until there is a week, so they are suppressed until onboarding finishes.
+  document.body.classList.add('first-run-open');
   document.getElementById('sheet').showModal();
   setTimeout(()=>document.getElementById('firstRunName')?.focus(),60);
 }
@@ -3296,6 +3301,7 @@ function submitFirstRun(nameArg){
   const name=(typeof nameArg==='string'?nameArg:(document.getElementById('firstRunName')?.value||'')).trim()||'Me';
   Profiles.setName(localStorage,activeProfileId,name);
   bootNeedsName=false;
+  document.body.classList.remove('first-run-open');
   closeSheet();renderProfileChip();renderAllViews();
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
 }
