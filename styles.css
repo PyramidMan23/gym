@@ -2448,3 +2448,74 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 .cr-centre .hero-num{font-size:clamp(30px,10vw,38px)}
 .activity-legend{margin-top:10px}
 .week-dots{margin-top:12px}
+
+/* ============================================================
+   w64 LANDING - 2026-08-05. Council: Claude + Codex, converged.
+   The "% WEEK CHARGED" ring is gone. It averaged three ratios,
+   displayed two of them, and its owner could not name it when
+   shown his own screen. What replaces it: the session you can
+   start, then what your body actually got this week.
+   Rollback: delete from this banner to EOF.
+   ============================================================ */
+
+/* ---- Hero: the executable next session ---------------------------------- */
+.today-hero{margin:14px 0 0;padding:18px;border-radius:var(--r-card);
+  background:linear-gradient(135deg,var(--amber-soft),var(--amber) 80%);color:var(--on-amber);
+  box-shadow:0 20px 44px -22px rgba(var(--bloom-amber),.65),inset 0 1px 0 rgba(255,255,255,.32)}
+.th-copy small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:1}
+.th-copy strong{display:block;margin-top:4px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.th-copy em{display:block;margin-top:5px;font-style:normal;font-size:12.5px;font-weight:700;opacity:.85}
+/* The prescription. Hairlines rather than cards: this is a manifest, not six more surfaces. */
+.th-list{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid rgba(20,15,8,.18)}
+.th-list li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:9px 0;border-bottom:1px solid rgba(20,15,8,.14)}
+.th-lift{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:700}
+.th-dose{flex:none;font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.th-more{margin:8px 0 0;font-size:12px;font-weight:700;opacity:.8}
+.th-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
+.th-actions .primary-button{flex:1;margin:0;background:rgba(20,15,8,.22);color:var(--on-amber);
+  border:1px solid rgba(20,15,8,.14)}
+.th-actions .text-button{flex:none;color:var(--on-amber);opacity:.9;font-weight:800}
+/* The no-plan variant is a quiet surface: it is a fallback, not the main act. */
+.today-hero-empty{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  background:var(--card-bg);border:1px solid var(--card-hair);color:var(--cream);box-shadow:var(--shadow)}
+.today-hero-empty .th-copy{flex:1;min-width:0}
+.today-hero-empty .th-copy small{color:var(--faint)}
+.today-hero-empty .th-copy em{color:var(--taupe)}
+.today-hero-empty .workout-start{flex:none;margin:0}
+
+/* ---- Weekly muscle dose: the signature visual ---------------------------
+   Ranked by EXCEPTION, never by volume. Direct vs assisting is carried by
+   fill PATTERN and by a written count, so it survives monochrome and
+   colour-blindness; the notch marks the minimum weekly dose. */
+.dose-board{display:grid;gap:2px;margin:14px 0 0}
+.dose-row{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:8px 0;
+  border:0;border-bottom:1px solid var(--hair);background:transparent;color:var(--cream);text-align:left}
+.dose-row:last-of-type{border-bottom:0}
+.dose-name{flex:none;width:74px;font-size:13px;font-weight:700;letter-spacing:-.01em}
+.dose-track{position:relative;flex:1;min-width:0;height:14px;border-radius:4px;background:var(--glass-2);
+  overflow:hidden;display:flex;align-items:stretch}
+.dose-direct{display:block;height:100%;border-radius:4px 0 0 4px;background:var(--amber);min-width:2px}
+/* Assisting sets are HATCHED, not merely a different colour - the distinction has to survive a
+   greyscale print and a colour-blind reader. */
+.dose-assist{display:block;height:100%;background:repeating-linear-gradient(115deg,
+  var(--cream-dim) 0 3px,transparent 3px 7px);opacity:.75}
+/* The minimum-dose notch: 10 direct sets/week (Schoenfeld 2017 dose-response meta-analysis). */
+.dose-min{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--cream);opacity:.55;border-radius:1px}
+.dose-nums{flex:none;width:74px;text-align:right;font-size:12px;color:var(--taupe);
+  font-variant-numeric:tabular-nums lining-nums}
+.dose-nums strong{color:var(--cream);font-weight:800;font-size:14px}
+.dose-nums small{display:block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.dose-under .dose-nums small{color:var(--amber-deep)}
+.dose-over .dose-nums small{color:var(--teal)}
+.dose-all{width:100%;min-height:44px;margin-top:4px;border:0;border-top:1px solid var(--hair);
+  background:transparent;color:var(--amber-deep);font-size:12.5px;font-weight:800}
+.dose-empty{margin:14px 0 0;color:var(--taupe);font-size:12.5px}
+/* The card is a plain section again now that the ring has gone. */
+.activity-card .activity-heading h2{font-size:19px}
+/* The heading was display:none for the v2 ring layout, which owned its own centre label. With the
+   ring gone it is the only place the plain counts can live, so it comes back - and it carries the
+   two numbers that replace "41%": each one traceable to exactly one thing. */
+.activity-card .activity-heading{display:flex}
+.activity-card .activity-heading h2{font-size:22px;font-weight:800;letter-spacing:-.025em;margin:3px 0 0}
+.activity-card .activity-detail{margin:3px 0 0;color:var(--taupe);font-size:13px;font-weight:600}

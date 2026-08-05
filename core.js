@@ -1247,7 +1247,40 @@
     return out;
   }
 
-  return { warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
+  // Weekly muscle dose, ranked for a GLANCE rather than a report (council 2026-08-05, Codex's rule).
+  // The ordering is the whole point: never by volume, because ranking by volume rewards the muscles
+  // already getting the most work and hides the ones being neglected - which is exactly what the
+  // "41% week charged" number concealed. A week can hit its session and tonnage targets while half
+  // the body gets nothing.
+  //   1. below the minimum dose, worst PROPORTIONAL deficit first
+  //   2. above the ceiling, worst excess first
+  //   3. whatever is closest to its next threshold
+  // Default band is 10-20 direct sets/week: Schoenfeld et al. 2017 dose-response meta-analysis found
+  // 10+ weekly sets per muscle produced greater hypertrophy than fewer (pubmed 27433992). A lifter's
+  // own `ranges` override it per muscle.
+  const DEFAULT_MUSCLE_RANGE = [10, 20];
+  function muscleDose(history, getMuscles, groups, ranges, limit = 4, now = Date.now()) {
+    const mv = muscleVolume(history, getMuscles, now);
+    const rows = (groups || []).map(m => {
+      const band = (ranges && ranges[m]) || DEFAULT_MUSCLE_RANGE;
+      const direct = mv[m] ? mv[m].direct || 0 : 0;
+      const assisting = mv[m] ? mv[m].assisting || 0 : 0;
+      const [min, max] = band;
+      const state = direct < min ? 'under' : direct > max ? 'over' : 'in';
+      // Proportional, so "2 of 10" outranks "8 of 12" - a muscle at a fifth of its dose is the
+      // more urgent exception even though both are short by the same-ish absolute count.
+      const deficit = min > 0 ? (min - direct) / min : 0;
+      const excess = max > 0 ? (direct - max) / max : 0;
+      return { muscle: m, direct, assisting, min, max, state, deficit, excess };
+    });
+    const under = rows.filter(r => r.state === 'under').sort((a, b) => b.deficit - a.deficit);
+    const over = rows.filter(r => r.state === 'over').sort((a, b) => b.excess - a.excess);
+    const inRange = rows.filter(r => r.state === 'in').sort((a, b) => (a.max - a.direct) - (b.max - b.direct));
+    const ranked = [...under, ...over, ...inRange];
+    return { rows: ranked.slice(0, Math.max(0, limit)), total: rows.length, all: ranked };
+  }
+
+  return { muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };

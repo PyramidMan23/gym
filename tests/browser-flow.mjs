@@ -859,9 +859,28 @@ try {
     out.memoryPresent=!!document.querySelector('.ex-memory');
     state.activeSession=null; saveState();
     // Today: one dominant action, and a real rest state when the week is done.
+    // The dose board counts sets in the CURRENT week only, so the fixture needs a session inside
+    // it - the earlier probe session is 3 days old and can fall in last week depending on the day.
+    const S2=(w,r)=>({weight:String(w),reps:String(r),done:true});
+    state.history.unshift({id:'thisweek',name:'This week',started:Date.now()-3600000,
+      finished:Date.now()-1800000,exercises:[
+        {exerciseId:'lg1',sets:[S2(80,8),S2(80,8),S2(80,8)]},
+        {exerciseId:'ba3',sets:[S2('',8),S2('',8)]}]});
+    saveState();
     navigate('today'); renderToday();
-    out.todayCta=(document.querySelector('.today-cta strong')||{}).textContent||'';
+    out.todayHero=(document.querySelector('.today-hero .th-copy strong')||{}).textContent||'';
     out.todayRest=!!document.querySelector('.today-rest');
+    // Exactly ONE advisory may be drawn. Three used to render at once and could contradict:
+    // "That is today handled" above "Take an easy week" above "UP NEXT - do Push/Pull".
+    out.advisoryCount=document.querySelectorAll('.today-rest, #todayAdvisory .deload-card').length;
+    // The percentage is gone for good: it averaged three ratios and displayed two of them.
+    out.weekCharged=/WEEK CHARGED/i.test(document.getElementById('view-today').textContent);
+    out.plainCounts=(document.getElementById('activityTitle')||{}).textContent||'';
+    // The dose board must rank by EXCEPTION, never by volume - ranking by volume puts the
+    // best-served muscles on top and hides the neglected ones, which is the bug it exists to fix.
+    const doseRows=[...document.querySelectorAll('#todayDose .dose-row')];
+    out.doseRowCount=doseRows.length;
+    out.doseNums=doseRows.map(r=>Number((r.querySelector('.dose-nums strong')||{}).textContent||0));
     return out;
   })()`);
   assert.equal(extras.scope, 'yours', 'the Library must open on your own exercises');
@@ -879,7 +898,18 @@ try {
   assert.ok(/per side/.test(extras.plateHint), `the active barbell row must show plates, got "${extras.plateHint}"`);
   assert.equal(extras.plateHintOnBar, '', 'an empty-bar warm-up row must show no plates');
   assert.equal(extras.memoryPresent, true, 'exercise memory must render when there is history');
-  assert.ok(extras.todayCta || extras.todayRest, 'Today must offer one dominant action or a rest state');
+  assert.ok(extras.todayHero || extras.todayRest, 'Today must lead with a startable session or a rest state');
+  assert.equal(extras.advisoryCount <= 1, true,
+    `at most ONE advisory may render, found ${extras.advisoryCount}`);
+  assert.equal(extras.weekCharged, false, 'the WEEK CHARGED percentage must be gone from Today');
+  assert.ok(/^\d+ of \d+ sessions$/.test(extras.plainCounts),
+    `the week must be stated in plain traceable counts, got "${extras.plainCounts}"`);
+  assert.ok(extras.doseRowCount > 0 && extras.doseRowCount <= 4,
+    `the dose board is a glance, not a report: 1-4 rows, got ${extras.doseRowCount}`);
+  // Deficit-first means the row with the FEWEST direct sets leads. If this ever sorts descending,
+  // the board is rewarding the muscles already getting the work.
+  assert.deepEqual(extras.doseNums, [...extras.doseNums].sort((a,b)=>a-b),
+    `dose rows must lead with the worst-served muscle, got ${JSON.stringify(extras.doseNums)}`);
 
   console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok', 'rir-not-occluded=ok', 'library-scope=ok', 'warmups=ok');
 } finally {

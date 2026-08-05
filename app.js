@@ -321,7 +321,9 @@ function renderToday(){
   document.getElementById('todayKicker').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date()).toUpperCase();
   const who=activeProfileName();
   const nameBit=who&&who!=='me'?`, ${who}`:'';
-  document.getElementById('todayTitle').textContent=(hour<12?'Morning':hour<18?'Ready to train':'Let’s finish strong')+nameBit+'.';
+  // "Let's finish strong" is generated purely from the clock and is absurd before a session. The
+  // informative line was the small grey one underneath, so that becomes the header's job.
+  document.getElementById('todayTitle').textContent=who&&who!=='me'?`${who}’s week`:'Your week';
   document.getElementById('todayPrompt').textContent=contextLine();
   const weekly=Core.weeklyStats(state.history);
   // Computed ONCE and shared, so the rest state and the deload card can never both claim the same
@@ -333,7 +335,9 @@ function renderToday(){
   renderTodayGoal();
   renderActivityRings(weekly);
   renderWeekDots();
-  renderTodayAction(rest);
+  renderTodayHero(rest);
+  renderTodayAdvisory(rest);
+  renderTodayDose();
   // A paused session must not read as "in progress" with a live pulse - the card states the real state.
   const live=state.activeSession,livePaused=!!live?.pausedAt;
   document.getElementById('resumeSlot').innerHTML=live?`<div class="resume-card${livePaused?'':' card-live'}"><strong>${livePaused?'':'<span class="live-dot" aria-hidden="true"></span>'}Workout ${livePaused?'paused':'in progress'}</strong><p>${esc(live.name)} · ${Core.formatDuration(Core.sessionElapsedMs(live)/1000)} on the clock</p><button onclick="resumeWorkout()">${livePaused?'Open workout':'Resume workout'}</button></div>`:'';
@@ -391,6 +395,84 @@ function startDeskReset(){
 // volume that nobody can act on, eating 27% of the page (measured 2026-08-05, both engines flagged
 // it). The ring stays, smaller, and now has to earn its place by being followed by the ONE thing to
 // do next. Plain counts sit beside it because "1 of 4 sessions" is actionable and a percentage is not.
+// ---- Landing hero: the executable next session --------------------------------------------------
+// Council 2026-08-05. Best-in-class opens on work you can start, not on a score. So the hero names
+// the actual session AND its first prescribed targets, computed from this lifter's own evidence -
+// the same nextTarget the cockpit uses, so the two can never disagree.
+function renderTodayHero(rest){
+  const host=document.getElementById('todayHero'); if(!host)return;
+  if(state.activeSession){host.innerHTML='';return;} // the resume card already owns this job
+  if(rest){
+    host.innerHTML=`<section class="today-rest"><p class="kicker">${esc(rest.kicker)}</p><strong>${esc(rest.title)}</strong><small>${esc(rest.detail)}</small>`
+      +`<div class="today-rest-actions"><button class="secondary-button" onclick="startDeskReset()">Desk Reset · 5 min</button>`
+      +`<button class="text-button" onclick="navigate('train')">Train anyway</button></div></section>`;
+    return;
+  }
+  const mine=ownProgrammingDay();
+  const routine=mine?state.routines.find(r=>r.name===mine.day.name):null;
+  if(!routine){
+    host.innerHTML=`<button class="today-hero today-hero-empty" onclick="navigate('train')"><span class="th-copy"><small>GET STARTED</small><strong>Pick a session</strong><em>Install a plan or build a routine and it lands here.</em></span><span class="workout-start" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></button>`;
+    return;
+  }
+  const step=Number(state.preferences.weightStep)||2.5, pg=Core.painGate(state.history,null);
+  // Three lifts is the glance; the rest are counted, not listed.
+  const shown=routine.exerciseIds.slice(0,3).map(id=>{
+    const item=exerciseById(id);
+    const t=Core.nextTarget(state.history,id,{step,block:!!pg.block,stepDown:!!pg.stepDown});
+    const dose=t?(t.rule==='blocked'?'train around it':formatTarget(t)):'set your benchmark';
+    return `<li><span class="th-lift">${esc(item?.name||id)}</span><span class="th-dose">${esc(dose)}</span></li>`;
+  }).join('');
+  const more=routine.exerciseIds.length-3;
+  const mins=Math.round(routine.exerciseIds.length*7.5);
+  host.innerHTML=`<section class="today-hero">`
+    +`<div class="th-head"><span class="th-copy"><small>UP NEXT</small><strong>${esc(routine.name)}</strong>`
+      +`<em>${routine.exerciseIds.length} lifts · about ${mins} min</em></span></div>`
+    +`<ul class="th-list">${shown}</ul>`
+    +(more>0?`<p class="th-more">+ ${more} more lift${more===1?'':'s'}</p>`:'')
+    +`<div class="th-actions"><button class="primary-button full-button" onclick="startRoutine('${esc(routine.id)}')">Start ${esc(routine.name.split(' · ').slice(-1)[0])}</button>`
+    +`<button class="text-button" onclick="openRoutineMenu('${esc(routine.id)}')">See all ${routine.exerciseIds.length}</button></div>`
+  +`</section>`;
+}
+// ---- ONE advisory, priority-resolved -------------------------------------------------------------
+// Three cards could previously give three different instructions on the same screen: "today is
+// handled" above "take an easy week" above "up next, do Push/Pull". Safety outranks progression,
+// progression outranks consistency, and only the winner is ever drawn.
+function renderTodayAdvisory(rest){
+  const host=document.getElementById('todayAdvisory'); if(!host)return;
+  const deload=Core.deloadCheck(state.history);
+  // The rest state already carries the deload message when that is why we are resting.
+  if(deload.due&&!(rest&&rest.source==='deload')){
+    host.innerHTML=`<section class="deload-card card" aria-label="Easy week suggested"><p class="kicker">EASY WEEK SUGGESTED</p><p>${esc(deload.reason)}</p></section>`;
+    return;
+  }
+  host.innerHTML='';
+}
+// ---- Weekly muscle dose: the signature visual ----------------------------------------------------
+// What "41% week charged" concealed is that a week can hit its session and tonnage targets while
+// half the body gets nothing. Four rows, ranked by EXCEPTION (worst proportional shortfall first),
+// never by volume - ranking by volume would rank the already-dominant muscles top and hide the gap.
+// Direct and assisting sets are distinguished by fill PATTERN and by a written count, never by hue.
+function renderTodayDose(){
+  const host=document.getElementById('todayDose'); if(!host)return;
+  const dose=Core.muscleDose(state.history,muscleLookup,MUSCLE_GROUPS,state.preferences.muscleRanges,4);
+  const trained=dose.all.some(r=>r.direct||r.assisting);
+  if(!trained){
+    host.innerHTML=`<p class="dose-empty">Log a set and your weekly muscle coverage starts here.</p>`;
+    return;
+  }
+  const scale=Math.max(1,...dose.all.map(r=>Math.max(r.direct,r.max)));
+  host.innerHTML=dose.rows.map(r=>{
+    const word=r.state==='under'?'below':r.state==='over'?'above':'in range';
+    return `<button class="dose-row dose-${r.state}" onclick="openMuscleDetail('${esc(r.muscle)}')" aria-label="${esc(r.muscle)}: ${r.direct} direct sets of a ${r.min} to ${r.max} target, ${r.assisting} assisting, ${word}">`
+      +`<span class="dose-name">${esc(r.muscle)}</span>`
+      +`<span class="dose-track"><i class="dose-direct" style="width:${Math.min(100,Math.round(r.direct/scale*100))}%"></i>`
+        +`<i class="dose-assist" style="width:${Math.min(100,Math.round(r.assisting/scale*100))}%"></i>`
+        +`<b class="dose-min" style="left:${Math.min(100,Math.round(r.min/scale*100))}%"></b></span>`
+      +`<span class="dose-nums"><strong>${r.direct}</strong>/${r.min}<small>${esc(word)}</small></span>`
+    +`</button>`;
+  }).join('')
+  +`<button class="dose-all" onclick="navigate('progress')">All ${dose.total} muscle groups · this week</button>`;
+}
 function renderTodayAction(rest){
   const host=document.getElementById('todayAction'); if(!host)return;
   if(state.activeSession){host.innerHTML='';return;} // the resume card already owns this job
@@ -414,15 +496,19 @@ function renderTodayAction(rest){
 // computes: every routine done this week, or a deload the app itself is advising. Nothing else
 // counts - a lifter who simply has not trained today is not resting, they are behind.
 function restDayRead(){
+  // PRIORITY, and the order is the whole point (council 2026-08-05): a deload advisory outranks
+  // "you trained today", which outranks "your week is done". Getting this backwards is what put
+  // "That is today handled" directly above "Take an easy week" on the same screen - two cards, two
+  // instructions, no hierarchy. Exactly one may win.
+  const deload=Core.deloadCheck(state.history);
+  if(deload&&deload.due)return {source:'deload',kicker:'EASY WEEK SUGGESTED',title:'Back off this week.',
+    detail:deload.reason};
   const trainedToday=(state.history||[]).some(s=>{
     const d=new Date(Number(s.started)||0),n=new Date();
     return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
   });
   if(trainedToday)return {source:'today',kicker:'DONE TODAY',title:'That is today handled.',
     detail:'Eat, sleep, and let it stick. The next session will be here tomorrow.'};
-  const deload=Core.deloadCheck(state.history);
-  if(deload&&deload.due)return {source:'deload',kicker:'EASY WEEK SUGGESTED',title:'Back off this week.',
-    detail:deload.reason};
   const routines=(state.routines||[]).filter(r=>r.exerciseIds&&r.exerciseIds.length);
   const done=Core.routinesDoneThisWeek(state.history);
   if(routines.length&&routines.every(r=>done.has(r.id)))return {source:'week',kicker:'WEEK COMPLETE',title:'Every routine is done.',
@@ -442,8 +528,9 @@ function renderActivityRings(weekly){
   const card=document.querySelector('.activity-card');
   card.classList.toggle('complete',score>=100);
   card.classList.toggle('card-live',score>0); // hero tinted card once the week is under way; quiet at zero-state
-  document.getElementById('activityTitle').textContent=message.title;
-  document.getElementById('activityDetail').textContent=message.detail;
+  const goals2=state.preferences;
+  document.getElementById('activityTitle').textContent=`${weekly.workouts} of ${goals2.weeklyWorkoutGoal} sessions`;
+  document.getElementById('activityDetail').textContent=`${weekly.completedSets} of ${goals2.weeklySetGoal} working sets`;
   const fmtGoal=ring=>ring.key==='volume'?compact(ring.goal):ring.goal;
   // v2 charge ring (design/HANDOFF.md): ONE ring replaces the three arc gauges.
   //   outer arc  = sessions + volume (the two "did you show up and do work" ratios, averaged)
@@ -459,25 +546,10 @@ function renderActivityRings(weekly){
   // Same rAF-in-a-hidden-tab guard as animateNumbers: with no frame loop the arcs would stay parked
   // at their empty start value, drawing a 0% ring over a non-zero week. Draw them filled instead.
   const noArcAnim=REDUCED_MOTION||document.hidden;
-  document.getElementById('activityRings').innerHTML=`<div class="charge-ring">`
-    +`<svg viewBox="0 0 120 120" aria-hidden="true">`
-    +`<circle class="cr-track" cx="60" cy="60" r="${OUT_R}"></circle>`
-    +`<circle class="cr-arc cr-out" data-offset="${outOff}" cx="60" cy="60" r="${OUT_R}" style="stroke-dasharray:${OUT_C};stroke-dashoffset:${noArcAnim?outOff:OUT_C}"></circle>`
-    +`<circle class="cr-track cr-track-in" cx="60" cy="60" r="${IN_R}"></circle>`
-    +`<circle class="cr-arc cr-in" data-offset="${inOff}" cx="60" cy="60" r="${IN_R}" style="stroke-dasharray:${IN_C};stroke-dashoffset:${noArcAnim?inOff:IN_C}"></circle>`
-    +`</svg>`
-    +`<button class="cr-centre" onclick="openRingGoals()" aria-label="Week ${score}% charged. Edit weekly goals">`
-    +`<span class="cr-num"><strong class="hero-num" data-count="${score}">0</strong><span class="cr-pct" aria-hidden="true">%</span></span>`
-    +`<small>WEEK CHARGED</small></button>`
-    +`</div>`;
-  if(!noArcAnim)requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#activityRings .cr-arc').forEach(el=>{el.style.strokeDashoffset=el.dataset.offset;})));
-  animateNumbers(document.getElementById('activityRings'));
-  document.getElementById('activityRings').setAttribute('aria-label',`Weekly activity: ${weekly.workouts} of ${goals.weeklyWorkoutGoal} workouts, ${weekly.completedSets} of ${goals.weeklySetGoal} sets, ${Math.round(weekly.volume)} of ${goals.weeklyVolumeGoal} kilograms volume`);
-  // The two arcs are never distinguished by colour alone: each legend entry names its own metric
-  // and prints its own numbers, and the shapes differ (thick outer ring vs thin inner ring).
-  document.getElementById('activityLegend').innerHTML=
-    `<span class="cr-key cr-key-out"><i aria-hidden="true"></i>${by('workouts').value}/${fmtGoal(by('workouts'))} sessions</span>`
-   +`<span class="cr-key cr-key-in"><i aria-hidden="true"></i>${by('sets').value}/${fmtGoal(by('sets'))} sets</span>`;
+  // The ring itself is GONE (council 2026-08-05). It was still being generated into a hidden
+  // element, which kept "WEEK CHARGED" in the page's text and made the removal a lie to anything
+  // reading the DOM. The heading above now carries the two plain counts that replaced it, and the
+  // weekly muscle dose board is the visual. Nothing here draws.
 }
 function renderWeekDots(){
   const now=new Date(),monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-((now.getDay()+6)%7));
@@ -3213,7 +3285,7 @@ function submitAddPerson(){
 // First-run / post-migration welcome - names the profile bootstrap already created. One screen, no friction.
 function openFirstRunSheet(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>Who’s training on this phone?</h2></div>
-    <p class="first-run-sub"><strong>Log your lifts, see what's actually working, get stronger.</strong> Your workouts stay in a private space on this device. You can add other people later from the profile menu.</p>
+    <p class="first-run-sub"><strong>Log your lifts, see what's actually working, get stronger.</strong> Stored on this device. Optional backup to your own Google Drive, which only you can see. You can add other people later from the profile menu.</p>
     <div class="field"><label>YOUR NAME</label><input id="firstRunName" placeholder="Your name" onkeydown="if(event.key==='Enter')submitFirstRun()"></div>
     <button class="primary-button full-button" onclick="submitFirstRun()">Continue</button>`;
   document.getElementById('sheet').showModal();

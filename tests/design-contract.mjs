@@ -50,7 +50,10 @@ const ANCHORS = [
   // A container is only comparable when both sides hold identical data; a component always is.
   { id: 'desk-reset',   kind: 'any', minW: 200, match: t => /^↺?\s*Desk Reset/.test(t) && t.length < 80 },
   { id: 'nav-bar',      kind: 'surface', match: t => /^Today Train Library Progress$/.test(t) },
-  { id: 'charge-ring',  kind: 'any',     minW: 200, match: t => /WEEK CHARGED/.test(t) },
+  // The v2 prototype's charge ring was REMOVED on 2026-08-05 by council decision, not by drift:
+  // it averaged three ratios, displayed two of them, and its owner could not name it when shown his
+  // own landing screen. What replaces it is the weekly muscle dose board, so that is what is pinned.
+  { id: 'dose-board',   kind: 'any',     minW: 200, match: t => /BELOW|IN RANGE|ABOVE/.test(t) },
 ];
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));

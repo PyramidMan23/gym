@@ -44,19 +44,24 @@
         <!-- v2 Today order follows the prototype: greeting -> charge ring -> resume -> UP NEXT ->
              grouped list -> quick start. Only DOM position moved; every id, class and onclick is
              unchanged, and renderToday() writes by id so render order is unaffected. -->
-        <section class="activity-card" aria-labelledby="activityTitle">
-          <div class="activity-heading"><div><p class="kicker">THIS WEEK</p><h2 id="activityTitle">Start your week.</h2><p id="activityDetail" class="activity-detail">One completed set starts the rings.</p></div><button class="activity-info" onclick="openRingGoals()" aria-label="Activity ring goals">•••</button></div>
-          <div class="activity-layout">
-            <div id="activityRings" class="activity-rings" role="img" aria-label="Weekly activity progress rings"></div>
-            <div id="activityLegend" class="activity-legend"></div>
-          </div>
-          <div id="weekDots" class="week-dots week-dots-wide"></div>
-          <div id="todayAction"></div>
-        </section>
+        <!-- Landing order, council 2026-08-05 (Claude + Codex converged): the executable session
+             first, then ONE advisory, then the weekly muscle dose as the signature visual, then the
+             seven-day rail as secondary history. The "% WEEK CHARGED" ring is gone: it averaged
+             three ratios and displayed two of them, and its owner could not name it. -->
         <div id="resumeSlot"></div>
-        <div id="deloadSlot"></div>
+        <div id="todayHero"></div>
+        <div id="todayAdvisory"></div>
+        <section class="activity-card" aria-labelledby="activityTitle">
+          <div class="activity-heading"><div><p class="kicker">THIS WEEK</p><h2 id="activityTitle">Start your week.</h2><p id="activityDetail" class="activity-detail">One completed set starts the board.</p></div><button class="activity-info" onclick="openRingGoals()" aria-label="Weekly goals">•••</button></div>
+          <div id="todayDose" class="dose-board"></div>
+          <div id="weekDots" class="week-dots week-dots-wide"></div>
+          <div id="activityRings" hidden></div>
+          <div id="activityLegend" hidden></div>
+          <div id="todayAction" hidden></div>
+        </section>
+        <div id="deloadSlot" hidden></div>
         <div id="todayGoal"></div>
-        <div id="coachSlot"></div>
+        <div id="coachSlot" hidden></div>
         <!-- v2: Desk Reset and the last session are ONE grouped inset list (design/HANDOFF.md).
              #recentSession moved up from .fold-2 to sit beside #deskSlot; both ids kept, and the
              group renders nothing at all when both slots are empty. -->
