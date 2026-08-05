@@ -132,3 +132,35 @@ is good: the strip carries cadence, which days trained, what remains - actionabl
 history is a user who rejected a minimal pass outright ("what the fuck is this design"). Deleting the
 only graphic on the landing screen to save space trades against the explicit "prettier" brief.
 Neither engine can settle this - it is a taste and identity call about Mark's own app. NOT actioned.
+
+---
+
+## 2026-08-05 — BOTH REVIEWS CLOSED. Everything above is SHIPPED and LIVE.
+
+| Item | Shipped in |
+|---|---|
+| Rest pill covering the RIR chips (the measured 50px bug) | w63 |
+| Library opens on YOUR exercises; names/equipment wrap | w63 |
+| Exercise memory in the cockpit (last 3, best set, persistent note) | w63 |
+| Warm-up ladders + plates per side | w63 |
+| Real rest-day state | w63 |
+| One dominant action per screen | w63 → w64 |
+| False privacy claim ("private space on this device") | w64 |
+| "41% WEEK CHARGED" deleted, replaced by plain traceable counts | w64 |
+| Three contradicting advisories → ONE, priority-resolved | w64 |
+| Clock-driven greeting cut to the data line | w64 |
+| Weekly muscle dose board as the signature visual | w64 |
+| Two origins drifting (Pages 4 builds behind) | w64 — `./deploy.sh` |
+| First-run wall of zeroes behind the blur | w65 |
+| "Continue" → "Start training" | w65 |
+
+**The ring dispute was settled by the owner, not by either engine.** Shown his own landing page he
+asked "what's the ring?" — he could not name the largest element on it. Deleted in w64. Codex was
+right and my defence of it was wrong.
+
+**Deploys now go through `./deploy.sh`** — one command, both origins, from the same commit, with
+byte-parity verification and a poll until GitHub Pages rebuilds. Do not scp by hand again.
+
+**Known ceiling, stated not hidden:** the bodyweight coefficients (push-up 0.70, pull-up 1.00) are
+population averages, not measurements of Mark or Ty. Better than the 0 they replaced, worse than a
+force plate.
