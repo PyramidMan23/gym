@@ -43,7 +43,10 @@ test('summarizeSession returns duration, completed sets and volume', () => {
   const session = { started: 1000, finished: 61000, exercises: [{ sets: [
     { weight: 20, reps: 10, done: true }, { weight: 20, reps: 10, done: false }
   ] }] };
-  assert.deepEqual(Core.summarizeSession(session), { durationMinutes: 1, completedSets: 1, volume: 200 });
+  // durationCapped/durationEstimated added 2026-08-05 so a session left open overnight can say so
+  // rather than reporting 1618 minutes of training (see tests/load-honesty.test.js).
+  assert.deepEqual(Core.summarizeSession(session),
+    { durationMinutes: 1, durationCapped: false, durationEstimated: false, completedSets: 1, volume: 200 });
 });
 
 test('weeklyStats uses local week boundary and counts workouts and volume', () => {

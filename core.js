@@ -211,9 +211,14 @@
   }
 
   function summarizeSession(session) {
-    const duration = sessionElapsedMs(session, num(session?.finished));
+    // Duration goes through sessionMinutes so a session left open overnight can never report itself
+    // as 1618 minutes of training. `durationMinutes` stays a number for every caller that sums or
+    // prints it; `durationCapped` says that number is a floor, not a measurement.
+    const read = sessionMinutes(session);
     return {
-      durationMinutes: Math.max(1, Math.round(duration / 60000)),
+      durationMinutes: read.minutes == null ? Math.round(MAX_PLAUSIBLE_SESSION_MS / 60000) : read.minutes,
+      durationCapped: read.capped,
+      durationEstimated: read.estimated,
       completedSets: (session?.exercises || []).reduce((sum, exercise) => sum + doneSets(exercise).length, 0),
       volume: Math.round(calculateVolume(session))
     };
@@ -1026,6 +1031,87 @@
     return { list: out, tracked: next };
   }
 
-  return { goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
+  // ---- Load honesty (2026-08-05) --------------------------------------------------------------
+  // Ty's identical Legs session read 4.4k kg one week and a very different number the next. It was
+  // never a maths bug: kg volume is sum(weight x reps), so ANY lift ticked off without a weight
+  // contributes exactly zero and vanishes from the headline. Whether two identical sessions match
+  // therefore depends on whether a number got typed, not on what was lifted. These three reads make
+  // that visible instead of mysterious - none of them invent a load.
+
+  // How many exercises with completed sets actually carried a load. `loaded` is what the kg total
+  // measures; `total` is what was trained. Timed holds are excluded from both - they are not on the
+  // kg axis at all (see calculateVolume), so counting them as "missing" would be a lie.
+  function volumeCoverage(session) {
+    let loaded = 0, total = 0;
+    for (const exercise of session?.exercises || []) {
+      if (isTimed(exercise?.exerciseId)) continue;
+      const sets = doneSets(exercise);
+      if (!sets.length) continue;
+      total += 1;
+      if (sets.some(set => num(set.weight) > 0)) loaded += 1;
+    }
+    return { loaded, total, complete: loaded === total };
+  }
+
+  // Lifts logged BARE this session that this lifter has loaded before. Pure evidence, no equipment
+  // table: if you put 60 kg on the leg curl last week and none this week, that is the inconsistency
+  // itself, and it is the only case where "you forgot the weight" can be asserted rather than
+  // guessed. A movement never once loaded (a hanging leg raise) is correctly silent forever.
+  function loadGaps(history, session) {
+    const out = [];
+    for (const exercise of session?.exercises || []) {
+      const id = exercise?.exerciseId;
+      if (!id || isTimed(id)) continue;
+      const sets = doneSets(exercise);
+      if (!sets.length || sets.some(set => num(set.weight) > 0)) continue;
+      // previousPerformance skips the session under inspection only when it is not yet in history;
+      // filter by id so a finished session can be checked against its own past safely.
+      const past = previousPerformance((history || []).filter(s => s?.id !== session?.id), id);
+      const lastWeight = past.reduce((best, set) => Math.max(best, num(set.weight)), 0);
+      if (lastWeight > 0) out.push({ exerciseId: id, lastWeight });
+    }
+    return out;
+  }
+
+  // The opening load for each lift in a session about to start: the lifter's OWN last logged top
+  // weight for it. Nothing is invented - a lift never loaded returns nothing, and the caller marks
+  // what it writes as `prefilled` so it renders unconfirmed until the lifter agrees with it.
+  function openingLoads(history, exerciseIds) {
+    const out = {};
+    for (const id of new Set(exerciseIds || [])) {
+      if (isTimed(id)) continue;
+      const top = previousPerformance(history, id).reduce((best, set) => Math.max(best, num(set.weight)), 0);
+      if (top > 0) out[id] = top;
+    }
+    return out;
+  }
+
+  // A session left open overnight reads as 1618 MINUTES, which is what Ty's receipt showed. Wall
+  // time is only training time while the app is actually being used, so a span past this cap is
+  // reported as unknown rather than as a number that is certainly wrong. Sessions logged from here
+  // on carry per-set completion stamps (`at`) and use the real first-to-last training span instead.
+  const MAX_PLAUSIBLE_SESSION_MS = 4 * 60 * 60 * 1000;
+  function trainingSpanMs(session) {
+    const stamps = [];
+    for (const exercise of session?.exercises || [])
+      for (const set of exercise?.sets || [])
+        if (set?.done && num(set.at) > 0) stamps.push(num(set.at));
+    if (stamps.length < 2) return null;
+    return Math.max(...stamps) - Math.min(...stamps);
+  }
+  // Minutes to report for a finished session, and whether that figure is trustworthy.
+  // `estimated` = derived from set stamps rather than the clock; `capped` = wall time was implausible
+  // and no stamps exist, so there is no honest number to show.
+  function sessionMinutes(session) {
+    const wall = sessionElapsedMs(session, num(session?.finished));
+    if (wall <= MAX_PLAUSIBLE_SESSION_MS) return { minutes: Math.max(1, Math.round(wall / 60000)), capped: false, estimated: false };
+    const span = trainingSpanMs(session);
+    // A stamped span is real training time even when the session sat open for a day afterwards.
+    if (span != null && span <= MAX_PLAUSIBLE_SESSION_MS) return { minutes: Math.max(1, Math.round(span / 60000)), capped: false, estimated: true };
+    return { minutes: null, capped: true, estimated: false };
+  }
+
+  return { volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
+    goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

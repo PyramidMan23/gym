@@ -518,19 +518,36 @@ try {
     const chips=[...document.querySelectorAll('#workoutGoals .filter-chip')].map(c=>c.textContent);
     const cards=document.querySelectorAll('#workoutList .workout-card').length;
     const starts=document.querySelectorAll('#workoutList .workout-start').length;
+    const moreLabel=(document.querySelector('#workoutList .list-more')||{}).textContent||'';
+    // Expanding must reveal every curated session, and collapsing must go back to the short list -
+    // a cap that cannot be undone would be hiding content, not organising it.
+    expandWorkouts();
+    const expanded=document.querySelectorAll('#workoutList .workout-card').length;
+    const expandedStarts=document.querySelectorAll('#workoutList .workout-start').length;
+    collapseWorkouts();
+    const recollapsed=document.querySelectorAll('#workoutList .workout-card').length;
     // A goal chip filters; a fresh Train render must clear it, or a stale chip hides 12 workouts.
     setWorkoutGoal('STRENGTH');
     const filtered=document.querySelectorAll('#workoutList .workout-card').length;
     renderTrain();
-    return {chips,cards,starts,filtered,reset:document.querySelectorAll('#workoutList .workout-card').length,
+    return {chips,cards,starts,moreLabel,expanded,expandedStarts,recollapsed,filtered,
+      reset:document.querySelectorAll('#workoutList .workout-card').length,
+      resetMore:!!document.querySelector('#workoutList .list-more'),
       seeds:routineSeeds().filter(s=>s.key.startsWith('wk:')).length};
   })()`);
-  assert.equal(workoutsUi.cards, 16, 'Train must show all 16 curated workouts');
-  assert.equal(workoutsUi.starts, 16, 'every workout card needs its own one-tap Start');
+  // Train opens SHORT (Mark 2026-08-05: "the sessions area is too long to scroll"), with the rest
+  // one tap away. The cap is a presentation choice, so the gate pins both halves of it.
+  assert.equal(workoutsUi.cards, 5, 'Train must open with a capped session list, not all 16');
+  assert.equal(workoutsUi.starts, 5, 'every visible workout card needs its own one-tap Start');
+  assert.equal(workoutsUi.moreLabel, 'Show all 16 sessions', 'the cap must say exactly what it is hiding');
+  assert.equal(workoutsUi.expanded, 16, 'expanding must reveal all 16 curated workouts');
+  assert.equal(workoutsUi.expandedStarts, 16, 'expanded cards keep their one-tap Start');
+  assert.equal(workoutsUi.recollapsed, 5, 'Show fewer must return to the capped list');
   assert.equal(workoutsUi.chips[0], 'ALL', 'the goal chip row must lead with ALL');
   assert.equal(workoutsUi.chips.length, 9, 'ALL plus every distinct goal, in data order');
   assert.equal(workoutsUi.filtered, 3, 'a goal chip must actually filter the list');
-  assert.equal(workoutsUi.reset, 16, 'a fresh Train render must reset the goal filter to ALL');
+  assert.equal(workoutsUi.reset, 5, 'a fresh Train render must reset the goal filter AND the cap');
+  assert.ok(workoutsUi.resetMore, 'a fresh Train render must re-offer the Show all control');
   assert.equal(workoutsUi.seeds, 16, 'the routine editor must be able to start from any workout');
   await evaluate(`openWorkoutDetail('wk-str-lower'); true`);
   await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.vol-seg')`);
@@ -668,7 +685,109 @@ try {
   }))()`);
   assert.deepEqual(unlocked, { saveWorks: true, removedWithoutPin: false, removedWithPin: true });
 
-  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok');
+  // ---- w60: look-before-you-leap, the coach's source, and the keyboard model -------------------
+  // Mark, 2026-08-05: "i accidently start so many workouts trying to just see what exercises are in
+  // the workout and i have to go through the app and delete them". These gate the CLASS, not the
+  // implementation: NO row whose job is to describe a session may leave an activeSession behind.
+  const preview = await evaluate(`(async () => {
+    state.activeSession=null; state.history=[]; state.routines=[
+      {id:'r-legs',name:'Ty · PPL · Legs',exerciseIds:['lg3','lg42','lg43','lg23']},
+      {id:'r-push',name:'Ty · PPL · Push',exerciseIds:['ch1','sh1','ch4']}
+    ];
+    applyPlan('plan-ty-ppl'); navigate('train'); renderTrain();
+    const out={};
+    const tapped=async(sel,key)=>{
+      const el=document.querySelector(sel);
+      if(!el){out[key]='missing';return;}
+      el.click(); await new Promise(r=>setTimeout(r,120));
+      out[key]=state.activeSession?'STARTED A WORKOUT':'previewed';
+      if(document.getElementById('sheet').open){closeSheet();await new Promise(r=>setTimeout(r,260));}
+      state.activeSession=null;
+    };
+    await tapped('.plan-hero .ph-open','planHeroBody');
+    renderTrain(); await new Promise(r=>setTimeout(r,80));
+    await tapped('#routineList .routine-open','routineName');
+    renderTrain(); await new Promise(r=>setTimeout(r,80));
+    await tapped('#workoutList .workout-open','workoutName');
+    renderTrain(); await new Promise(r=>setTimeout(r,80));
+    await tapped('#planList .plan-shelf-card','planShelfCard');
+    // The routine preview must actually SHOW the exercises - a sheet that previews nothing is the
+    // same dead end that made starting the session the only way to find out.
+    renderTrain(); openRoutineMenu('r-legs'); await new Promise(r=>setTimeout(r,120));
+    out.previewRows=document.querySelectorAll('#sheet .selected-list .selected-row').length;
+    out.previewHasStart=/Start this routine/.test(document.getElementById('sheetContent').textContent);
+    closeSheet(); await new Promise(r=>setTimeout(r,260));
+    // The play square is still a ONE-TAP start - previewing must not have cost the fast path.
+    renderTrain(); document.querySelector('#routineList .routine-start').click();
+    await new Promise(r=>setTimeout(r,140));
+    out.playSquareStarts=!!state.activeSession;
+    state.activeSession=null; saveState();
+    return out;
+  })()`);
+  assert.equal(preview.planHeroBody, 'previewed', 'the plan hero body must preview, never start');
+  assert.equal(preview.routineName, 'previewed', 'a routine name must preview, never start');
+  assert.equal(preview.workoutName, 'previewed', 'a session name must preview, never start');
+  assert.equal(preview.planShelfCard, 'previewed', 'a plan card must preview, never start');
+  assert.equal(preview.previewRows, 4, 'the routine preview must list every exercise it holds');
+  assert.equal(preview.previewHasStart, true, 'the preview must offer a deliberate Start');
+  assert.equal(preview.playSquareStarts, true, 'the play square must still start in one tap');
+
+  // The coach card offered the joint-friendly Return Ramp to lifters running their own programming.
+  // A suggestion must come from something the lifter actually chose.
+  // NOTE on the fixture: installedPlan() identifies a plan by its "<plan name> · " routine prefix,
+  // so a hand-made routine called "Ty · PPL · Legs" is legitimately read as the installed plan. The
+  // free-routine branch therefore needs a name that belongs to no plan.
+  const coach = await evaluate(`(() => {
+    state.history=[]; state.routines=[{id:'r-mine',name:'Saturday legs',exerciseIds:['lg3','lg42','lg43']}];
+    const own=coachContext();
+    applyPlan('plan-ty-ppl');
+    const planned=coachContext();
+    state.routines=[];
+    const bare=coachContext();
+    return {ownLabel:own&&own.label, ownTitle:own&&own.suggestion&&own.suggestion.title,
+      ownProv:own&&own.provenance,
+      planTitle:planned&&planned.suggestion&&planned.suggestion.title,
+      planProv:planned&&planned.provenance,
+      bareLabel:bare&&bare.label, bareTitle:bare&&bare.suggestion&&bare.suggestion.title};
+  })()`);
+  assert.equal(coach.ownTitle, 'Saturday legs', 'the coach must suggest the lifter own routine, not the Return Ramp');
+  assert.equal(coach.ownLabel, 'Up next', 'a suggestion from your own programming is not a "Local ramp"');
+  assert.equal(coach.ownProv, 'From your own routines', 'the card must say where the suggestion came from');
+  assert.ok(/^Ty · PPL · /.test(coach.planTitle), `an installed plan outranks a loose routine, got ${coach.planTitle}`);
+  assert.equal(coach.planProv, 'Ty · PPL · your installed plan', 'the card must name the plan it came from');
+  assert.equal(coach.bareLabel, 'Local ramp', 'a lifter with NO programming still gets the safe ramp');
+  assert.ok(coach.bareTitle, 'the safe ramp must still produce a session for a brand-new lifter');
+
+  // Keyboard: the field you are typing into must be reachable, in every sheet that has one.
+  const keyboard = await evaluate(`(() => {
+    const meta=document.querySelector('meta[name=viewport]').content;
+    openExercisePicker('workout');
+    const content=document.getElementById('sheetContent');
+    const search=document.getElementById('pk_search');
+    const quick=document.getElementById('pk_quick');
+    const order=search.compareDocumentPosition(quick)&Node.DOCUMENT_POSITION_FOLLOWING;
+    const cs=getComputedStyle(search.closest('.picker-search'));
+    // Simulate the keyboard being up and confirm the scrollers gain room for it.
+    document.documentElement.style.setProperty('--kb','300px');
+    document.body.classList.add('kb-open');
+    const pad=parseFloat(getComputedStyle(document.querySelector('#sheet .sheet-scroll')).paddingBottom);
+    document.documentElement.style.removeProperty('--kb');
+    document.body.classList.remove('kb-open');
+    closeSheet();
+    return {resizesContent:meta.includes('interactive-widget=resizes-content'),
+      searchBeforeQuickPicks:!!order, sticky:cs.position,
+      opaque:cs.backgroundColor, padWithKeyboard:pad, revealer:typeof revealFocused==='function'};
+  })()`);
+  assert.equal(keyboard.resizesContent, true, 'the layout viewport must shrink with the keyboard');
+  assert.equal(keyboard.searchBeforeQuickPicks, true, 'the search field must come BEFORE the quick picks');
+  assert.equal(keyboard.sticky, 'sticky', 'the search field must stay put while the list scrolls under it');
+  assert.ok(!/rgba\(.*,\s*0\)|transparent/.test(keyboard.opaque),
+    `a sticky field over a scrolling list must be opaque, got ${keyboard.opaque}`);
+  assert.ok(keyboard.padWithKeyboard >= 300,
+    `the sheet scroller must add the keyboard height to its bottom padding, got ${keyboard.padWithKeyboard}`);
+  assert.equal(keyboard.revealer, true, 'a focused field must be scrolled into view');
+
+  console.log('browser-flow-ok', JSON.stringify(result), 'responsive=320,390,500', 'reduced-motion=ok', 'drag-reorder=ok', 'offline=ok', 'pin-gate=ok', 'preview-not-start=ok', 'coach-scope=ok', 'keyboard=ok');
 } finally {
   try { socket?.close(); } catch {}
   chrome.kill();

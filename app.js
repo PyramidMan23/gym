@@ -70,6 +70,8 @@ function allExercises(){ return [...DUCK_EXERCISES,...state.customExercises]; }
 function exerciseById(id){ return allExercises().find(exercise=>exercise.id===id); }
 function esc(value){ return String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function compact(number){ const n=Number(number)||0; return n>=1e6?(n/1e6).toFixed(1)+'m':n>=1e3?(n/1e3).toFixed(1)+'k':String(Math.round(n)); }
+// 1st/2nd/3rd/4th... 11-13 are the exception every naive version gets wrong.
+function ordinal(n){const v=Math.abs(Math.round(Number(n)||0)),t=v%100;if(t>=11&&t<=13)return `${v}th`;return `${v}${['th','st','nd','rd'][v%10]||'th'}`;}
 function formatDate(timestamp){ return new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short'}).format(new Date(timestamp)); }
 function showToast(message,isPr=false){ const el=document.getElementById('toast');
   // Below the fixed chrome, never over it: the PR toast was landing on the workout clock + Finish.
@@ -461,13 +463,40 @@ function coachContext(){
     if(Sync)try{Sync.clearPlan();}catch{}
     verdict={status:'rejected',reason:'The stored plan could not be read - using safe local programming.'};
   }
-  // Local ramp fallback (also the default when there's no plan at all).
-  // Same requireConfirmation rule the targets use: outside injury mode the app never asks the flare
-  // question, so demanding its answer here left the ramp saying "find an easy working load" forever.
+  // Local fallback. Same requireConfirmation rule the targets use: outside injury mode the app never
+  // asks the flare question, so demanding its answer here left the ramp saying "find an easy working
+  // load" forever.
   const confirmedFor=id=>Core.lastConfirmedExposure(state.history,id,{requireConfirmation:injuryMode()});
-  const suggestion=RETURN_RAMP?Coach.localSession(state.history,RETURN_RAMP.days,{confirmedFor}):null;
+  // The Return Ramp is joint-friendly RE-ENTRY programming, not a routine anyone chose. Showing it to
+  // a lifter already running Ty · PPL or an installed plan is the app proposing a session they never
+  // asked for, which is exactly what Mark and Ty were both seeing (2026-08-05). Suggest from THEIR
+  // OWN programming whenever they have some; the ramp is only for a lifter who has nothing yet.
+  const mine=ownProgrammingDay();
+  const days=mine?[mine.day]:(RETURN_RAMP?RETURN_RAMP.days:null);
+  const suggestion=days?Coach.localSession(state.history,days,{confirmedFor}):null;
   const superseded=verdict&&verdict.status!=='usable'?verdict.reason:'';
-  return {source:'local',label:'Local ramp',suggestion,provenance:'Joint-friendly Return Ramp · safe local programming',superseded};
+  return {source:'local',label:mine?mine.label:'Local ramp',suggestion,
+    provenance:mine?mine.provenance:'Joint-friendly Return Ramp · safe local programming',superseded};
+}
+// The lifter's own next session: the first day of an installed plan they have not done this week,
+// else the first of their own routines. Returns a single day in the shape Coach.localSession takes
+// (`{name, exerciseIds}`), so the ONE chosen day is what gets dosed - never a cycle through a plan
+// nobody installed. Null when they have no programming of their own at all.
+function ownProgrammingDay(){
+  const done=Core.routinesDoneThisWeek(state.history);
+  const pick=list=>list.find(r=>!done.has(r.id))||list[0];
+  const usable=r=>r&&Array.isArray(r.exerciseIds)&&r.exerciseIds.length;
+  const found=installedPlan();
+  if(found){
+    const next=pick(found.routines.filter(usable));
+    if(next)return {day:{name:next.name,exerciseIds:next.exerciseIds},label:'Up next',provenance:`${found.plan.name} · your installed plan`};
+  }
+  const own=state.routines.filter(usable);
+  if(own.length){
+    const next=pick(own);
+    return {day:{name:next.name,exerciseIds:next.exerciseIds},label:'Up next',provenance:'From your own routines'};
+  }
+  return null;
 }
 function planProvenance(plan,verdict){
   const total=Number.isFinite(plan.expiresAfterSessions)?plan.expiresAfterSessions:Coach.DEFAULT_EXPIRES;
@@ -590,18 +619,24 @@ function renderPlanHero(){
   const next=routines.find(r=>!done.has(r.id))||routines[0];
   const doneCount=routines.filter(r=>done.has(r.id)).length;
   const pct=routines.length?Math.round(doneCount/routines.length*100):0;
-  slot.innerHTML=`<button class="train-hero plan-hero big-button" onclick="startRoutine('${next.id}')" aria-label="Start ${esc(next.name)}">`
-    +`<span class="ph-kicker">YOUR PLAN · ${esc(plan.name.toUpperCase())}</span>`
-    +`<strong>${esc(next.name.split(' · ').slice(1).join(' · ')||next.name)}</strong>`
-    +`<span class="ph-progress"><i aria-hidden="true"><b style="width:${pct}%"></b></i><small>${doneCount} of ${routines.length} done this week</small></span>`
-  +`</button>`;
+  // The hero used to be ONE button that started the session on any tap, so trying to see what was in
+  // it started it (Mark 2026-08-05). Split: the body opens the preview, a 44px play square starts.
+  // Same split the routine and workout cards already use, so the whole tab reads one way.
+  slot.innerHTML=`<div class="train-hero plan-hero">`
+    +`<button class="ph-open" onclick="openRoutineMenu('${next.id}')" aria-label="${esc(next.name)} - see the exercises">`
+      +`<span class="ph-kicker">YOUR PLAN · ${esc(plan.name.toUpperCase())}</span>`
+      +`<strong>${esc(next.name.split(' · ').slice(1).join(' · ')||next.name)}</strong>`
+      +`<span class="ph-progress"><i aria-hidden="true"><b style="width:${pct}%"></b></i><small>${doneCount} of ${routines.length} done this week</small></span>`
+    +`</button>`
+    +`<button class="workout-start ph-start" onclick="startRoutine('${next.id}')" aria-label="Start ${esc(next.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>`
+  +`</div>`;
 }
 function renderTrain(){
   renderPlanHero();
   document.getElementById('planList').innerHTML=plans.map(p=>`<button class="plan-shelf-card" onclick="openPlan('${p.id}')"><span>${esc(p.tag)}</span><strong>${esc(p.name)}</strong><small>${esc(p.blurb)}</small></button>`).join('');
-  const doneThisWeek=Core.routinesDoneThisWeek(state.history);
-  document.getElementById('routineList').innerHTML=state.routines.length?state.routines.map(r=>routineCard(r,doneThisWeek)).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>Your routines live here</strong><small>Build one once, save one from any workout, or install a plan below.</small></span></div>`;
   workoutGoalFilter='ALL'; // a stale chip must never hide a workout from someone who just opened Train
+  workoutsExpanded=false;routinesExpanded=false; // arriving at Train always starts short
+  renderRoutineList();
   renderWorkouts();
 }
 // ---- Curated workouts (council 2026-08-01) ----
@@ -623,13 +658,44 @@ function renderWorkouts(){
   const chips=document.getElementById('workoutGoals');
   if(chips)chips.innerHTML=WORKOUT_GOALS.map(g=>`<button class="filter-chip ${workoutGoalFilter===g?'active':''}" onclick="setWorkoutGoal('${esc(g)}')" aria-pressed="${workoutGoalFilter===g}">${esc(g)}</button>`).join('');
   const shown=workouts.filter(w=>workoutGoalFilter==='ALL'||w.goal===workoutGoalFilter);
+  // Fifteen cards is 1800px of scroll for a list you read once (Mark 2026-08-05: "too long to
+  // scroll"). Show a handful, keep the rest one tap away. The chips above narrow it properly; this
+  // just stops the UNFILTERED state being a wall. Expansion is per-visit, not saved: arriving at
+  // Train should always start short.
+  const cap=workoutsExpanded?shown.length:TRAIN_LIST_CAP;
+  const list=shown.slice(0,cap);
   // Compact cards (Mark 2026-08-02: Train was one long scroll): blurb lives in the detail sheet,
   // the card carries only goal + name + meta, and Start is a corner glyph, not a full-width bar.
-  document.getElementById('workoutList').innerHTML=shown.length?shown.map(w=>`<article class="workout-card group-row"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} details"><strong>${esc(w.name)}</strong><small class="workout-meta">${esc(String(w.goal).toLowerCase())} · ${w.mins} min · ${w.exercises.length} lifts</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions match</strong><small>Clear the filter to see them all.</small></span></div>`;
+  const cards=list.map(w=>`<article class="workout-card group-row"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} - see the exercises"><strong>${esc(w.name)}</strong><small class="workout-meta">${esc(String(w.goal).toLowerCase())} · ${w.mins} min · ${w.exercises.length} lifts</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join('');
+  const more=shown.length>cap?`<button class="list-more" onclick="expandWorkouts()">Show all ${shown.length} sessions</button>`
+    :(workoutsExpanded&&shown.length>TRAIN_LIST_CAP?`<button class="list-more" onclick="collapseWorkouts()">Show fewer</button>`:'');
+  document.getElementById('workoutList').innerHTML=shown.length?cards+more:`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions match</strong><small>Clear the filter to see them all.</small></span></div>`;
   const count=document.getElementById('workoutCount');
-  if(count)count.textContent=`${shown.length} of ${workouts.length}`;
+  // Count what is ON SCREEN. It read "16 of 16" while showing five, which is the kind of small lie
+  // that makes every other number on the page suspect.
+  if(count)count.textContent=`${list.length} of ${workouts.length}`;
 }
-function setWorkoutGoal(goal){workoutGoalFilter=goal;renderWorkouts();}
+const TRAIN_LIST_CAP=5;
+let workoutsExpanded=false,routinesExpanded=false;
+function expandWorkouts(){workoutsExpanded=true;renderWorkouts();}
+function collapseWorkouts(){workoutsExpanded=false;renderWorkouts();}
+function expandRoutines(){routinesExpanded=true;renderRoutineList();}
+function collapseRoutines(){routinesExpanded=false;renderRoutineList();}
+// Routines get the same treatment - a lifter who has saved a dozen should not have to scroll past
+// all of them to reach the curated sessions below.
+function renderRoutineList(){
+  const host=document.getElementById('routineList');if(!host)return;
+  const doneThisWeek=Core.routinesDoneThisWeek(state.history);
+  if(!state.routines.length){
+    host.innerHTML=`<div class="group-row group-row-empty"><span class="row-text"><strong>Your routines live here</strong><small>Build one once, save one from any workout, or install a plan below.</small></span></div>`;
+    return;
+  }
+  const cap=routinesExpanded?state.routines.length:TRAIN_LIST_CAP;
+  const more=state.routines.length>cap?`<button class="list-more" onclick="expandRoutines()">Show all ${state.routines.length} routines</button>`
+    :(routinesExpanded&&state.routines.length>TRAIN_LIST_CAP?`<button class="list-more" onclick="collapseRoutines()">Show fewer</button>`:'');
+  host.innerHTML=state.routines.slice(0,cap).map(r=>routineCard(r,doneThisWeek)).join('')+more;
+}
+function setWorkoutGoal(goal){workoutGoalFilter=goal;workoutsExpanded=false;renderWorkouts();}
 function openWorkoutDetail(id){
   workoutSheetId=id;renderWorkoutSheet();document.getElementById('sheet').showModal();
 }
@@ -659,7 +725,9 @@ function startWorkout(id,variant){
   closeSheet(); // beginSession owns the already-running guard (toast + navigate)
   beginSession({id:w.id,name:w.name,exercises:Core.workoutScheme(w,variant||workoutVariant(),workoutMuscle)});
 }
-function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(routine)beginSession(routine); }
+// closeSheet() is a no-op when nothing is open (dismissDialog guards on .open), so the one call
+// covers both the Train card and the routine preview sheet without a second entry point.
+function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(!routine)return;closeSheet();beginSession(routine); }
 function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exerciseIds:[]}); }
 function beginSession(routine){
   forcedOpen=new Set(); // reopened-card state never leaks between sessions
@@ -667,7 +735,24 @@ function beginSession(routine){
   pickerFilterState=newFilterState(); // each workout's add-exercise flow starts clean, then persists across opens
   state.activeSession=Core.createSession(routine);
   state.activeSession.checkin={pre:null,post:null}; // three-touch safety loop (council 2026-07-18)
+  seedOpeningLoads(state.activeSession);
   saveState();navigate('workout');
+}
+// A set ticked off with reps and no weight adds exactly ZERO to the kg total, so two identical
+// sessions can differ by thousands purely on whether a number got typed. That is the whole of Ty's
+// "my volume is not consistent" (his Legs session logged 5 of 8 lifts at 0 kg). Prevention is to put
+// the lifter's OWN last load in the first set of every lift up front - not invented, marked
+// `prefilled` so it renders muted + italic until confirmed, exactly like the carry-forward prefill.
+// Reps are deliberately NOT seeded: the rep target comes from the scheme and the lifter always types
+// them, so a seeded rep would be a claim about work that has not happened yet.
+function seedOpeningLoads(session){
+  if(!session)return;
+  const loads=Core.openingLoads(state.history,session.exercises.map(ex=>ex.exerciseId));
+  for(const ex of session.exercises){
+    const top=loads[ex.exerciseId],first=ex.sets&&ex.sets[0];
+    if(!top||!first||first.done||String(first.weight??'')!=='')continue;
+    first.weight=String(top);first.prefilled=true;
+  }
 }
 function resumeWorkout(){ navigate('workout'); }
 function openPlan(id){
@@ -892,17 +977,37 @@ function renderWeekPane(){
   // Minutes under the bar this week, from the same summaries the receipt uses.
   const start=(()=>{const d=new Date();const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);d.setHours(0,0,0,0);return d.getTime();})();
   const mins=state.history.filter(x=>x.started>=start).reduce((a,x)=>a+Core.summarizeSession(x).durationMinutes,0);
-  // Area chart over the recent weeks. Flat/no data draws nothing rather than a fake line.
+  // A 42px smoothed area over eight discrete weekly totals was the wrong mark: it implied a
+  // continuous quantity, had no axis, no labels and no way to read a single week. Weekly volume is
+  // categorical-by-time, so it gets BARS - each week readable on its own, this week distinguished by
+  // fill AND by its label, never by hue alone (Mark is colour-blind). Built in HTML rather than SVG
+  // so the labels stay crisp at any width and inherit the app's own type.
   const vals=weeks.map(w=>w.volume);
   const max=Math.max(1,...vals);
-  const W=100,H=42;
-  const pts=vals.map((v,i)=>[vals.length>1?(i/(vals.length-1))*W:0,H-(v/max)*H]);
-  const line=pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-  const area=vals.length>1?`${line} L${W} ${H} L0 ${H} Z`:'';
-  const chart=vals.some(v=>v>0)?`<svg class="wk-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Volume over the last ${vals.length} weeks">`
-      +`<path class="wk-area" d="${area}"></path><path class="wk-line" d="${line}"></path>`
-      +`<circle class="wk-dot" cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="2.2"></circle></svg>`
-    :'<p class="wk-empty">No volume logged yet.</p>';
+  const withData=vals.filter(v=>v>0);
+  const avg=withData.length?withData.reduce((a,b)=>a+b,0)/withData.length:0;
+  const label=ts=>{const d=new Date(ts);return `${d.getDate()}/${d.getMonth()+1}`;};
+  const bars=weeks.map((w,i)=>{
+    const last=i===weeks.length-1;
+    // A zero week draws nothing (the CSS min-height leaves a 2px stub); a real but tiny week still
+    // gets 3% so it is visible as work done rather than as an empty slot.
+    const h=w.volume>0?Math.max(3,Math.round(w.volume/max*100)):0;
+    return `<div class="wkb${last?' wkb-now':''}"><i style="height:${h}%"></i>`
+      +`<small>${last?'now':esc(label(w.start))}</small></div>`;
+  }).join('');
+  // The average rule is the reference that makes a single bar mean something. Positioned off the
+  // same scale as the bars, so it can never disagree with them.
+  const avgRule=avg>0?`<span class="wk-avg" style="--r:${(avg/max).toFixed(3)}"><em>avg ${compact(Math.round(avg))}</em></span>`:'';
+  // Competence feedback, not a badge: where this week actually ranks against the ones before it.
+  // Self-determination research is consistent that evidence of getting better sustains motivation,
+  // while invented rewards (points, confetti) can crowd it out - so this is a rank, or nothing.
+  const thisWeek=vals[vals.length-1]||0;
+  const better=vals.slice(0,-1).filter(v=>v>thisWeek).length;
+  const rank=thisWeek>0&&withData.length>1
+    ? `<p class="wk-rank">${better===0?'Your biggest week of the last '+vals.length+'.':`Your ${ordinal(better+1)} biggest week of the last ${vals.length}.`}</p>`:'';
+  const chart=vals.some(v=>v>0)
+    ? `<div class="wk-bars" role="img" aria-label="Volume by week over the last ${vals.length} weeks: ${weeks.map(w=>`${label(w.start)} ${w.volume} kilograms`).join(', ')}">${avgRule}${bars}</div>${rank}`
+    : '<p class="wk-empty">No volume logged yet.</p>';
   const rows=[
     ['Sets',rc.sets,rc.setsDelta,false],
     ['Sessions',rc.workouts,rc.workoutsDelta,false],
@@ -1728,6 +1833,10 @@ function toggleSet(exerciseIndex,setIndex){
   if(!state.activeSession?.exercises[exerciseIndex]?.sets[setIndex])return;
   if(state.activeSession&&prCelebratedSession!==state.activeSession){prCelebratedSession=state.activeSession;prCelebrated.clear();}
   const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
+  // Stamp WHEN the set was completed. Wall time (finished - started) reads as 1618 minutes for a
+  // session left open overnight; the span between the first and last stamped set is the real
+  // training time. Core.sessionMinutes prefers it whenever the clock is implausible.
+  if(set.done)set.at=Date.now();else delete set.at;
   if(set.done){delete set.prefilled;
     // Superset: completing a set of the FIRST exercise in a pair skips rest and hands straight to
     // the partner exercise; rest runs normally after the partner (second) exercise's set.
@@ -2034,7 +2143,11 @@ function openReceipt(session){
     :v.considered?`${v.advanced} of ${v.considered} lift${v.considered===1?'':'s'} advanced${v.highlight?' · '+deltaText(v.highlight):''}`:'';
   const verdictBlock=v.verdict==='none'?'':`<div class="receipt-verdict receipt-verdict-${v.verdict}"><strong>${VERDICT_COPY[v.verdict]}</strong>${proof?`<small>${proof}</small>`:''}</div>`;
   // "Volume 0 kg" tells a calisthenics session it did nothing - name the work honestly instead.
-  const lines=[['Duration',`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
+  const lines=[['Duration',summary.durationCapped?'not recorded':`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
+  // Catch a forgotten load at the ONE moment it is still cheap to fix - before the session becomes
+  // history and the number starts disagreeing with an identical session next week.
+  const gaps=Core.loadGaps(state.history.filter(x=>x.id!==session.id),session);
+  const gapBlock=gaps.length?`<div class="receipt-gap"><strong>${gaps.length} lift${gaps.length===1?'':'s'} logged without a load</strong><small>${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} · last time ${g.lastWeight} kg`).join(' · ')}. Your kg total leaves ${gaps.length===1?'it':'them'} out.</small></div>`:'';
   const prBlocks=prs.map(pr=>{
     const item=exerciseById(pr.exerciseId);
     const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
@@ -2049,7 +2162,7 @@ function openReceipt(session){
     return `<div class="receipt-next-row" style="--i:${i}"><span>${esc(item?.name||'Exercise')}</span><strong>${esc(val)}${word?` <em>${esc(word)}</em>`:''}</strong></div>`;
   }).join('');
   const nextBlock=nextRows?`<div class="receipt-next"><p class="kicker">NEXT SESSION</p><div class="receipt-next-rows">${nextRows}</div></div>`:'';
-  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p>${verdictBlock}<div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
+  document.getElementById('receiptCard').innerHTML=`<div class="receipt-sweep" aria-hidden="true"></div><p class="kicker">SESSION COMPLETE</p><h2>${esc(session.name)}</h2><p class="receipt-date">${formatDate(session.started)}</p>${verdictBlock}<div class="receipt-lines">${lines.map(([k,v],i)=>`<div class="receipt-line" style="--i:${i}"><span>${esc(k)}</span><strong>${esc(String(v))}</strong></div>`).join('')}</div>${gapBlock}${prBlocks?`<div class="receipt-prs">${prBlocks}</div>`:''}${nextBlock}<button class="primary-button full-button" onclick="closeReceipt()">Done</button>`;
   const overlay=document.getElementById('receiptOverlay');overlay.hidden=false;overlay.style.display='grid';
   requestAnimationFrame(()=>overlay.classList.add('show'));
   document.getElementById('receiptCard').querySelector('.primary-button').focus();
@@ -2088,8 +2201,12 @@ function openExercisePicker(target,swapIndex){
   const swapSets=swapEx?swapEx.sets.length:0;
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${swapEx?'Swap exercise':'Add exercise'}</h2><button class="close-button" onclick="closeSheet()">×</button></div>`
     +(swapEx?`<p class="swap-note">Replacing <strong>${esc(swapName)}</strong> · keeps ${swapSets} set${swapSets===1?'':'s'}</p>`:'')
-    +`<div id="pk_quick" class="quick-picks"></div>`
+    // Search comes FIRST, above the quick picks. It used to sit third, so opening the keyboard left
+    // the field itself below the fold behind the keyboard - you could type and not see what you
+    // typed (Ty 2026-07-23). Sticky at top:0 only helps once you have scrolled PAST an element;
+    // being first is what makes it never leave the screen.
     +`<div class="search-wrap picker-search"><span class="search-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input id="pk_search" type="search" placeholder="Search name, muscle or equipment" oninput="onCatSearch('picker',this.value)" aria-label="Search exercises"></div>`
+    +`<div id="pk_quick" class="quick-picks"></div>`
     +`<div id="pk_chips" class="filter-row" aria-label="Filter by muscle group"></div>`
     +`<div class="count-row"><div id="pk_count" class="result-count"></div><button id="pk_filtersBtn" class="filters-button" onclick="openFiltersSheet('picker')" aria-label="More filters">${FILTERS_ICON}<span>Filters</span><span class="filters-badge" hidden>0</span></button></div>`
     +`<div id="pk_list" class="exercise-list"></div>`;
@@ -2173,7 +2290,22 @@ function saveRoutine(){
 }
 function openRoutineMenu(id){
   const routine=state.routines.find(r=>r.id===id);if(!routine)return;
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><h2>${esc(routine.name)}</h2><button class="close-button" onclick="closeSheet()">×</button></div><div class="stack"><button class="secondary-button full-button" onclick="closeSheet();openRoutineEditor('${id}')">Edit routine</button><button class="secondary-button full-button" onclick="duplicateRoutine('${id}')">Duplicate routine</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteRoutine('${id}')">Delete routine</button></div>`;document.getElementById('sheet').showModal();
+  // This sheet used to be three admin buttons and nothing else, so the only way to find out what a
+  // routine CONTAINED was to start it - which is how Mark ended up deleting workouts he had opened
+  // just to look at (2026-08-05). It leads with the exercises now; starting is one deliberate
+  // button below them, and the destructive action sits apart from the rest.
+  const rows=routine.exerciseIds.map((x,i)=>{
+    const item=exerciseById(x);
+    return `<div class="selected-row"><span><strong>${i+1}. ${esc(item?.name||'Missing exercise')}</strong><small style="display:block;color:var(--muted)">${esc(item?item.muscle+' · '+item.equipment:'Not in your library')}</small></span></div>`;
+  }).join('');
+  const done=Core.routinesDoneThisWeek(state.history).has(routine.id);
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">ROUTINE${done?' · DONE THIS WEEK':''}</p><h2>${esc(routine.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
+    +`<p class="preview-count">${routine.exerciseIds.length} exercise${routine.exerciseIds.length===1?'':'s'}</p>`
+    +`<div class="selected-list">${rows||'<div class="empty-card card">This routine has no exercises yet.</div>'}</div>`
+    +`<div class="sheet-stack"><button class="primary-button full-button" onclick="startRoutine('${id}')">${done?'Do it again':'Start this routine'}</button></div>`
+    +`<div class="sheet-stack"><button class="secondary-button full-button" onclick="closeSheet();openRoutineEditor('${id}')">Edit routine</button><button class="secondary-button full-button" onclick="duplicateRoutine('${id}')">Duplicate routine</button></div>`
+    +`<div class="sheet-stack sheet-stack-danger"><button class="secondary-button full-button danger-button" onclick="deleteRoutine('${id}')">Delete routine</button></div>`;
+  document.getElementById('sheet').showModal();
 }
 function duplicateRoutine(id){const routine=state.routines.find(r=>r.id===id);state.routines.unshift({...routine,id:`r${Date.now()}`,name:`${routine.name} copy`,exerciseIds:[...routine.exerciseIds]});saveState();closeSheet();renderTrain();showToast('Routine duplicated');}
 function deleteRoutine(id){state.routines=state.routines.filter(r=>r.id!==id);saveState();closeSheet();renderTrain();showToast('Routine deleted');}
@@ -2373,9 +2505,37 @@ function openCustomExercise(){
 }
 function saveCustomExercise(){const name=document.getElementById('customName').value.trim();if(!name)return showToast('Name the exercise');state.customExercises.push({id:`c${Date.now()}`,name,muscle:document.getElementById('customMuscle').value,equipment:document.getElementById('customEquipment').value.trim()||'Custom equipment',custom:true});saveState();closeSheet();renderLibrary();showToast('Custom exercise added');}
 
+// The MINUTES tile reads "1618" for a session left open overnight, so an implausible wall time is
+// reported as unknown rather than as a number that is certainly wrong (Core.sessionMinutes).
+function durationTile(summary){
+  if(summary.durationCapped)return `<div class="metric"><strong>—</strong><span>MINUTES</span></div>`;
+  return `<div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES${summary.durationEstimated?' · EST':''}</span></div>`;
+}
 function openHistory(id){
-  const session=state.history.find(s=>s.id===id);if(!session)return;const summary=Core.summarizeSession(session);
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="metric-grid"><div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES</span></div><div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div><div class="selected-list">${session.exercises.map(ex=>{const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex);return `<div class="selected-row"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${sets.map(s=>`${s.weight||0} kg × ${s.reps||0}`).join(' · ')||'No completed sets'}</small></span></div>`}).join('')}</div>${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="deleteHistory('${id}')">Delete workout</button>`;document.getElementById('sheet').showModal();
+  const session=state.history.find(s=>s.id===id);if(!session)return;
+  const summary=Core.summarizeSession(session);
+  // Volume honesty: kg only measures the lifts that carried a load, so say how many that was, and
+  // name the lifts that were logged bare AFTER being loaded before - that gap IS the inconsistency.
+  const cover=Core.volumeCoverage(session),gaps=Core.loadGaps(state.history,session);
+  const gapIds=new Set(gaps.map(g=>g.exerciseId));
+  const coverNote=cover.total&&!cover.complete
+    ? `<p class="vol-note">Kilograms count the <strong>${cover.loaded} of ${cover.total}</strong> lifts that carried a load. ${cover.total-cover.loaded} ${cover.total-cover.loaded===1?'was':'were'} logged without one, so ${cover.total-cover.loaded===1?'it adds':'they add'} nothing to the total.</p>`:'';
+  const gapNote=gaps.length
+    ? `<p class="vol-gap"><strong>Missing a load.</strong> ${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} (last time ${g.lastWeight} kg)`).join(', ')}. Add the weight and this session's total will match the work you actually did.</p>`:'';
+  const rows=session.exercises.map(ex=>{
+    const item=exerciseById(ex.exerciseId),sets=Core.doneSets(ex),timed=!!item?.timed;
+    const line=sets.length?sets.map(s=>timed?`${s.reps||0} s`:`${s.weight?`${s.weight} kg`:'no load'} × ${s.reps||0}`).join(' · '):'No completed sets';
+    return `<div class="selected-row${gapIds.has(ex.exerciseId)?' row-gap':''}"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${esc(line)}</small></span></div>`;
+  }).join('');
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
+    +`<div class="metric-grid">${durationTile(summary)}<div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div>`
+    +coverNote+gapNote
+    +`<div class="selected-list">${rows}</div>`
+    // Three stacked full-width buttons with no gap read as one cramped block (Mark 2026-08-05).
+    // Grouped with real spacing, and the destructive action sits apart from the two safe ones.
+    +`<div class="sheet-stack">${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button></div>`
+    +`<div class="sheet-stack sheet-stack-danger"><button class="secondary-button full-button danger-button" onclick="deleteHistory('${id}')">Delete workout</button></div>`;
+  document.getElementById('sheet').showModal();
 }
 // A workout logged BEFORE its routine existed has routineId null, so the week never counts it.
 // This is the repair: attach it after the fact and the routine ticks over to done.
@@ -2614,11 +2774,50 @@ function dismissDialog(dlg,after){
 // Keyboard-safe sheet height: while the on-screen keyboard is up (visual viewport shrinks well below the
 // layout viewport) clamp the sheet to the visible height so a focused field is never covered. Otherwise
 // clear the override so the normal 88vh cap applies. Never sets 0 (a stray 0 would collapse the sheet).
+// One keyboard model for the WHOLE app (2026-08-05). Three things have to be true everywhere a
+// field can be focused, or you end up typing into something you cannot see:
+//   1. the surface holding the field is never taller than the space the keyboard leaves  (--vvh)
+//   2. whatever scrolls has enough room below its last row to bring that row up          (--kb)
+//   3. the field that just took focus is actually brought into view                      (focusin)
+// The viewport meta carries `interactive-widget=resizes-content` so the layout viewport shrinks too;
+// this block is the belt to that braces, and covers iOS, where it does not.
+const KB_MIN=120; // below this the shrink is browser chrome (URL bar), not a keyboard
+let kbOpen=false;
 if(window.visualViewport){
   const vv=window.visualViewport,root=document.documentElement;
-  const syncVVH=()=>{const keyboard=window.innerHeight-vv.height;if(vv.height>0&&keyboard>120)root.style.setProperty('--vvh',Math.round(vv.height-8)+'px');else root.style.removeProperty('--vvh');};
-  vv.addEventListener('resize',syncVVH);syncVVH();
+  const syncVVH=()=>{
+    const keyboard=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+    kbOpen=vv.height>0&&keyboard>KB_MIN;
+    if(kbOpen){
+      root.style.setProperty('--vvh',Math.round(vv.height-8)+'px');
+      // Room to scroll the last row clear of the keyboard. Without it the bottom of any list is
+      // simply unreachable while typing - you can see it is there and cannot get to it.
+      root.style.setProperty('--kb',Math.round(keyboard)+'px');
+      document.body.classList.add('kb-open');
+    }else{
+      root.style.removeProperty('--vvh');root.style.removeProperty('--kb');
+      document.body.classList.remove('kb-open');
+    }
+    if(kbOpen)revealFocused();
+  };
+  vv.addEventListener('resize',syncVVH);vv.addEventListener('scroll',syncVVH);syncVVH();
 }
+// Bring the focused field into view inside whatever is actually scrolling it. `block:'nearest'` is
+// deliberate: 'center' yanks a field that was already comfortably visible, which reads as a lurch.
+// rAF-then-timeout because the keyboard animates in - measuring on the focus event alone reads the
+// pre-keyboard geometry and scrolls to the wrong place.
+function revealFocused(){
+  const el=document.activeElement;
+  if(!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)||el.type==='file')return;
+  requestAnimationFrame(()=>{try{el.scrollIntoView({block:'nearest',behavior:'smooth'});}catch{}});
+}
+document.addEventListener('focusin',e=>{
+  const el=e.target;
+  if(!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)||el.type==='file')return;
+  // Two passes: one now (covers a field already off-screen with no keyboard change) and one after
+  // the keyboard has finished animating (covers the field the keyboard just covered).
+  revealFocused();setTimeout(revealFocused,260);
+});
 // Drag-to-dismiss - ONLY from the handle's 44px grab zone (the sheet body scrolls untouched). Rubber-band
 // resistance above rest; release past 25% height OR downward velocity >0.5px/ms dismisses, else springs back.
 function attachSheetDrag(sheetId,dismissFn){

@@ -2226,3 +2226,112 @@ input,select,textarea{font-size:16px}
 /* Belt and braces on the surfaces that are tapped hardest mid-set. */
 .bottom-nav button,.set-done,.set-input,.exercise-grip,.done-grip,.pad-key,.rir-chip,
 .filter-chip,.seg-button,button,a{-webkit-tap-highlight-color:transparent}
+
+/* ============================================================
+   w60 pass - 2026-08-05 (Mark + Ty's report)
+   Five things: honest volume copy, a keyboard model that works
+   everywhere, sheet action groups that are not one cramped block,
+   preview-before-start on the plan hero, and weekly volume drawn
+   as bars instead of a 42px smoothed sliver.
+   Rollback: delete from this banner to EOF.
+   ============================================================ */
+
+/* ---- Keyboard, app-wide -------------------------------------------------
+   --kb is the keyboard's height, set by JS only while it is actually up.
+   Every scroll container adds it to its bottom padding, so the last row can
+   always be brought clear of the keys. The viewport meta already shrinks the
+   layout viewport (interactive-widget=resizes-content); this covers the
+   scroll geometry that the meta does not. */
+.sheet-scroll{padding-bottom:calc(max(22px,env(safe-area-inset-bottom)) + var(--kb,0px))}
+body.kb-open{padding-bottom:var(--kb,0px)}
+/* A sticky field over a scrolling list has to be OPAQUE or the rows slide
+   through it and you cannot read what you typed. --glass-tint is translucent
+   by design, so the picker's copy of it gets a solid backing plate. */
+/* The halo is a spread-only shadow in the sheet's own colour, so it plugs the gap either side of
+   the pill WITHOUT squaring off its corners the way a backing rectangle would. */
+.picker-search{position:sticky;top:0;z-index:6;background:var(--glass-solid);
+  box-shadow:0 0 0 10px var(--glass-solid),0 10px 14px -12px rgba(0,0,0,.55)}
+/* The keyboard can be up while the sheet is short; never let it collapse. */
+.sheet{min-height:180px}
+
+/* ---- Sheet action groups ------------------------------------------------
+   Three full-width buttons stacked with no gap read as one block you cannot
+   parse at a glance (Mark, on the workout history sheet). Group them, give
+   them real air, and keep the destructive one apart behind a rule. */
+.sheet-stack{display:grid;gap:10px;margin-top:18px}
+.sheet-stack .full-button{margin:0}
+.sheet-stack-danger{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
+.danger-button{color:var(--danger);border-color:rgba(170,70,60,.34)}
+.danger-button:active{background:var(--danger-soft)}
+
+/* ---- Volume honesty ----------------------------------------------------- */
+.vol-note{margin:12px 0 0;color:var(--taupe);font-size:12.5px;line-height:1.45}
+.vol-note strong{color:var(--cream);font-weight:800}
+.vol-gap{margin:10px 0 0;padding:12px 14px;border-radius:var(--r2,12px);
+  border:1px solid rgba(var(--bloom-amber),.34);background:rgba(var(--bloom-amber),.09);
+  color:var(--cream);font-size:12.5px;line-height:1.5}
+.vol-gap strong{display:block;color:var(--amber-deep);font-weight:800;margin-bottom:2px}
+/* A flagged row is marked by a WORD in its own line plus a rail, never by hue
+   alone - Mark is colour-blind and the rule holds for every state in this app. */
+.selected-row.row-gap{position:relative;padding-left:12px}
+.selected-row.row-gap::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;
+  border-radius:2px;background:var(--amber-deep)}
+.receipt-gap{margin:14px 0 0;padding:13px 15px;border-radius:var(--r2,12px);
+  border:1px solid rgba(var(--bloom-amber),.34);background:rgba(var(--bloom-amber),.09);text-align:left}
+.receipt-gap strong{display:block;color:var(--amber-deep);font-weight:800;font-size:13.5px}
+.receipt-gap small{display:block;margin-top:3px;color:var(--taupe);font-size:11.5px;line-height:1.5}
+
+/* ---- Preview sheets + list capping -------------------------------------- */
+.preview-count{margin:-6px 0 10px;color:var(--faint);font-size:12px;font-weight:700;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums lining-nums}
+.list-more{width:100%;min-height:48px;border:0;border-top:1px solid var(--hair);
+  background:transparent;color:var(--amber-deep);font-size:13px;font-weight:800;letter-spacing:.01em}
+.list-more:active{background:rgba(var(--bloom-amber),.08)}
+
+/* ---- Plan hero: body previews, play square starts ------------------------ */
+/* MEASURED, not assumed: `.plan-hero.train-hero` (two classes) sets display:block + padding:20px,
+   so a single-class `.plan-hero` rule here loses on specificity no matter how late it appears.
+   Matching the selector is the fix - the first attempt read display:block in the probe and dropped
+   the play button onto its own line. */
+.plan-hero.train-hero,.plan-hero.big-button{display:flex;align-items:center;gap:12px;padding:0}
+.plan-hero-empty.train-hero,.plan-hero-empty.big-button{display:block;padding:20px}
+.ph-open{flex:1;min-width:0;text-align:left;border:0;background:transparent;
+  color:inherit;padding:20px 0 20px 20px}
+.plan-hero .ph-start{flex:none;margin-right:16px;background:rgba(20,15,8,.18);color:var(--on-amber)}
+.plan-hero .ph-start svg{width:16px;height:16px}
+/* The kicker's reset lived on `.plan-hero>.ph-kicker`, which stopped matching once the copy moved
+   inside .ph-open. Its opacity:1 was a deliberate contrast decision (at .75 it measures 4.27:1 on
+   the hero gradient in light mode), so it is re-attached here rather than lost. */
+.plan-hero .ph-kicker{display:block;width:auto;height:auto;flex:none;background:none;border-radius:0;
+  font-size:10.5px;font-weight:800;letter-spacing:.11em;color:inherit;opacity:1}
+.plan-hero .ph-progress{display:flex;width:auto;height:auto;flex:none;background:none;border-radius:0}
+.plan-hero-empty .ph-kicker{color:var(--faint)}
+
+/* ---- Weekly volume as bars ----------------------------------------------
+   Weekly totals are discrete, so they get discrete marks. Bars are readable
+   one week at a time, carry their own labels, and stay legible for a
+   colour-blind reader because THIS week is set apart by fill weight and by
+   its label ("now"), not by hue. The average rule is what makes any single
+   bar mean something. */
+.wk-bars{position:relative;display:flex;align-items:flex-end;gap:5px;height:150px;
+  margin:14px 0 0;padding:0 0 22px;border-bottom:1px solid var(--hair)}
+.wkb{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;position:relative}
+/* A week with no training is a 2px stub, NOT an empty full-height track: the first draft drew a
+   track behind every bar and a zero week read as a FULL one (caught by looking at the shot, not by
+   any gate). Nothing is drawn behind a bar now - the baseline rule is the only reference. */
+.wkb i{display:block;width:100%;min-height:2px;border-radius:4px 4px 0 0;background:var(--cream-dim);
+  transition:height .5s var(--ease)}
+.wkb-now i{background:linear-gradient(180deg,var(--amber-soft),var(--amber));
+  box-shadow:0 0 14px 1px rgba(var(--bloom-amber),.4)}
+.wkb small{position:absolute;left:0;right:0;top:100%;padding-top:6px;text-align:center;color:var(--faint);
+  font-size:9.5px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums lining-nums;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wkb-now small{color:var(--amber-deep);font-weight:800}
+/* --r is the average as a fraction of the tallest bar, so the rule is on the SAME scale as the bars
+   and can never disagree with them. (100% - 22px) is the plot area above the label strip. */
+.wk-avg{position:absolute;left:0;right:0;height:0;bottom:calc(22px + var(--r,0) * (100% - 22px));
+  border-top:1px dashed var(--hair-bright);pointer-events:none;z-index:1}
+.wk-avg em{position:absolute;right:0;top:-13px;font-style:normal;color:var(--faint);
+  font-size:9.5px;font-weight:700;letter-spacing:.03em}
+.wk-rank{margin:12px 0 0;color:var(--taupe);font-size:12.5px;font-weight:600}
+@media(prefers-reduced-motion:reduce){.wkb i{transition:none}}

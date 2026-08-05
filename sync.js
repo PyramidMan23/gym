@@ -50,7 +50,9 @@
         restSeconds: ex.restSeconds || null,
         notes: ex.notes || '',
         sets: (ex.sets || []).map(set => ({
-          weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null
+          // `at` = when the set was ticked off. Without it the brain-side ingest can only read wall
+          // time (started -> finished), which reports a session left open overnight as 27 hours.
+          weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null, at: set.at || null
         }))
       }))
     };
