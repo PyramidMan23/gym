@@ -629,6 +629,15 @@
     return null;
   }
 
+  // Done-tick guard (Ty, 2026-08-17). A ✓ on a set with no reps records "work" that adds nothing:
+  // his whole leg day saved as "60 kg × 0" because the reps cell's grey last-time placeholder reads
+  // as a filled value, and carry-forward then copied the empty reps down every following set. True =
+  // the tick must be intercepted (ask for reps) instead of completing. Un-completing never blocks.
+  // Timed holds keep seconds in `reps`, so the same rule covers them.
+  function blockDoneTick(set) {
+    return !set?.done && !(Number(set?.reps) > 0);
+  }
+
   // Explicit set-1 adoption action ("Use last: 40 kg × 8") is offered ONLY while set 1 is still
   // untouched - incomplete AND both fields empty - and there is a last-session source to adopt.
   // The done-tick never auto-adopts; this is the sole path from history into a logged set.
@@ -1283,5 +1292,5 @@
   return { muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
+    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, blockDoneTick, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

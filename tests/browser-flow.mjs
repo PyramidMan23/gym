@@ -820,6 +820,31 @@ try {
   assert.ok(occlusion.scrollMarginReserved >= 90,
     `the RIR row must reserve the pill's height, got ${occlusion.scrollMarginReserved}`);
 
+  // Done-tick guard (Ty, 2026-08-17): a ✓ on a set with weight typed but no reps must NOT complete
+  // it - that saved whole leg days as "60 kg × 0". The tick opens the reps pad instead, and the set
+  // completes on the next tap once real reps are behind it. Runs against the occlusion probe's
+  // still-active session: exercise 1 (ch1) is untouched.
+  const tickGuard = await evaluate(`(() => {
+    const ex=state.activeSession.exercises[1];
+    ex.sets[0].weight='60';
+    toggleSet(1,0);
+    return {done:ex.sets[0].done, padOpen:document.getElementById('padSheet').open,
+      padKey:padTarget?padTarget.key:null, toast:document.getElementById('toast').textContent};
+  })()`);
+  assert.equal(tickGuard.done, false, 'a ✓ with no reps must not complete the set');
+  assert.equal(tickGuard.padOpen, true, 'the blocked tick must open the numeric pad');
+  assert.equal(tickGuard.padKey, 'reps', 'the pad must target the reps cell, not weight');
+  assert.match(tickGuard.toast, /reps/i, 'the toast must say what is missing');
+  await evaluate(`(() => { padDigit('8'); closePad(); return true; })()`);
+  await waitFor(`!document.getElementById('padSheet').open`);
+  const tickAfter = await evaluate(`(() => {
+    toggleSet(1,0);
+    const s=state.activeSession.exercises[1].sets[0];
+    return {done:s.done, weight:s.weight, reps:s.reps};
+  })()`);
+  assert.deepEqual(tickAfter, {done:true, weight:'60', reps:'8'},
+    'with reps entered the same tick completes, and the saved numbers are the real ones');
+
   const extras = await evaluate(`(() => {
     state.activeSession=null; saveState();
     const out={};

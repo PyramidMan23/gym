@@ -2132,8 +2132,18 @@ function carryForwardExercise(exercise){
 }
 function toggleSet(exerciseIndex,setIndex){
   if(!state.activeSession?.exercises[exerciseIndex]?.sets[setIndex])return;
+  const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];
+  // A ✓ with no reps logged must not complete: it saves "60 kg × 0" (the grey placeholder is last
+  // time, not this set) and carry-forward spreads the empty reps down the exercise. Route the tick
+  // to the reps pad instead - the set completes on the next tap, with real reps behind it.
+  if(Core.blockDoneTick(set)){
+    const timed=!!exerciseById(state.activeSession.exercises[exerciseIndex].exerciseId)?.timed;
+    showToast(timed?'Log your seconds, then tick the set':'Log your reps, then tick the set');
+    openPad(exerciseIndex,setIndex,'reps');
+    return;
+  }
   if(state.activeSession&&prCelebratedSession!==state.activeSession){prCelebratedSession=state.activeSession;prCelebrated.clear();}
-  const set=state.activeSession.exercises[exerciseIndex].sets[setIndex];set.done=!set.done;
+  set.done=!set.done;
   // Stamp WHEN the set was completed. Wall time (finished - started) reads as 1618 minutes for a
   // session left open overnight; the span between the first and last stamped set is the real
   // training time. Core.sessionMinutes prefers it whenever the clock is implausible.
