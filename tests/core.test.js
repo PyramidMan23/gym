@@ -269,15 +269,19 @@ test('routinesDoneThisWeek counts only linked sessions inside the current local 
   const now = new Date(2026, 6, 23, 9, 0, 0).getTime();      // Thursday; the week starts Monday
   const monday = new Date(2026, 6, 20, 7, 0, 0).getTime();
   const lastWeek = new Date(2026, 6, 16, 7, 0, 0).getTime();
+  // Real sessions carry completed sets - one with none is a record, not a workout (2026-08-17).
+  const worked = { exercises: [{ exerciseId: 'lg22', sets: [{ weight: '60', reps: '5', done: true }] }] };
   const history = [
-    { id: 's1', routineId: 'rPush', started: monday },        // this week, linked
-    { id: 's2', routineId: 'rLegs', started: now - 3600000 }, // this week, linked
-    { id: 's3', routineId: 'rPull', started: lastWeek },      // LAST week - must not count
-    { id: 's4', routineId: null,    started: monday }         // unlinked quick workout - must not count
+    { id: 's1', routineId: 'rPush', started: monday, ...worked },        // this week, linked
+    { id: 's2', routineId: 'rLegs', started: now - 3600000, ...worked }, // this week, linked
+    { id: 's3', routineId: 'rPull', started: lastWeek, ...worked },      // LAST week - must not count
+    { id: 's4', routineId: null,    started: monday, ...worked },        // unlinked quick workout - must not count
+    { id: 's5', routineId: 'rArms', started: monday }                    // linked but NO completed sets - must not count
   ];
   const done = Core.routinesDoneThisWeek(history, now);
   assert.ok(done.has('rPush') && done.has('rLegs'));
   assert.ok(!done.has('rPull'), 'last week must not carry over');
+  assert.ok(!done.has('rArms'), 'a session with no completed sets must not mark a routine done');
   assert.equal(done.size, 2);
   assert.equal(Core.routinesDoneThisWeek([], now).size, 0);
   assert.equal(Core.routinesDoneThisWeek(undefined, now).size, 0);

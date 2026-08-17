@@ -35,10 +35,13 @@
   const initial = name => (String(name || '').trim()[0] || '?').toUpperCase();
 
   function normalizeProfile(p) {
-    if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !ID_RE.test(p.id) || typeof p.name !== 'string') return null;
+    // Only the id is load-bearing (it keys the namespaced state). A profile with a junk NAME must be
+    // salvaged, not dropped: dropping it orphaned its entire workout history while the registry still
+    // parsed as valid, so recovery never ran (cross-review 2026-08-17).
+    if (!p || typeof p !== 'object' || typeof p.id !== 'string' || !ID_RE.test(p.id)) return null;
     return {
       id: p.id,
-      name: p.name,
+      name: typeof p.name === 'string' ? p.name : '',
       emoji: typeof p.emoji === 'string' ? p.emoji : '',
       locked: !!p.locked,
       pinHash: typeof p.pinHash === 'string' ? p.pinHash : null,

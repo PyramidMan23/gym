@@ -61,9 +61,15 @@ const prepMap = (typeof GYM_PREP!=='undefined') ? GYM_PREP : {warmup:{},cooldown
 function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],goals:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
 // Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
 // so a brand-new profile's missing key correctly yields an empty state (never another profile's data).
+// A stored state from a NEWER app version must never be read as "missing" and overwritten with an
+// empty one - an old service-worker-cached build opening after an upgrade would wipe the account
+// (cross-review 2026-08-17). The flag makes saveState refuse until the app updates.
+let stateUnsupported=false;
 function readState(){
+  stateUnsupported=false;
   try{
     const saved=JSON.parse(localStorage.getItem(stateKey));
+    if(saved&&typeof saved==='object'&&saved.version!==undefined&&saved.version!==2)stateUnsupported=true;
     if(saved?.version===2){
       const preferences={...emptyState().preferences,...saved.preferences,...Core.normalizeActivityGoals(saved.preferences)};
       // Injury mode is new (2026-07-22). A profile that already has training history was using the
@@ -83,6 +89,7 @@ let state=readState();
 let lockGate=false;
 function saveState(){
   if(lockGate)return false;
+  if(stateUnsupported){showToast('Your data is from a newer app version - update the app first');return false;}
   try{localStorage.setItem(stateKey,JSON.stringify(state));return true;}
   catch(error){console.error('Duck Gym could not persist state',error);showToast('Could not save - browser storage is full');return false;}
 }
@@ -418,7 +425,7 @@ function renderTodayHero(rest){
   // Three lifts is the glance; the rest are counted, not listed.
   const shown=routine.exerciseIds.slice(0,3).map(id=>{
     const item=exerciseById(id);
-    const t=Core.nextTarget(state.history,id,{step,block:!!pg.block,stepDown:!!pg.stepDown});
+    const t=Core.nextTarget(state.history,id,{step,block:!!pg.block,stepDown:!!pg.stepDown,requireConfirmation:injuryMode()});
     const dose=t?(t.rule==='blocked'?'train around it':formatTarget(t)):'set your benchmark';
     return `<li><span class="th-lift">${esc(item?.name||id)}</span><span class="th-dose">${esc(dose)}</span></li>`;
   }).join('');
@@ -932,7 +939,10 @@ function startPlanDay(planId,dayIndex){
 function applyPlan(id){
   const plan=plans.find(p=>p.id===id);if(!plan)return;
   const stamp=Date.now();
-  plan.days.forEach((d,i)=>state.routines.unshift({id:`r${stamp}_${i}`,name:`${plan.name} · ${d.name}`,exerciseIds:[...d.exerciseIds]}));
+  // A day that carries a full {id,sets,reps,rest} scheme keeps it on the installed routine - the
+  // direct-start path honoured the prescription while the installed copy silently dropped it to
+  // one blank set per lift (cross-review 2026-08-17). createSession already reads routine.exercises.
+  plan.days.forEach((d,i)=>state.routines.unshift({id:`r${stamp}_${i}`,name:`${plan.name} · ${d.name}`,exerciseIds:[...d.exerciseIds],...(Array.isArray(d.exercises)?{exercises:JSON.parse(JSON.stringify(d.exercises))}:{})}));
   state.preferences.weeklyWorkoutGoal=Math.min(14,Math.max(Number(state.preferences.weeklyWorkoutGoal)||0,plan.goal||plan.days.length));
   saveState();closeSheet();renderTrain();renderToday();showToast(`${plan.name} added - ${plan.days.length} routines ready`);
 }
@@ -1831,7 +1841,8 @@ function formatTarget(t){
   if(!t)return '';
   if(t.rule==='blocked')return 'Train around it today';
   if(t.timed)return `${t.weight?`${t.weight} kg × `:''}${t.reps} s`;
-  return `${t.weight} kg × ${t.reps}`;
+  // A target built from weightless (bodyweight) work states its reps - never a fabricated "0 kg".
+  return t.weight?`${t.weight} kg × ${t.reps}`:`${t.reps} reps`;
 }
 const RULE_WORD={'add-rep':'build reps','add-load':'load up','add-time':'add time','hold':'hold','repeat-no-rir':'repeat','step-down':'step-down','blocked':'blocked'};
 // The delta chip on the target strip: what today's target changes versus the last confirmed set.
@@ -1914,7 +1925,10 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
     +`</div>`:`<div class="previous-strip">${esc(prevText)}</div>`;
   const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
   const bwFactor=Core.bodyweightFactor(exercise.exerciseId);
-  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed,bwFactor)).join('');
+  // The live PR row tag compares against last session's TOP set, not its first - set 1 is often a
+  // lighter opener and beating it is not a record (cross-review 2026-08-17).
+  const prevTop=previous.reduce((best,s)=>(!best||s.weight>best.weight||(s.weight===best.weight&&s.reps>best.reps))?s:best,null);
+  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed,bwFactor,prevTop)).join('');
   return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
     +`<header class="exercise-head">`
       +`<button class="exercise-grip" type="button" aria-label="Drag to reorder ${esc(item?.name||'this exercise')}, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="grip-dots" aria-hidden="true"></span><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
@@ -1978,7 +1992,9 @@ function warmupButton(exercise,index,target,timed){
 }
 function addWarmup(index){
   const ex=state.activeSession?.exercises[index];if(!ex)return;
-  const target=Core.nextTarget(state.history,ex.exerciseId,{step:Number(state.preferences.weightStep)||2.5});
+  // Same gated target the cockpit shows - a blocked or stepped-down lift must not ramp toward the
+  // unrestricted number the gate is holding back (cross-review 2026-08-17).
+  const target=targetFor(ex.exerciseId,sessionPainGate());
   const kg=Number(target?.weight)||Number(ex.sets?.[0]?.weight)||0;
   const rungs=Core.warmupSets(kg,Number(state.preferences.barWeight)||20,Number(state.preferences.weightStep)||2.5);
   if(!rungs.length)return showToast('No warm-up needed for that load');
@@ -2062,7 +2078,7 @@ function openTargetWhy(index){
 // amber fill, next-up = amber rail + ring + the word NOW, prefilled = italic + muted, drop = DROP,
 // a set that beats last session = PR. Only the active exercise passes isActive, so exactly one NOW
 // row exists in the whole session.
-function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,bwFactor){
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,bwFactor,prevTop){
   const completion=Core.setCompletionState(set.done,setIndex+1);
   const pf=set.prefilled&&!set.done?' prefilled':'';
   const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;
@@ -2070,8 +2086,8 @@ function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,
   // "Beats last time" is a comparison of two logged numbers, never a guess: heavier than the last
   // session's top set, or the same load carried for more reps/seconds.
   const w=Number(set.weight)||0,r=Number(set.reps)||0;
-  const pw=Number(firstPrev?.weight)||0,pr=Number(firstPrev?.reps)||0;
-  const beats=!!(set.done&&firstPrev&&(w>pw||(w===pw&&r>pr)));
+  const pw=Number(prevTop?.weight)||0,pr=Number(prevTop?.reps)||0;
+  const beats=!!(set.done&&prevTop&&(w>pw||(w===pw&&r>pr)));
   const tag=set.warmup?'WARM':(set.drop?'DROP':(beats?'PR':(isActive&&!set.done?'NOW':'')));
   const unitB=timed?'s':'reps';
   const cell=(k,val,ph,unit,label)=>`<span class="set-cell"><input class="set-input" type="number" inputmode="${k==='weight'?'decimal':'numeric'}" min="0" step="${k==='weight'?'0.5':'1'}" value="${esc(val)}" placeholder="${ph}" ${cellAttrs(k)} onchange="updateSet(${exerciseIndex},${setIndex},'${k}',this.value)" aria-label="${label}"><small class="set-unit" aria-hidden="true">${unit}</small></span>`;
@@ -2118,9 +2134,14 @@ function cycleSide(exerciseIndex,setIndex){
   set.side=set.side==='L'?'R':set.side==='R'?undefined:'L';
   saveState();renderWorkout();
 }
+// A logged number must BE a number: the keyboard escape hatch and the history editor both accept
+// raw text, and "-10" reps × 100 kg printed as -1000 kg of volume (cross-review 2026-08-17).
+// Empty stays empty (blank means "not entered", never zero); anything non-finite or negative is
+// rejected to blank rather than silently coerced.
+function cleanSetValue(value){const s=String(value??'').trim();if(s==='')return '';const n=Number(s);return Number.isFinite(n)&&n>=0?s:'';}
 // Guarded: a keyboard-mode cell fires onchange on BLUR, which can land after the workout was
 // finished or cancelled and activeSession is already null (audit 2026-07-22).
-function updateSet(exerciseIndex,setIndex,key,value){const set=state.activeSession?.exercises[exerciseIndex]?.sets[setIndex];if(!set)return;set[key]=value;delete set.prefilled;saveState();renderWorkoutMetrics();}
+function updateSet(exerciseIndex,setIndex,key,value){const set=state.activeSession?.exercises[exerciseIndex]?.sets[setIndex];if(!set)return;set[key]=cleanSetValue(value);delete set.prefilled;saveState();renderWorkoutMetrics();}
 // Completing a set writes its real numbers, then pre-fills the NEXT still-empty incomplete set with
 // those numbers (Core.carryForward) so an unchanged set becomes a genuine one-tap. Prefill only lands
 // in a set the lifter hasn't touched (both fields empty) - never overwrites entered data.
@@ -2489,7 +2510,7 @@ function openReceipt(session){
   // NEXT SESSION prescription - the engagement anchor. Run against the just-finished history state.
   const pg=Core.painGate(state.history,null),step=Number(state.preferences.weightStep)||2.5;
   const nextRows=session.exercises.filter(ex=>ex.sets.some(s=>s.done)).map((ex,i)=>{
-    const item=exerciseById(ex.exerciseId),t=Core.nextTarget(state.history,ex.exerciseId,{step,block:!!pg.block,stepDown:!!pg.stepDown});
+    const item=exerciseById(ex.exerciseId),t=Core.nextTarget(state.history,ex.exerciseId,{step,block:!!pg.block,stepDown:!!pg.stepDown,requireConfirmation:injuryMode()});
     const val=t?(t.rule==='blocked'?'train around it':formatTarget(t)):'baseline building';
     const word=t&&t.rule!=='add-rep'&&t.rule!=='add-load'&&t.rule!=='blocked'?RULE_WORD[t.rule]:'';
     return `<div class="receipt-next-row" style="--i:${i}"><span>${esc(item?.name||'Exercise')}</span><strong>${esc(val)}${word?` <em>${esc(word)}</em>`:''}</strong></div>`;
@@ -2619,6 +2640,10 @@ function seedRoutine(key){
 }
 function saveRoutine(){
   routineDraft.name=routineDraft.name.trim();if(!routineDraft.name)return showToast('Name your routine');if(!routineDraft.exerciseIds.length)return showToast('Add at least one exercise');
+  // A routine can carry a plan's {id,sets,reps,rest} scheme. The editor edits exerciseIds only, so
+  // if the lift list changed the scheme no longer describes it - drop it rather than start sessions
+  // whose prescription belongs to a different list (kept intact when the ids still match).
+  if(Array.isArray(routineDraft.exercises)&&JSON.stringify(routineDraft.exercises.map(e=>e.id))!==JSON.stringify(routineDraft.exerciseIds))delete routineDraft.exercises;
   const index=state.routines.findIndex(r=>r.id===routineDraft.id);if(index>=0)state.routines[index]=routineDraft;else state.routines.unshift(routineDraft);saveState();closeSheet();renderTrain();showToast('Routine saved');
 }
 function openRoutineMenu(id){
@@ -3008,7 +3033,7 @@ function renderHistoryEdit(){
 }
 function editHistorySet(ei,si,field,value){
   const set=historyDraft?.exercises?.[ei]?.sets?.[si];if(!set)return;
-  set[field]=value;
+  set[field]=cleanSetValue(value);
   // A set given real numbers is a set that happened - tick it, or the correction would not count.
   if(String(set.weight??'')!==''||String(set.reps??'')!=='')set.done=true;
   // Only the live totals change while typing; re-rendering would blow away the caret mid-edit.
@@ -3034,12 +3059,15 @@ function saveHistoryEdit(){
   const before=Core.summarizeSession(state.history[i]).volume;
   // Drop exercises left with no sets at all, so an emptied lift does not linger as a ghost row.
   d.exercises=(d.exercises||[]).filter(ex=>(ex.sets||[]).length);
-  // PRs were detected against the ORIGINAL numbers, so a correction can invalidate them. Re-derive
-  // against the rest of history rather than leaving a personal best the new numbers do not support.
-  try{d.prs=Core.detectPRs(state.history.filter(s=>s.id!==d.id),d);}catch{d.prs=d.prs||[];}
   state.history[i]=d;
+  // PRs were detected against the ORIGINAL numbers, and in true chronological order: a correction
+  // to an OLD session can both earn and invalidate records in LATER sessions, so the whole PR line
+  // re-derives - each session judged only against the sessions before it (cross-review 2026-08-17;
+  // the old single-session re-derive compared January against March and got both directions wrong).
+  try{state.history=Core.rebuildPRs(state.history);}catch{}
+  const saved=state.history.find(s=>s.id===d.id)||d;
   saveState();
-  if(Sync)try{Sync.onSessionComplete(d);}catch{} // the stored copy must carry the correction too
+  if(Sync)try{Sync.onSessionComplete(saved);}catch{} // the stored copy must carry the correction too
   const after=Core.summarizeSession(d).volume;
   historyDraft=null;
   renderToday();renderProgress();renderTrain();
@@ -3049,7 +3077,9 @@ function saveHistoryEdit(){
 }
 function deleteHistory(id){
   state.history=state.history.filter(s=>s.id!==id);
-  if(Sync&&Sync.forget)try{Sync.forget(id);}catch{} // never let a deleted session re-upload later
+  // Remove the Drive copy too (best-effort) - deleteRemote also forgets the queue entry and the
+  // file mapping, so a deleted session can neither re-upload nor keep living in the backup folder.
+  if(Sync)try{(Sync.deleteRemote||Sync.forget)(id);}catch{}
   saveState();closeSheet();renderProgress();showToast('Workout deleted');
 }
 
@@ -3137,7 +3167,11 @@ async function importBackup(file){
     const previous=state;
     state=candidate;
     if(!saveState()){state=previous;return;}
-    closeSheet();renderView(currentView);showToast('Backup imported');
+    // If the imported state can't RENDER, it must not stay persisted either - restore the previous
+    // state on any throw past the save, or the bad import bricks the next boot (cross-review 2026-08-17).
+    try{closeSheet();renderView(currentView);}
+    catch(err){state=previous;saveState();renderView(currentView);showToast('That backup could not be read');return;}
+    showToast('Backup imported');
   }catch{showToast('That backup could not be read');}
   finally{document.getElementById('importInput').value='';}
 }
@@ -3538,7 +3572,26 @@ document.getElementById('sheet').addEventListener('cancel',event=>{
 });
 // Cross-tab identity sync (P1-4): if another tab changes the registry, re-sync this tab's active
 // profile (adopting its lock state) instead of acting on a stale identity.
+// Cross-tab DATA sync (cross-review 2026-08-17): state writes were last-writer-wins per whole blob,
+// so a second tab saving a preference could erase a workout the first tab had just finished. When
+// another tab writes OUR state key: with no local session running, adopt theirs wholesale; with one
+// running, keep everything local but UNION in any finished sessions we don't have (by id) - the
+// class that must never be lost. Preferences stay last-writer-wins (harmless).
 window.addEventListener('storage',event=>{
+  if(event.key===stateKey&&event.newValue&&!lockGate){
+    try{
+      const remote=JSON.parse(event.newValue);
+      if(remote?.version!==2)return;
+      if(!state.activeSession){state=readState();renderAllViews();return;}
+      const have=new Set(state.history.map(s=>s.id));
+      const missing=(Array.isArray(remote.history)?remote.history:[]).filter(s=>s&&s.id&&!have.has(s.id));
+      if(missing.length){
+        state.history=[...missing,...state.history].sort((a,b)=>(Number(b.started)||0)-(Number(a.started)||0));
+        saveState();renderAllViews();
+      }
+    }catch{}
+    return;
+  }
   if(!Profiles||event.key!==Profiles.PROFILES_KEY)return;
   const reg=Profiles.getRegistry(localStorage);if(!reg)return;
   if(reg.activeId!==activeProfileId){

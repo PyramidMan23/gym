@@ -7,7 +7,9 @@ const Core = require('../core.js');
 
 const HANG = 'gr3', SQUAT = 'lg22';
 const set = (weight, reps) => ({ weight: String(weight), reps: String(reps), done: true });
-const session = (started, exercises = []) => ({ id: 's' + started, started, finished: started + 3600000, exercises });
+// The default fixture carries ONE real completed set: since 2026-08-17 a history entry with no
+// completed sets is a record, not a workout, and counts toward nothing (Core.sessionCounts).
+const session = (started, exercises = [{ exerciseId: SQUAT, sets: [set(60, 5)] }]) => ({ id: 's' + started, started, finished: started + 3600000, exercises });
 const WEEK = 7 * 86400000;
 // A fixed Wednesday, so week-boundary maths is deterministic.
 const NOW = new Date('2026-07-22T10:00:00').getTime();

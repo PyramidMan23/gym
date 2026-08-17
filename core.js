@@ -6,9 +6,19 @@
   'use strict';
 
   const num = value => Number(value) || 0;
-  // A completed set with NO numbers is not training evidence (blank done-ticks must not mint
-  // volume, exposures, or tolerated baselines) - Codex adversarial finding, council data-honesty rule.
-  const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && !(String(set.weight ?? '') === '' && String(set.reps ?? '') === ''));
+  // A completed set with no reps is not training evidence (blank and zero-rep done-ticks must not
+  // mint sets, volume, exposures, PRs or tolerated baselines) - council data-honesty rule, tightened
+  // 2026-08-17: the old rule only rejected blank-BLANK, so "60 kg × (blank)" counted as a completed
+  // set and could mint a 60 kg weight PR while adding zero work. Negative reps are excluded too.
+  // Timed holds store seconds in `reps`, so the same >0 rule covers them unchanged.
+  const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && Number(set.reps) > 0);
+  // Evidence sets for records: completed sets excluding warm-up rungs. LAW (w63): warm-ups are work
+  // but NOT evidence - without this a high-rep warm-up could mint an e1RM PR working sets never earned.
+  const evidenceSets = exercise => doneSets(exercise).filter(set => !set.warmup);
+  // A session may carry the SAME exercise in more than one row (added twice, supersets built by
+  // hand). History readers must see every row, not the first - `.find` hid the heavier duplicate
+  // and a later lighter session was awarded a false PR (cross-review 2026-08-17).
+  const exerciseRows = (session, exerciseId) => (session?.exercises || []).filter(item => item.exerciseId === exerciseId);
 
   // Hold-type exercises (catalogue flag `timed:true`) store SECONDS in the `reps` field. The app
   // registers those ids once at boot from the catalogue - the single source of truth - so every
@@ -181,12 +191,11 @@
   function previousPerformance(history, exerciseId) {
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
-      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
       // Warm-up rungs are preparation, not evidence. They still count as work done (volume), but
       // "last time you did X" and the opening prefill must describe WORKING sets or the app would
       // quietly propose an empty bar as your next session's starting load.
-      const sets = exercise ? doneSets(exercise).filter(set => !set.warmup)
-        .map(set => ({ weight: num(set.weight), reps: num(set.reps) })) : [];
+      const sets = exerciseRows(session, exerciseId).flatMap(exercise => evidenceSets(exercise)
+        .map(set => ({ weight: num(set.weight), reps: num(set.reps) })));
       if (sets.length) return sets;
     }
     return [];
@@ -203,8 +212,7 @@
     const timed = isTimed(exerciseId);
     let weight = 0, e1rm = 0, seconds = 0;
     for (const session of history || []) {
-      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      for (const set of exercise ? doneSets(exercise) : []) {
+      for (const exercise of exerciseRows(session, exerciseId)) for (const set of evidenceSets(exercise)) {
         weight = Math.max(weight, num(set.weight));
         if (timed) seconds = Math.max(seconds, num(set.reps));
         else e1rm = Math.max(e1rm, estimatedOneRepMax(set.weight, set.reps));
@@ -215,17 +223,23 @@
 
   function detectPRs(history, session) {
     const records = [];
+    const seen = new Set(); // duplicate rows of one exercise judge ONCE, against all their sets
     for (const exercise of session?.exercises || []) {
-      const completed = doneSets(exercise);
+      if (seen.has(exercise.exerciseId)) continue;
+      seen.add(exercise.exerciseId);
+      // Warm-ups are excluded on BOTH sides of the comparison (evidence law, w63/2026-08-17).
+      const completed = exerciseRows(session, exercise.exerciseId).flatMap(row => evidenceSets(row));
       if (!completed.length) continue;
       const prior = exerciseBest(history, exercise.exerciseId);
       const bestWeight = Math.max(...completed.map(set => num(set.weight)), 0);
       // A hold's record is TIME (or a heavier hold for the same style) - without this a bodyweight
-      // hang could never PR at all, since its weight and e1RM are permanently 0.
+      // hang could never PR at all, since its weight and e1RM are permanently 0. The recorded pair
+      // is ONE real set (best seconds, tiebreak weight) - stitching max weight and max seconds from
+      // different sets described a weighted long hold that never happened (cross-review 2026-08-17).
       if (isTimed(exercise.exerciseId)) {
-        const bestSeconds = bestSecondsOf(completed);
-        if (bestSeconds > prior.seconds || bestWeight > prior.weight) {
-          records.push({ exerciseId: exercise.exerciseId, weight: bestWeight, seconds: bestSeconds });
+        const bestHold = completed.reduce((a, b) => (num(b.reps) > num(a.reps) || (num(b.reps) === num(a.reps) && num(b.weight) > num(a.weight))) ? b : a, completed[0]);
+        if (num(bestHold.reps) > prior.seconds || bestWeight > prior.weight) {
+          records.push({ exerciseId: exercise.exerciseId, weight: bestWeight > prior.weight ? bestWeight : num(bestHold.weight), seconds: num(bestHold.reps) });
         }
         continue;
       }
@@ -237,13 +251,23 @@
     return records;
   }
 
+  // Recompute every session's PRs in true chronological order. Editing an old session can both
+  // create and invalidate records in LATER sessions, so the whole line re-derives - detectPRs
+  // against only the sessions that came before each one (cross-review 2026-08-17). Returns a new
+  // array in the caller's original order; untouched sessions keep identical PR results by construction.
+  function rebuildPRs(history) {
+    const asc = [...(history || [])].sort((a, b) => num(a.started) - num(b.started));
+    const prior = [], map = new Map();
+    for (const session of asc) { map.set(session, detectPRs(prior, session)); prior.push(session); }
+    return (history || []).map(session => ({ ...session, prs: map.get(session) }));
+  }
+
   // Strength trend: one point per session containing completed sets of the exercise,
   // oldest first - value is the best estimated 1RM that day.
   function exerciseTrend(history, exerciseId) {
     const points = [];
     for (const session of history || []) {
-      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      const sets = exercise ? doneSets(exercise) : [];
+      const sets = exerciseRows(session, exerciseId).flatMap(exercise => evidenceSets(exercise));
       if (!sets.length) continue;
       points.push({
         started: num(session.started),
@@ -279,7 +303,7 @@
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      const sets = exercise ? doneSets(exercise) : [];
+      const sets = exercise ? evidenceSets(exercise) : []; // warm-ups never set the tolerated baseline
       if (!sets.length) continue;
       const checkin = session.checkin;
       if (requireConfirmation && (!checkin || checkin.post === 'worse' || checkin.flare !== false)) continue;
@@ -331,11 +355,14 @@
   // Which routines are already done in the CURRENT local week, as a Set of routine ids.
   // createSession has always stamped routineId, but nothing ever read it - this is what turns that
   // dead field into "Push done, Legs done, Pull to go". One pass, so a long history stays cheap.
+  // A history entry with no completed sets is a record, not a workout - it must not mark a routine
+  // done, extend a streak, or advance a consistency goal (cross-review 2026-08-17).
+  const sessionCounts = session => (session?.exercises || []).some(exercise => doneSets(exercise).length > 0);
   function routinesDoneThisWeek(history, now = Date.now()) {
     const start = startOfLocalWeek(now);
     const done = new Set();
     for (const session of history || [])
-      if (session?.routineId && num(session.started) >= start) done.add(session.routineId);
+      if (session?.routineId && num(session.started) >= start && sessionCounts(session)) done.add(session.routineId);
     return done;
   }
 
@@ -349,7 +376,7 @@
 
   function weeklyStats(history, now = Date.now()) {
     const start = startOfLocalWeek(now);
-    const sessions = (history || []).filter(session => num(session.started) >= start && num(session.started) <= now);
+    const sessions = (history || []).filter(session => num(session.started) >= start && num(session.started) <= now && sessionCounts(session));
     return {
       workouts: sessions.length,
       volume: Math.round(sessions.reduce((sum, session) => sum + calculateVolume(session), 0)),
@@ -571,7 +598,13 @@
     // into a TypeError - and importBackup persists before it renders, so a malformed one would brick
     // the next boot. Shape-check it here, where the import can still be rejected cleanly.
     const validSession = data?.activeSession == null || (typeof data.activeSession === 'object' && !Array.isArray(data.activeSession) && Array.isArray(data.activeSession.exercises));
-    if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession) {
+    // Every history consumer derefs session.exercises[].sets[] - a payload that passes the shallow
+    // shape but carries a non-array inside bricks rendering AFTER the import persisted it
+    // (cross-review 2026-08-17). Validate the nesting here, where rejection is still clean.
+    const validExercises = list => Array.isArray(list) && list.every(ex => ex && typeof ex === 'object' && !Array.isArray(ex) && Array.isArray(ex.sets));
+    const validHistory = Array.isArray(data?.history) && data.history.every(s => s && typeof s === 'object' && !Array.isArray(s) && validExercises(s.exercises || []));
+    const validSessionSets = data?.activeSession == null || validExercises(data.activeSession.exercises);
+    if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession || !validHistory || !validSessionSets) {
       throw new Error('Invalid Duck Gym backup');
     }
     const preferences = {
@@ -674,7 +707,7 @@
     const ordered = [...(history || [])].sort((a, b) => num(b.started) - num(a.started));
     for (const session of ordered) {
       const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      const sets = exercise ? doneSets(exercise) : [];
+      const sets = exercise ? evidenceSets(exercise) : []; // warm-up rungs are never the progression basis
       if (!sets.length) continue;
       const checkin = session.checkin;
       if (requireConfirmation && (!checkin || checkin.post === 'worse' || checkin.flare !== false)) continue;
@@ -834,8 +867,7 @@
     if (isTimed(exerciseId)) return []; // "heaviest at 8 reps" is not a thing for a hold - seconds aren't reps
     const best = {};
     for (const session of history || []) {
-      const exercise = (session.exercises || []).find(item => item.exerciseId === exerciseId);
-      for (const set of exercise ? doneSets(exercise) : []) {
+      for (const exercise of exerciseRows(session, exerciseId)) for (const set of evidenceSets(exercise)) {
         const reps = num(set.reps), w = num(set.weight);
         if (reps >= 1 && reps <= 10 && w > 0 && w > (best[reps] || 0)) best[reps] = w;
       }
@@ -868,13 +900,16 @@
   // already met - an unfinished week must never read as a broken streak.
   function weekStreak(history, perWeek, now = Date.now()) {
     const target = Math.max(1, num(perWeek));
-    const thisStart = startOfLocalWeek(now), WEEK = 7 * 86400000;
-    const sessionsIn = (start, end) => (history || []).filter(s => num(s.started) >= start && num(s.started) < end).length;
-    let streak = 0;
-    if (sessionsIn(thisStart, thisStart + WEEK) >= target) streak++;
+    const thisStart = startOfLocalWeek(now);
+    // Week boundaries walk by CALENDAR days, not fixed 168-hour blocks: an AU daylight-saving week
+    // is 167 or 169 hours, and the fixed walk dropped sessions logged in the first hour of a Monday.
+    const weekStartBefore = ts => { const d = new Date(ts); d.setDate(d.getDate() - 7); return d.getTime(); };
+    const sessionsIn = (start, end) => (history || []).filter(s => num(s.started) >= start && num(s.started) < end && sessionCounts(s)).length;
+    let streak = 0, end = Number.POSITIVE_INFINITY, start = thisStart;
+    if (sessionsIn(start, end) >= target) streak++;
     for (let i = 1; i <= 104; i++) {
-      const start = thisStart - i * WEEK;
-      if (sessionsIn(start, start + WEEK) >= target) streak++; else break;
+      end = start; start = weekStartBefore(start);
+      if (sessionsIn(start, end) >= target) streak++; else break;
     }
     return streak;
   }
@@ -895,7 +930,7 @@
     if (goal.type === 'bodyweight') return latestBodyweight(c.bodyweight);
     if (goal.type === 'consistency') {
       const start = startOfLocalWeek(c.now || Date.now());
-      return (c.history || []).filter(s => num(s.started) >= start).length;
+      return (c.history || []).filter(s => num(s.started) >= start && sessionCounts(s)).length;
     }
     return null;
   }
@@ -1292,5 +1327,5 @@
   return { muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
-    setTimedExercises, isTimed, doneSets, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, blockDoneTick, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
+    setTimedExercises, isTimed, doneSets, evidenceSets, sessionCounts, rebuildPRs, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, exerciseBest, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, blockDoneTick, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };
 });

@@ -1,3 +1,3 @@
 // Release-truth build id. Baked into sw.js CACHE ('gym-'+BUILD) and shown in Settings.
 // Bump on every deploy so the update pill and cache invalidation stay honest.
-const BUILD = 'w67-20260817-tick-guard';
+const BUILD = 'w68-20260817-honest-evidence';

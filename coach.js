@@ -32,8 +32,10 @@
         && session.exercises.every(isObj));
   }
 
-  // Untrusted-plan number: finite number in → number out, anything else → null.
-  const safeNum = value => (typeof value === 'number' && Number.isFinite(value)) ? value : null;
+  // Untrusted-plan number: finite NON-NEGATIVE number in → number out, anything else → null.
+  // Negative sets/reps/loads have no meaning in a prescription and would prefill straight into
+  // logged history as negative volume - a malformed plan degrades to "no number", never a bad one.
+  const safeNum = value => (typeof value === 'number' && Number.isFinite(value) && value >= 0) ? value : null;
   // Pure dose formatter for the coach card - plain text only, numbers coerced, so the
   // caller can esc() the result and a hostile plan (load:"<img onerror>") renders inert.
   function doseLine(exercise) {

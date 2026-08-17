@@ -845,6 +845,42 @@ try {
   assert.deepEqual(tickAfter, {done:true, weight:'60', reps:'8'},
     'with reps entered the same tick completes, and the saved numbers are the real ones');
 
+  // Installed plans keep their prescription (w68): applyPlan used to store only exerciseIds, so a
+  // 4x6-8 day started from the installed routine opened as one blank set. And cross-tab writes now
+  // UNION finished sessions instead of last-writer-wins erasing them.
+  const planScheme = await evaluate(`(() => {
+    plans.push({id:'e2e-plan',name:'E2E Plan',tag:'t',note:'',goal:1,days:[{name:'Day X',exerciseIds:['lg1','ch1'],
+      exercises:[{id:'lg1',sets:4,reps:'6-8',rest:120},{id:'ch1',sets:3,reps:'8-10',rest:90}]}]});
+    applyPlan('e2e-plan');
+    const r=state.routines.find(x=>x.name==='E2E Plan · Day X');
+    state.activeSession=null;
+    beginSession(r);
+    const ex=state.activeSession.exercises[0];
+    const out={hasScheme:Array.isArray(r&&r.exercises)&&r.exercises.length===2,
+      sets:ex.sets.length,planned:ex.sets.every(s=>s.planned===true),target:ex.targetReps,rest:ex.restSeconds};
+    // Cross-tab merge: another tab writes our state key carrying a finished session we don't have.
+    const remote=JSON.parse(localStorage.getItem(stateKey));
+    remote.history=[{id:'other-tab-session',started:Date.now()-1000,finished:Date.now(),
+      exercises:[{exerciseId:'lg1',sets:[{weight:'70',reps:'5',done:true}]}]},...remote.history];
+    window.dispatchEvent(new StorageEvent('storage',{key:stateKey,newValue:JSON.stringify(remote)}));
+    out.merged=state.history.some(s=>s.id==='other-tab-session');
+    out.sessionKept=!!state.activeSession;
+    // Clean up everything this probe created so later assertions see the expected world.
+    state.activeSession=null;
+    state.history=state.history.filter(s=>s.id!=='other-tab-session');
+    state.routines=state.routines.filter(x=>!String(x.name).startsWith('E2E Plan'));
+    plans.pop();
+    saveState();
+    return out;
+  })()`);
+  assert.equal(planScheme.hasScheme, true, 'the installed routine must carry the plan day scheme');
+  assert.equal(planScheme.sets, 4, 'starting the installed routine must open the prescribed 4 sets');
+  assert.equal(planScheme.planned, true, 'scheme sets are born planned');
+  assert.equal(planScheme.target, '6-8');
+  assert.equal(planScheme.rest, 120);
+  assert.equal(planScheme.merged, true, 'a finished session written by another tab must be unioned in, not lost');
+  assert.equal(planScheme.sessionKept, true, 'the merge must never eject the running local session');
+
   const extras = await evaluate(`(() => {
     state.activeSession=null; saveState();
     const out={};
@@ -911,7 +947,7 @@ try {
   assert.equal(extras.scope, 'yours', 'the Library must open on your own exercises');
   assert.ok(extras.yoursRows > 0 && extras.yoursRows < extras.allRows,
     `YOURS must be a real subset, got ${extras.yoursRows} of ${extras.allRows}`);
-  assert.equal(extras.allRows, 255, 'Browse all must still reach the whole catalogue');
+  assert.equal(extras.allRows, 256, 'Browse all must still reach the whole catalogue (256 = w68 added Dumbbell Pullover)');
   assert.equal(extras.searchSpansAll, true, 'search must span the catalogue even in YOURS scope');
   assert.equal(extras.scopeHiddenWhenNothingOwned, true,
     'the scope switch must be display:none (not merely [hidden]) when you own nothing');

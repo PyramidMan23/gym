@@ -34,6 +34,7 @@ const DUCK_EXERCISES = [
   {id:'ch17',name:'Deficit Push-Up',muscle:'Chest',muscles:['Chest','Shoulders','Arms'],patterns:['Horizontal Push'],family:'Push-Up',equip:['Dumbbell','Bodyweight'],equipment:'Hands on dumbbell handles (deeper stretch)'},
   {id:'ch18',name:'Dumbbell Squeeze Press',muscle:'Chest',muscles:['Chest','Arms'],patterns:['Horizontal Push'],family:'Bench Press',equip:['Dumbbell','Bench'],equipment:'Dumbbells pressed together on the bench (inner chest)'},
   {id:'ch19',name:'Bar Dip',muscle:'Chest',muscles:['Chest','Arms','Shoulders'],patterns:['Vertical Push'],family:'Dip',equip:['Bodyweight'],equipment:'G3 rack dip handles (or sturdy parallel supports)'},
+  {id:'ch20',name:'Dumbbell Pullover',muscle:'Chest',muscles:['Chest','Back'],patterns:['Isolation'],family:'Pullover',equip:['Dumbbell','Bench'],equipment:'One dumbbell held overhead, lying across or along a bench'},
   // ---- Back ----
   {id:'ba1',name:'Deadlift',muscle:'Back',muscles:['Back','Legs','Grip'],patterns:['Hinge'],family:'Deadlift',equip:['Barbell','Plate'],equipment:'Olympic barbell + plates'},
   {id:'ba2',name:'Barbell Row',muscle:'Back',muscles:['Back','Arms'],patterns:['Horizontal Pull'],family:'Row',equip:['Barbell'],equipment:'Olympic barbell'},

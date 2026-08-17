@@ -31,6 +31,12 @@
       name: s.name || '',
       started: s.started || null,
       finished: s.finished || null,
+      // Fidelity fields (cross-review 2026-08-17): without these the Drive copy could not reproduce
+      // local volume (bodyweightKg), training time (pausedMs) or the routine link, and the brain-side
+      // coach read a warm-up rung as working evidence.
+      routineId: s.routineId || null,
+      bodyweightKg: Number(s.bodyweightKg) > 0 ? Number(s.bodyweightKg) : null,
+      pausedMs: Number(s.pausedMs) > 0 ? Number(s.pausedMs) : null,
       checkin: s.checkin || null, // three-touch safety answers (pre 0-10, post, next-session flare)
       // Whether the tolerance gate APPLIED to this session. The app only ASKS the flare question in
       // injury mode, so without this flag the brain-side coach demanded an answer that was never
@@ -49,10 +55,14 @@
         targetReps: ex.targetReps || null,
         restSeconds: ex.restSeconds || null,
         notes: ex.notes || '',
+        rir: ex.rir === undefined ? null : ex.rir, // last-working-set reps-in-reserve - the progression engine's input
         sets: (ex.sets || []).map(set => ({
           // `at` = when the set was ticked off. Without it the brain-side ingest can only read wall
           // time (started -> finished), which reports a session left open overnight as 27 hours.
-          weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null, at: set.at || null
+          weight: set.weight, reps: set.reps, done: !!set.done, side: set.side || null, at: set.at || null,
+          // Warm-up and drop flags travel with the data - downstream readers must be able to tell
+          // preparation and back-off work from working sets (cross-review 2026-08-17).
+          ...(set.warmup ? { warmup: true } : {}), ...(set.drop ? { drop: true } : {})
         }))
       }))
     };
@@ -74,6 +84,20 @@
       c.queue = removeFromQueue(c.queue, sessionId);
       if (c.uploadedFiles) delete c.uploadedFiles[sessionId];
     });
+  }
+  // Deleting a workout locally must also remove its Drive copy - otherwise the backup folder (and
+  // anything ingesting it) keeps treating the deleted session as real (cross-review 2026-08-17).
+  // Best-effort with a silent token only: on any failure the file lingers exactly as before, and
+  // forget() still guarantees it can never be re-uploaded.
+  function deleteRemote(sessionId) {
+    const fileId = loadConfig().uploadedFiles && loadConfig().uploadedFiles[sessionId];
+    forget(sessionId);
+    if (!fileId || !configured()) return Promise.resolve(false);
+    const g = gen;
+    return ensureToken(false)
+      .then(() => { guard(g); return api(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE' }); })
+      .then(() => true)
+      .catch(() => false);
   }
   function removeFromQueue(queue, sessionId) {
     return (Array.isArray(queue) ? queue : []).filter(item => !(item && item.sessionId === sessionId));
@@ -279,7 +303,11 @@
         return uploadSession(folderId, payload, loadConfig().uploadedFiles[payload.sessionId]).then(fileId => {
           guard(g); // a switch mid-upload: the file may exist on A's Drive, but B's config is never touched
           updateConfig(c => {
-            c.queue = removeFromQueue(c.queue, payload.sessionId);
+            // Dequeue ONLY the exact snapshot that was uploaded. A correction enqueued while this
+            // upload was in flight replaces the queue entry; removing by id alone deleted that newer
+            // snapshot and Drive kept the stale one forever (cross-review 2026-08-17). A changed
+            // entry stays queued and uploads on the next flush.
+            c.queue = (c.queue || []).filter(item => !(item && item.sessionId === payload.sessionId && JSON.stringify(item) === JSON.stringify(payload)));
             c.uploadedFiles[payload.sessionId] = fileId;
             c.lastSyncAt = Date.now();
           });
@@ -361,7 +389,7 @@
 
   return {
     // pure
-    sessionToPayload, enqueue, removeFromQueue, forget, loadConfig, saveConfig, updateConfig,
+    sessionToPayload, enqueue, removeFromQueue, forget, deleteRemote, loadConfig, saveConfig, updateConfig,
     // browser
     configured, status, getBeighton, setBeighton, getPlan, setClientId, clearPlan, preload,
     onSessionComplete, flush, downSync, connect, disconnect, exportSession, setUser,
