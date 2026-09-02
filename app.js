@@ -3120,7 +3120,7 @@ function openSettings(){
     +sw('Training around an injury','Adds the pain check-in, the flare question, and load step-downs when pain climbs. Leave off if nothing hurts.',injuryMode(),'toggleInjuryMode')
     +`<div class="stack"><button id="installButton" class="secondary-button full-button" onclick="installApp()">Install Gym</button><button class="secondary-button full-button" onclick="exportBackup()">Download backup</button><button class="secondary-button full-button" onclick="document.getElementById('importInput').click()">Import backup</button><button class="secondary-button full-button" style="color:var(--danger)" onclick="clearAllData()">Clear all data</button></div>`
     +syncSettingsMarkup()
-    +`<p class="settings-note">Private by default. Your training data stays in this browser unless you export it.</p>`
+    +`<p class="settings-note">Your training data stays in this browser unless you export it or connect Drive. When you open the app it tells Mark's server your profile name, so he can see the app is being used - that is the only thing sent, and never a single set, weight or session.</p>`
     +(state.preferences.backfillBodyweight
       ? `<p class="settings-note">Sessions logged before your first weigh-in are counted at <strong>${esc(String(state.preferences.backfillBodyweight))} kg</strong>. <button class="text-button" onclick="clearBodyweightBackfill()">Undo</button></p>`:'')
     +`<p class="build-footer">Build ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p>`;
@@ -3389,7 +3389,7 @@ function commitSwitch(id){
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id==='view-today'));
   document.querySelectorAll('.bottom-nav button').forEach(el=>el.classList.toggle('active',el.dataset.view==='today'));
   document.body.classList.remove('workout-active');
-  renderAllViews();renderProfileChip();
+  renderAllViews();renderProfileChip();announcePresence();
   const main=document.getElementById('main');if(main)main.focus({preventScroll:true});window.scrollTo(0,0);
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
   const name=(Profiles.getActive(localStorage)||{}).name;
@@ -3547,6 +3547,59 @@ function afterUnlockBoot(){
   renderAllViews();
   // Flush any queued sessions and pull the latest coach plan on launch - silent, deferred, never blocking.
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+  announcePresence();
+}
+/* PRESENCE (w69, Mark's call 2026-09-02). Mark's dashboard could only ever count
+ * IP ADDRESSES, so one phone that moved between wifi and mobile data read as two
+ * people, and this app was invisible from GitHub Pages entirely because that
+ * origin keeps no log. This tells his box "this device, under this profile name,
+ * opened the app" so the card can say who instead of guessing.
+ *
+ * WHAT IT SENDS, and nothing else: a random per-install id and the profile NAME.
+ * No sets, no weights, no history, no bodyweight - the training data genuinely
+ * never leaves the browser, which is what the Settings note promises and why
+ * that note now names this ping instead of implying nothing is sent.
+ *
+ * ABSOLUTE URL on purpose: this app is served from two origins and only one of
+ * them has the API underneath it. Fire-and-forget, throttled, failure ignored -
+ * offline and a blocked request must both be nothing but a no-op. */
+const SEEN_URL='https://thesolvagroup.com/fuel/api/seen';
+let lastPresence=0,lastPresenceWho='';
+// A resumed PWA never re-runs boot, so without this an installed app reports once
+// at install and then looks dead forever - the same class of bug the SW update
+// check above exists to kill.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&!lockGate&&!bootNeedsName)announcePresence();
+});
+function gymDeviceId(){
+  try{
+    let d=localStorage.getItem('gym:deviceId');
+    if(!d||d.length<8){
+      const b=new Uint8Array(8);
+      (window.crypto&&window.crypto.getRandomValues)?window.crypto.getRandomValues(b)
+        :b.forEach((_,i)=>b[i]=Math.floor(Math.random()*256));
+      d=Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+      localStorage.setItem('gym:deviceId',d);
+    }
+    return d;
+  }catch{return '';}   // private mode with storage denied: stay silent rather than throw
+}
+function announcePresence(){
+  // A dev server and a test harness are not people. The URL is absolute (this app is
+  // served from two origins, only one with the API under it), so without this every
+  // browser gate would POST a fixture profile name into the real dashboard.
+  if(/^(localhost|127\.|\[?::1)/.test(location.hostname)||location.protocol==='file:')return;
+  const who=activeProfileName();
+  const now=Date.now();
+  // A profile SWITCH reports straight away; the same person reopening is throttled.
+  if(who===lastPresenceWho&&now-lastPresence<30*60000)return;
+  const dev=gymDeviceId();
+  if(!dev)return;
+  lastPresence=now;lastPresenceWho=who;
+  try{
+    fetch(SEEN_URL,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({app:'gym',deviceId:dev,name:who}),keepalive:true}).catch(()=>{});
+  }catch{}
 }
 // Gate the ACTIVE locked profile behind a non-dismissible PIN sheet with a NEUTRAL shell behind it:
 // in-memory state is swapped to empty (and saveState blocked via lockGate) so even a forced
