@@ -3428,8 +3428,12 @@ function submitFirstRun(nameArg){
   Profiles.setName(localStorage,activeProfileId,name);
   bootNeedsName=false;
   document.body.classList.remove('first-run-open');
-  closeSheet();renderProfileChip();renderAllViews();
-  if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
+  closeSheet();renderProfileChip();
+  // bootApp RETURNS at the first-run branch, so this is the only path that finishes a brand
+  // new install's boot - it has to do everything afterUnlockBoot does, or the very first
+  // session (the one most worth knowing about) is the one that never reports itself. That
+  // divergence is exactly how the presence ping shipped dead on first run once already.
+  afterUnlockBoot();
 }
 // ---- Profile settings (active profile only) ----
 function profileSettingsMarkup(){
@@ -3585,10 +3589,6 @@ function gymDeviceId(){
   }catch{return '';}   // private mode with storage denied: stay silent rather than throw
 }
 function announcePresence(){
-  // A dev server and a test harness are not people. The URL is absolute (this app is
-  // served from two origins, only one with the API under it), so without this every
-  // browser gate would POST a fixture profile name into the real dashboard.
-  if(/^(localhost|127\.|\[?::1)/.test(location.hostname)||location.protocol==='file:')return;
   const who=activeProfileName();
   const now=Date.now();
   // A profile SWITCH reports straight away; the same person reopening is throttled.
@@ -3596,6 +3596,13 @@ function announcePresence(){
   const dev=gymDeviceId();
   if(!dev)return;
   lastPresence=now;lastPresenceWho=who;
+  /* THE SEND is what a dev origin must not do; getting this far is not. The id is minted
+     above either way, which is deliberate: it is the only observable proof this function
+     ran at all, so browser-flow can assert a boot path announces WITHOUT any test-only
+     code here and without a gate ever posting a fixture name into the real dashboard.
+     Worth the care - the first version of this shipped never firing on first run, because
+     bootApp returns early there and nothing checked. */
+  if(/^(localhost|127\.|\[?::1)/.test(location.hostname)||location.protocol==='file:')return;
   try{
     fetch(SEEN_URL,{method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({app:'gym',deviceId:dev,name:who}),keepalive:true}).catch(()=>{});

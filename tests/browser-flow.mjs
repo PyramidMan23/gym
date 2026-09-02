@@ -111,8 +111,23 @@ try {
   // Track B: a clean boot opens the first-run "Who's training?" sheet. Name the migrated/created
   // profile programmatically so the modal doesn't block hit-tested clicks later (does not weaken any guard).
   await waitFor(`document.getElementById('sheet').open && typeof submitFirstRun === 'function'`);
+  // A brand new install must have NO device id yet: the id is minted by announcePresence, so
+  // this is the "before" half of the assertion below.
+  assert.equal(await evaluate(`localStorage.getItem('gym:deviceId')`), null,
+    'a fresh install should not have announced itself before it has a name');
   await evaluate(`submitFirstRun('Tester'); true`);
   await waitFor(`!document.getElementById('sheet').open && typeof stateKey === 'string' && !!stateKey`);
+
+  /* FIRST RUN MUST ANNOUNCE. bootApp RETURNS at the first-run branch, so submitFirstRun is the
+     only thing that finishes a new install's boot; the first version of this feature shipped
+     with that path not announcing at all, which made the very first session - the one most
+     worth seeing - the one invisible on the dashboard. The device id is the observable proof
+     announcePresence ran; the SEND is separately suppressed on localhost, so this gate can
+     never post a fixture name to the real box. */
+  const devId = await evaluate(`localStorage.getItem('gym:deviceId')`);
+  assert.ok(typeof devId === 'string' && devId.length >= 8,
+    `first run must announce presence (minting a device id); got ${JSON.stringify(devId)}`);
+  assert.equal(await evaluate(`typeof announcePresence`), 'function');
   await capture('today', 320, 800);
   await capture('today', 390, 844);
 

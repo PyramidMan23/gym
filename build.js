@@ -1,3 +1,3 @@
 // Release-truth build id. Baked into sw.js CACHE ('gym-'+BUILD) and shown in Settings.
 // Bump on every deploy so the update pill and cache invalidation stay honest.
-const BUILD = 'w69-20260902-presence';
+const BUILD = 'w69b-20260902-presence-firstrun';
