@@ -3202,12 +3202,25 @@ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();def
 // user-controlled "Update ready" pill. Tapping posts SKIP_WAITING; controllerchange → one reload.
 let waitingWorker=null;
 function showUpdatePill(worker){waitingWorker=worker;const pill=document.getElementById('updatePill');if(pill){pill.hidden=false;requestAnimationFrame(()=>pill.classList.add('show'));}}
-function applyUpdate(){if(!waitingWorker)return;swSwapExpected=true;waitingWorker.postMessage({type:'SKIP_WAITING'});const pill=document.getElementById('updatePill');if(pill)pill.textContent='Updating…';}
+function applyUpdate(){if(!waitingWorker)return;try{localStorage.removeItem('gym:waitingSince');}catch{}swSwapExpected=true;waitingWorker.postMessage({type:'SKIP_WAITING'});const pill=document.getElementById('updatePill');if(pill)pill.textContent='Updating…';}
 let swSwapExpected=false;
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
   navigator.serviceWorker.register('./sw.js').then(reg=>{
-    if(reg.waiting&&navigator.serviceWorker.controller)showUpdatePill(reg.waiting);
-    reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)showUpdatePill(w);});});
+    /* A BUILD THAT WAITS FOREVER NEVER SHIPPED (w71, Mark 2026-09-08). The presence beacon went
+       out in w70 on 2 Sep and six days later only ONE phone had ever sent it: the pill was
+       showing on Mark's and Shane's Androids and nobody tapped it, so the dashboard still said
+       one person. Fuel solved this in w57: the pill still gates a mid-session swap, but a build
+       that has been waiting more than a day is applied on a COLD OPEN, when nothing is in flight.
+       The stamp is per running build, so opening twice a day cannot reset the clock. */
+    const WAIT_KEY='gym:waitingSince',STALE_MS=24*60*60*1000;
+    const offer=(w,coldOpen)=>{
+      showUpdatePill(w);
+      let since=null;try{since=JSON.parse(localStorage.getItem(WAIT_KEY)||'null');}catch{}
+      if(!since||since.build!==BUILD||typeof since.at!=='number'){since={build:BUILD,at:Date.now()};try{localStorage.setItem(WAIT_KEY,JSON.stringify(since));}catch{}}
+      if(coldOpen&&Math.max(0,Date.now()-since.at)>STALE_MS){try{localStorage.removeItem(WAIT_KEY);}catch{}applyUpdate();}
+    };
+    if(reg.waiting&&navigator.serviceWorker.controller)offer(reg.waiting,true);
+    reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)offer(w,false);});});
     // An installed PWA resumed from the background never reloads the page, so register()'s update
     // check never re-runs and the app can sit on a stale version for days (hit 2026-07-23).
     // Re-check whenever it comes back to the foreground; the pill still gates the actual swap.
