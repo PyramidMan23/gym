@@ -1,4 +1,22 @@
 /* Progress refinement: existing amber/teal tokens, grouped surfaces and navigation. */
+#progressSegments{padding:5px;gap:5px;background:var(--group-bg);border:1px solid var(--hair);border-radius:20px;margin-bottom:22px}
+#progressSegments .seg-button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-width:0;min-height:66px;padding:10px 4px;font-size:13px;font-weight:750;box-shadow:none}
+#progressSegments .seg-button svg{width:21px;height:21px;color:var(--amber-deep);flex-shrink:0}
+#progressSegments .seg-button.on{background:var(--amber);color:var(--on-amber)}
+#progressSegments .seg-button.on svg{color:inherit}
+@media(hover:hover){#progressSegments .seg-button:not(.on):hover{background:var(--chip-bg);color:var(--cream)}}
+#view-progress .progress-metrics .seg-button.on,#view-progress .progress-trend-ranges .seg-button.on{color:var(--amber-deep);background:var(--chip-bg);box-shadow:inset 0 0 0 1px var(--amber-deep)}
+#view-progress .progress-period-kind button.on{background:var(--amber);color:var(--on-amber)}
+#view-progress .progress-summary strong{color:var(--amber-deep)}
+#view-progress .progress-summary .progress-duration-unrecorded{color:var(--ink-quiet)}
+#view-progress .progress-trend-head>strong{color:var(--amber-deep)}
+#view-progress .progress-record-value{font-size:18px;font-weight:750;letter-spacing:-.015em;line-height:1.4;margin-top:8px}
+#view-progress .progress-record-exercise>h3{padding-top:18px;padding-bottom:8px;font-size:16px}
+#view-progress .progress-record-exercise .progress-record{min-height:86px!important}
+#view-progress .progress-record .row-chev{color:var(--amber-deep)}
+#view-progress .progress-details[open]>summary{color:var(--amber-deep)}
+#view-progress .progress-table tr.selected{background:rgba(var(--bloom-amber),.10)}
+#view-progress .progress-table tr.selected th{box-shadow:inset 2px 0 var(--amber-deep);padding-left:8px}
 #view-progress .prog-group[hidden]{display:none!important}
 #view-progress .prog-group{padding-bottom:20px}
 #view-progress .section-heading{margin-top:24px}

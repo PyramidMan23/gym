@@ -162,7 +162,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .page-lead{margin:14px 0 28px}.compact-lead{margin-bottom:20px}.page-lead h1{font-weight:800;font-size:clamp(32px,9vw,48px);line-height:1.02;letter-spacing:-.035em;margin:6px 0 3px;text-wrap:balance}.page-lead p:last-child{margin:0;max-width:550px;color:var(--taupe);font-size:16px}.kicker{margin:0;color:var(--amber-deep);font-size:11px;font-weight:800;letter-spacing:1.35px}
 .section-heading{position:relative;display:flex;align-items:end;justify-content:space-between;gap:16px;margin:30px 2px 12px;padding-bottom:9px;border-bottom:1px solid var(--hair)}.section-heading::after{content:'';position:absolute;left:0;bottom:-1px;width:10px;height:2px;background:var(--amber)}.section-heading h2{font-weight:800;font-size:21px;letter-spacing:-.02em;margin:3px 0 0}.text-button{border:0;background:transparent;color:var(--amber-deep);min-height:44px;padding:0;font-weight:800}
-.primary-button,.secondary-button,.finish-button{border:0;min-height:50px;border-radius:var(--radius);font-weight:800;transition:transform .12s var(--ease)}.primary-button{background:var(--amber);color:var(--on-amber);box-shadow:0 8px 20px -8px rgba(224,110,31,.5)}.primary-button:active,.secondary-button:active,.routine-start:active,.finish-button:active{transform:scale(.98)}.secondary-button{background:var(--glass-2);border:1px solid var(--hair);color:var(--cream)}.full-button{width:100%}.big-button{width:100%;display:flex;align-items:center;text-align:left;gap:14px;padding:16px 20px;margin:18px 0 4px;border-radius:var(--radius)}.big-button>span{font-size:24px}.big-button strong,.big-button small{display:block}.big-button small{opacity:.8;font-weight:500;margin-top:2px}
+.primary-button,.secondary-button,.finish-button{border:0;min-height:50px;border-radius:var(--radius);font-weight:800;transition:transform .12s var(--ease)}.primary-button{background:var(--amber);color:var(--on-amber);box-shadow:none}.primary-button:active,.secondary-button:active,.routine-start:active,.finish-button:active{transform:scale(.98)}.secondary-button{background:var(--glass-2);border:1px solid var(--hair);color:var(--cream)}.full-button{width:100%}.big-button{width:100%;display:flex;align-items:center;text-align:left;gap:14px;padding:16px 20px;margin:18px 0 4px;border-radius:var(--radius)}.big-button>span{font-size:24px}.big-button strong,.big-button small{display:block}.big-button small{opacity:.8;font-weight:500;margin-top:2px}
 .stack{display:grid;gap:10px}.card,.routine-card,.history-card,.week-card,.chart-card{background:var(--card-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--card-hair);border-radius:var(--radius);box-shadow:var(--glass-edge),var(--shadow)}
 .empty-card{padding:28px 20px;text-align:center;color:var(--taupe)}.empty-card strong{display:block;color:var(--cream);font-weight:800;font-size:18px;margin-bottom:4px}
 .week-card{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:17px 18px}.week-card-copy span,.week-card-copy strong,.week-card-copy small{display:block}.week-card-copy span{color:var(--taupe);font-size:12px}.week-card-copy strong{font-weight:800;font-size:20px;font-variant-numeric:tabular-nums lining-nums;margin:2px 0}.week-card-copy small{color:var(--taupe)}
@@ -407,7 +407,7 @@ button:disabled,button[disabled]{opacity:.38;cursor:default;box-shadow:none;filt
 .card,.routine-card,.history-card,.week-card,.chart-card,.activity-card,.resume-card,.template-card,.exercise-row,.metric,.workout-exercise,.trend-card,.pr-row,.checkin-card,.coach-card,.profile-row,.quick-chip{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--card-bg)}
 .live-metric{background:var(--card-bg);border-color:var(--card-hair);box-shadow:var(--glass-edge),var(--shadow)}
 /* Bars scale to 72% max so the count label + day label never force flex-shrink distortion (Codex verify 2026-07-20). */
-/* Nav: floating pill, glowing sculpted indicator, geometry fixed. */
+/* Nav: floating pill, contained selection indicator, geometry fixed. */
 .bottom-nav{border-radius:var(--nav-radius);padding:8px;box-shadow:var(--glass-edge),var(--shadow),0 -1px 0 rgba(255,255,255,.04)}
 
 .bottom-nav button{transition:color .2s var(--ease)}
@@ -424,18 +424,18 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 /* Rings: gradient-lit arcs with an ambient glow per channel. */
 .arc-fill{stroke-width:10}
 .arc-track{stroke-width:10}
-.arc-fill-workouts{stroke:url(#ringGradWorkouts);filter:drop-shadow(0 0 5px rgba(var(--bloom-amber),.5))}
+.arc-fill-workouts{stroke:url(#ringGradWorkouts);filter:none}
 .arc-fill-sets{stroke:url(#ringGradSets);filter:drop-shadow(0 0 5px rgba(var(--bloom-teal),.5))}
 .arc-fill-volume{stroke:url(#ringGradVolume)}
 .arc-value strong{font-size:26px;letter-spacing:-.03em}
 /* Consistency chart: sculpted bars with gradient light + live count on the current week. */
 .chart-card{height:186px;padding:22px 16px 14px}
 .bar-col i{max-width:36px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,rgba(var(--bloom-amber),.38),rgba(var(--bloom-amber),.16));transition:height .5s var(--ease)}
-.bar-col.active i{background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:0 0 12px rgba(var(--bloom-amber),.4)}
+.bar-col.active i{background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:none}
 .bar-col b{font-size:10px;font-weight:800;color:var(--amber-deep);font-variant-numeric:tabular-nums lining-nums;min-height:12px;line-height:1}
 .bar-col b:empty{visibility:hidden}
 /* Strength trend: line gets light; latest point pulses once. */
-.trend-line{filter:drop-shadow(0 1px 4px rgba(var(--bloom-amber),.45))}
+.trend-line{filter:none}
 .trend-dot:last-of-type{animation:dotPulse 1.4s var(--ease) .4s 2}
 @keyframes dotPulse{0%,100%{r:3.5}50%{r:5.5}}
 /* Metrics read like instruments. */
@@ -466,9 +466,9 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 .kicker{color:var(--taupe);font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
 .kicker.accent{color:var(--amber-deep)}
 
-/* --- Hero numeral: giant + tight. Dark scheme earns an amber glow; light stays ink-clean. --- */
+/* Hero numeral: crisp in both themes; amber does not cast light onto the page. */
 .hero-num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.03em}
-@media(prefers-color-scheme:dark){.hero-num{text-shadow:0 0 18px rgba(var(--bloom-amber),.30)}}
+@media(prefers-color-scheme:dark){.hero-num{text-shadow:none}}
 
 /* --- Premium tinted LIVE card: radial amber from top-right + amber border + inset amber top-light.
    --card-bg is already token-paired, so this reads as soft cream-amber on white / amber ember on #1D2228. --- */
@@ -513,7 +513,7 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 /* ---- TRAIN ---- */
 .train-hero{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;width:100%;text-align:left;margin:2px 0 6px;padding:24px 22px;border:0;border-radius:var(--radius);color:var(--on-amber);
   background:linear-gradient(135deg,var(--amber-soft),var(--amber) 72%);
-  box-shadow:0 16px 36px -16px rgba(var(--bloom-amber),.6),inset 0 1px 0 rgba(255,255,255,.32)}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32)}
 .train-hero>span{flex:none;width:52px;height:52px;display:grid;place-items:center;border-radius:15px;background:rgba(0,0,0,.14);color:var(--on-amber)}
 .train-hero>span svg{width:26px;height:26px}
 .train-hero strong{display:block;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.05}
@@ -575,7 +575,7 @@ body.scrolled .bottom-nav{box-shadow:var(--glass-edge),var(--shadow),0 0 0 1px v
 /* Thin amber progress rail on the exercise card's left edge (fraction of sets done via --done). */
 .workout-exercise{position:relative}
 .workout-exercise::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--hair)}
-.workout-exercise::after{content:'';position:absolute;left:0;top:0;width:3px;height:calc(var(--done,0)*100%);background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:0 0 8px rgba(var(--bloom-amber),.4);transition:height .4s var(--ease)}
+.workout-exercise::after{content:'';position:absolute;left:0;top:0;width:3px;height:calc(var(--done,0)*100%);background:linear-gradient(180deg,var(--amber-soft),var(--amber));box-shadow:none;transition:height .4s var(--ease)}
 
 /* ---- Muscle volume board: two parallel tracks per muscle, NEVER one joined bar (council two-ledger model). */
 .mv-board{display:grid;gap:8px}
@@ -796,7 +796,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .primary-button:active,.secondary-button:active,.finish-button:active,.routine-start:active,.rs-start:active,.big-button:active,.train-hero:active,.resume-card button:active{transform:scale(.97);filter:brightness(.98);box-shadow:var(--top-light),var(--elev-0)}
 
 /* ---- Depth: 3-layer light. Button CTAs were missing the inset top-light — add it (paired). ---- */
-.primary-button,.finish-button,.routine-start,.rs-start{box-shadow:var(--top-light),0 8px 20px -8px rgba(var(--bloom-amber),.5)}
+.primary-button,.finish-button,.routine-start,.rs-start{box-shadow:var(--top-light)}
 .secondary-button{box-shadow:var(--top-light),var(--elev-0)}
 /* train-hero + big-button already carry their own inset top-light — left untouched. */
 
@@ -830,7 +830,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
    a thin amber light sweep travelling UP the exercise card's left rail. No bursts. ---- */
 @keyframes prCompress{0%{transform:scaleY(1)}35%{transform:scaleY(.9)}100%{transform:scaleY(1)}}
 .set-row.pr-hit{animation:prCompress .42s var(--press-ease);transform-origin:center}
-.pr-spark{position:absolute;left:0;bottom:0;width:3px;height:34%;border-radius:2px;pointer-events:none;z-index:4;background:linear-gradient(180deg,rgba(var(--bloom-amber),0),var(--amber-soft),var(--amber));box-shadow:0 0 10px 2px rgba(var(--bloom-amber),.6);animation:prRail .6s var(--ease)}
+.pr-spark{position:absolute;left:0;bottom:0;width:3px;height:34%;border-radius:2px;pointer-events:none;z-index:4;background:linear-gradient(180deg,rgba(var(--bloom-amber),0),var(--amber-soft),var(--amber));box-shadow:none;animation:prRail .6s var(--ease)}
 @keyframes prRail{0%{transform:translateY(0);opacity:0}20%{opacity:1}100%{transform:translateY(-300%);opacity:0}}
 
 /* ---- Declared goals (2026-07-22) -----------------------------------------------------------
@@ -850,7 +850,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .goal-bar{position:relative;height:8px;border-radius:4px;background:var(--glass-2);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
 .goal-bar i{display:block;height:100%;width:calc(var(--p,0)*100%);border-radius:4px;
   background:linear-gradient(90deg,var(--amber-deep),var(--amber),var(--amber-soft));
-  box-shadow:0 0 12px 1px rgba(var(--bloom-amber),.45);transition:width .5s var(--ease)}
+  box-shadow:none;transition:width .5s var(--ease)}
 .goal-foot{display:flex;justify-content:space-between;gap:10px;margin:8px 0 0;color:var(--taupe);font-size:12px}
 .goal-pct{color:var(--amber-deep);font-weight:800;font-variant-numeric:tabular-nums lining-nums}
 .goal-card.achieved{border-color:rgba(var(--bloom-amber),.5)}
@@ -1037,8 +1037,8 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 /* The cursor is now a LIT surface, not a flat wash: gradient fill, inner top-light, soft amber
    under-glow, and a light spring overshoot on the slide (Codex: heavy overshoot reads rubbery). */
 
-/* Active icon: colour + 1px lift + tight glow. Stroke weight is NEVER animated (shimmer). */
-.bottom-nav button.active svg{filter:drop-shadow(0 0 5px rgba(255,138,61,.45))}
+/* Active icon: colour + 1px lift, without an ambient glow. Stroke weight stays stable. */
+.bottom-nav button.active svg{filter:none}
 .bottom-nav button{transition:color .2s var(--ease),transform .12s var(--ease)}
 .bottom-nav button:active{transform:scale(.97)}
 /* The w22 tab-swap grammar (`view-in`, a 200ms fade + 8px rise) was DELETED 2026-08-03 rather than
@@ -1069,7 +1069,7 @@ button.history-card:active,button.template-card:active,button.plan-card:active,b
 .return-chip:active{transform:translateX(-50%) scale(.98)}
 .return-chip[hidden]{display:none}
 .rc-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--amber);
-  box-shadow:0 0 8px rgba(224,110,31,.7)}
+  box-shadow:none}
 @media (prefers-reduced-motion: no-preference){.rc-dot{animation:rc-pulse 1.6s ease-in-out infinite}}
 .rc-dot.rc-paused{background:var(--taupe);box-shadow:none;animation:none}
 .rc-text{flex:1;min-width:0}
@@ -1403,7 +1403,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 .cr-track{fill:none;stroke:var(--hair);stroke-width:10}
 .cr-track-in{stroke-width:4.5}
 .cr-arc{fill:none;stroke-linecap:round;transition:stroke-dashoffset 1.1s var(--ease)}
-.cr-out{stroke:url(#ringGradWorkouts);stroke-width:10;filter:drop-shadow(0 0 8px rgba(var(--bloom-amber),.42))}
+.cr-out{stroke:url(#ringGradWorkouts);stroke-width:10;filter:none}
 .cr-in{stroke:url(#ringGradSets);stroke-width:4.5;transition-delay:.1s;filter:drop-shadow(0 0 6px rgba(var(--bloom-teal),.42))}
 .cr-centre{position:absolute;inset:0;display:grid;place-content:center;gap:1px;
   border:0;background:transparent;color:inherit;cursor:pointer;padding:0}
@@ -1604,7 +1604,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
   transition:background .25s,border-color .25s,transform .18s cubic-bezier(.34,1.56,.64,1)}
 .set-done:active{transform:scale(.92)}
 .set-done.done{background:linear-gradient(135deg,var(--amber-soft),var(--amber));border-color:transparent;
-  color:var(--on-amber);box-shadow:0 6px 16px -8px rgba(var(--bloom-amber),.9)}
+  color:var(--on-amber);box-shadow:none}
 .set-footer{display:flex;gap:8px;padding:12px 14px 16px}
 /* v2 rules, now carrying the design's values so the earlier block cannot be silently undone:
    both h46 r15; Add set on rgba(var(--w),.05)+.07 edge with --acc; Drop teal-tinted, borderless. */
@@ -1658,7 +1658,7 @@ body.workout-active .update-pill{bottom:calc(14px + var(--sai-bottom))}
 /* ---- Plan hero ---- */
 .plan-hero{display:block;width:100%;text-align:left;border:0;border-radius:var(--r-card);padding:20px;
   background:linear-gradient(135deg,var(--amber-soft),var(--amber) 78%);color:var(--on-amber);
-  box-shadow:0 20px 44px -22px rgba(var(--bloom-amber),.65),inset 0 1px 0 rgba(255,255,255,.35)}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
 .ph-kicker{font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:.75}
 .plan-hero strong{display:block;margin-top:8px;font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.06}
 .plan-hero small{display:block;margin-top:6px;font-size:12.5px;font-weight:600;opacity:.8}
@@ -1927,7 +1927,7 @@ body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
 .week-dots .day-dot i{width:100%;height:8px;border-radius:4px;background:var(--hair);display:block;
   transition:background .4s var(--ease)}
 .week-dots .day-dot.done i{background:linear-gradient(90deg,var(--amber-soft),var(--amber));
-  box-shadow:0 0 12px rgba(var(--bloom-amber),.45)}
+  box-shadow:none}
 /* Today is marked by an OUTLINE as well as fill, so it is never colour alone. */
 .week-dots .day-dot.today i{box-shadow:0 0 0 2px rgba(var(--bloom-amber),.55)}
 .week-dots .day-dot small{font-size:10px;font-weight:600;color:var(--faint)}
@@ -2015,7 +2015,7 @@ body.nav-yield .bottom-nav{opacity:0;pointer-events:none}
      recolouring the logo in light mode. Codex named this exact mechanism: a newly defined inherited
      custom property changes any existing var(--x, fallback) consumer by replacing its fallback. */
   background:linear-gradient(150deg,#FFC98A,#FF7A24);color:var(--on-amber);
-  overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 16px -8px rgba(var(--bloom-amber),.9)}
+  overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
 .brand>span svg{width:22px;height:22px;display:block}
 
 /* ---- Progress > WEEK, ported from the prototype ---- */
@@ -2322,7 +2322,7 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 .wkb i{display:block;width:100%;min-height:2px;border-radius:4px 4px 0 0;background:var(--cream-dim);
   transition:height .5s var(--ease)}
 .wkb-now i{background:linear-gradient(180deg,var(--amber-soft),var(--amber));
-  box-shadow:0 0 14px 1px rgba(var(--bloom-amber),.4)}
+  box-shadow:none}
 .wkb small{position:absolute;left:0;right:0;top:100%;padding-top:6px;text-align:center;color:var(--faint);
   font-size:9.5px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums lining-nums;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2391,7 +2391,7 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 .today-cta{display:flex;align-items:center;gap:12px;width:100%;margin:14px 0 0;padding:14px 14px 14px 18px;
   border:0;border-radius:var(--r-card);text-align:left;color:var(--on-amber);
   background:linear-gradient(135deg,var(--amber-soft),var(--amber) 78%);
-  box-shadow:0 14px 30px -18px rgba(var(--bloom-amber),.7),inset 0 1px 0 rgba(255,255,255,.3)}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
 .today-cta-copy{flex:1;min-width:0}
 .today-cta-copy small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:.95}
 .today-cta-copy strong{display:block;margin-top:3px;font-size:19px;font-weight:800;letter-spacing:-.02em;
@@ -2461,7 +2461,7 @@ body.kb-open{padding-bottom:var(--kb,0px)}
 /* ---- Hero: the executable next session ---------------------------------- */
 .today-hero{margin:14px 0 0;padding:18px;border-radius:var(--r-card);
   background:linear-gradient(135deg,var(--amber-soft),var(--amber) 80%);color:var(--on-amber);
-  box-shadow:0 20px 44px -22px rgba(var(--bloom-amber),.65),inset 0 1px 0 rgba(255,255,255,.32)}
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32)}
 .th-copy small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.11em;opacity:1}
 .th-copy strong{display:block;margin-top:4px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
 .th-copy em{display:block;margin-top:5px;font-style:normal;font-size:12.5px;font-weight:700;opacity:.85}

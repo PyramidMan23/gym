@@ -1341,7 +1341,8 @@ const PROGRESS_TABS=[['week','Overview'],['trends','Trends'],['records','Records
 let progressTab='week';
 function renderProgressSegments(){
   const host=document.getElementById('progressSegments');if(!host)return;
-  host.innerHTML=PROGRESS_TABS.map(([id,label])=>`<button class="seg-button${progressTab===id?' on':''}" role="tab" aria-selected="${progressTab===id}" onclick="setProgressTab('${id}')">${label}</button>`).join('');
+  const icons={week:'<path d="M4 20V10m8 10V4m8 16v-7"/>',trends:'<path d="m3 17 6-6 4 3 8-10M15 4h6v6"/>',records:'<path d="M8 3h8v6a4 4 0 0 1-8 0V3Zm0 2H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 1v5m-4 3h8m-6-3h4v3"/>'};
+  host.innerHTML=PROGRESS_TABS.map(([id,label])=>`<button class="seg-button${progressTab===id?' on':''}" role="tab" aria-selected="${progressTab===id}" onclick="setProgressTab('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[id]}</svg><span>${label}</span></button>`).join('');
   document.querySelectorAll('#view-progress .prog-group').forEach(g=>{g.hidden=g.dataset.seg!==progressTab;});
 }
 function setProgressTab(id){
