@@ -19,12 +19,18 @@
 .progress-arrow{border:1px solid var(--hair);background:var(--group-bg);color:var(--cream);border-radius:12px;font-size:28px!important;line-height:1;padding:0}
 .progress-period button:disabled{color:var(--ink-quiet);opacity:.55;cursor:default}
 .progress-current{justify-self:end;align-self:center}
+.progress-trend-ranges{grid-column:1/-1;width:100%}
+.progress-trend-dates{grid-column:1/-1;margin:0;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;color:var(--ink-quiet)}
+.progress-trend-dates small{display:block;font-size:11px;margin-top:3px}
+.progress-history-count{font-size:12px;color:var(--ink-quiet);line-height:1.5;padding:12px 16px;margin:0;border-top:1px solid var(--hair);font-variant-numeric:tabular-nums}
 .progress-summary{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;padding:0!important}
 .progress-summary>div{padding:14px 16px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid var(--hair)}
 .progress-summary>div:nth-child(odd){border-right:1px solid var(--hair)}
 .progress-summary>div:nth-last-child(-n+2){border-bottom:0}
 .progress-summary span{font-size:12px;color:var(--ink-quiet);font-weight:650}
 .progress-summary strong{font-size:29px;line-height:1.15;letter-spacing:-.035em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.progress-summary .progress-duration-unrecorded{font-size:18px;letter-spacing:0}
+.progress-summary .progress-duration-note{margin:0;font-size:12px;line-height:1.4}
 .progress-summary small,.progress-trend-head small{margin-left:5px;font-size:13px;letter-spacing:0;font-weight:500;color:var(--ink-quiet)}
 .progress-note{font-size:12px;line-height:1.6;color:var(--ink-quiet);margin:10px 0}
 .progress-volume-note{margin-bottom:18px}

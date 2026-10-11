@@ -510,6 +510,26 @@
   function shiftPeriod(window, offset, now = window.now ?? Date.now()) {
     return periodWindow(window.kind, window.start, now, offset);
   }
+  // Exercise trends use rolling calendar months, independent of the Overview/Records period.
+  // Clamp the source day to the destination month (31 May -> 28/29 February), and walk the
+  // exclusive end to the next LOCAL midnight rather than adding 24 hours across DST.
+  function exerciseTrendWindow(range = '3months', anchor = Date.now(), now = Date.now()) {
+    const months = range === '3months' ? 3 : range === '6months' ? 6 : range === 'year' ? 12 : 0;
+    if (!months) throw new TypeError('Trend range must be 3months, 6months or year');
+    const at = new Date(Number(anchor)), clock = Number(now);
+    if (!Number.isFinite(at.getTime()) || !Number.isFinite(clock) || !Number.isFinite(new Date(clock).getTime()))
+      throw new TypeError('Invalid trend date');
+    at.setHours(0, 0, 0, 0);
+    const startDate = new Date(at), day = at.getDate();
+    startDate.setDate(1); startDate.setMonth(startDate.getMonth() - months);
+    const lastDay = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+    startDate.setDate(Math.min(day, lastDay));
+    const endDate = new Date(at); endDate.setDate(endDate.getDate() + 1);
+    const start = startDate.getTime(), end = endDate.getTime();
+    return { kind: 'trend', range, months, start, end, now: clock,
+      elapsedEnd: Math.min(end, Math.max(start, clock)), partial: clock < end,
+      current: start <= clock && clock < end, startKey: localDateKey(start), endKey: localDateKey(end) };
+  }
   const workingSessionCounts = session => (session?.exercises || []).some(exercise => evidenceSets(exercise).length);
   function sessionsInPeriod(history, window) {
     const end = Math.min(window.end, window.elapsedEnd ?? window.end);
@@ -519,11 +539,11 @@
   }
   // Preserve the existing bodyweight model, while all numbers in Progress count working sets
   // only. Missing body mass is reported as reps rather than an invented kilogram contribution.
-  function workingWork(session) {
+  function workForSets(session, selectSets) {
     let sets = 0, externalVolume = 0, bodyweightVolume = 0, seconds = 0, unweightedReps = 0;
     let needsBodyweight = false;
     const bw = num(BW_FOR_SESSION(session));
-    for (const exercise of session?.exercises || []) for (const set of evidenceSets(exercise)) {
+    for (const exercise of session?.exercises || []) for (const set of selectSets(exercise)) {
       sets++;
       const id = exercise.exerciseId, reps = num(set.reps), weight = num(set.weight);
       if (isTimed(id)) { seconds += reps; continue; }
@@ -538,6 +558,23 @@
     return { sets, volume: externalVolume + bodyweightVolume, externalVolume, bodyweightVolume,
       seconds, unweightedReps, needsBodyweight };
   }
+  function workingWork(session) { return workForSets(session, evidenceSets); }
+  // One explicit session ledger for new UI surfaces. Legacy summarizeSession/calculateVolume
+  // keep their all-completed-work contract; callers choose these WORKING aliases deliberately.
+  function sessionWorkSummary(session) {
+    const working = workingWork(session);
+    const warmup = workForSets(session, exercise => doneSets(exercise).filter(set => set.warmup));
+    const total = { needsBodyweight: working.needsBodyweight || warmup.needsBodyweight };
+    for (const key of ['sets', 'volume', 'externalVolume', 'bodyweightVolume', 'seconds', 'unweightedReps'])
+      total[key] = working[key] + warmup[key];
+    const duration = num(session?.finished) > num(session?.started)
+      ? sessionMinutes(session) : { minutes: null, capped: false, estimated: false };
+    return { ...working, completedSets: working.sets, working, warmup, total,
+      workingSets: working.sets, warmupSets: warmup.sets, totalSets: total.sets,
+      workingVolume: working.volume, warmupVolume: warmup.volume, totalVolume: total.volume,
+      minutes: duration.minutes, durationMinutes: duration.minutes, durationUnknown: duration.minutes == null,
+      durationCapped: duration.capped, durationEstimated: duration.estimated };
+  }
   function measurePeriod(history, window) {
     const sessions = sessionsInPeriod(history, window), days = [];
     for (let d = new Date(window.start); d.getTime() < window.end; d.setDate(d.getDate() + 1))
@@ -548,8 +585,8 @@
       sets: 0, completedSets: 0, volume: 0, externalVolume: 0, bodyweightVolume: 0,
       seconds: 0, unweightedReps: 0, minutes: 0, durationUnknown: 0, needsBodyweight: false, days };
     for (const session of sessions) {
-      const work = workingWork(session), day = byDay.get(localDateKey(session.started));
-      const read = num(session.finished) > num(session.started) ? sessionMinutes(session) : { minutes: null };
+      const work = sessionWorkSummary(session), day = byDay.get(localDateKey(session.started));
+      const read = { minutes: work.minutes };
       for (const key of ['sets', 'volume', 'externalVolume', 'bodyweightVolume', 'seconds', 'unweightedReps']) total[key] += work[key];
       total.needsBodyweight ||= work.needsBodyweight;
       total.minutes += read.minutes ?? 0; total.durationUnknown += read.minutes == null ? 1 : 0;
@@ -811,6 +848,8 @@
 
   function validateBackup(data, reservedIds) {
     const validObject = data && typeof data === 'object' && !Array.isArray(data);
+    const numericScalar = value => (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
+      && Number.isFinite(Number(value));
     // An activeSession without an exercises ARRAY passes every later `.exercises[i]` deref straight
     // into a TypeError - and importBackup persists before it renders, so a malformed one would brick
     // the next boot. Shape-check it here, where the import can still be rejected cleanly.
@@ -821,28 +860,85 @@
     const validExercises = list => Array.isArray(list) && list.every(ex => ex && typeof ex === 'object' && !Array.isArray(ex) && Array.isArray(ex.sets));
     const validHistory = Array.isArray(data?.history) && data.history.every(s => s && typeof s === 'object' && !Array.isArray(s) && validExercises(s.exercises || []));
     const validSessionSets = data?.activeSession == null || validExercises(data.activeSession.exercises);
-    if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession || !validHistory || !validSessionSets) {
+    // Deleted workouts are recoverable data, not disposable UI state. Validate the same nested
+    // session shape before persisting them, and preserve original ids/timestamps/set metadata.
+    const validDeleted = data?.deletedHistory == null || (Array.isArray(data.deletedHistory) && data.deletedHistory.every(entry =>
+      entry && typeof entry === 'object' && !Array.isArray(entry)
+      && typeof entry.session?.id === 'string' && entry.session.id.length > 0
+      && entry.session && typeof entry.session === 'object' && !Array.isArray(entry.session)
+      && validExercises(entry.session.exercises) && numericScalar(entry.deletedAt) && Number(entry.deletedAt) >= 0));
+    const rest = data?.activeSession?.restState;
+    const validRest = rest == null || (rest && typeof rest === 'object' && !Array.isArray(rest)
+      && numericScalar(rest.deadline) && Number(rest.deadline) >= 0
+      && numericScalar(rest.totalSeconds) && Number(rest.totalSeconds) > 0 && Number(rest.totalSeconds) <= 3600
+      && typeof rest.exerciseInstanceId === 'string' && rest.exerciseInstanceId.length > 0
+      && Array.isArray(data.activeSession.exercises) && data.activeSession.exercises.some(ex => ex?._logId === rest.exerciseInstanceId));
+    if (!validObject || data.version !== 2 || !Array.isArray(data.routines) || !Array.isArray(data.history) || (data.customExercises != null && !Array.isArray(data.customExercises)) || !validSession || !validHistory || !validSessionSets || !validDeleted) {
       throw new Error('Invalid Duck Gym backup');
     }
     const preferences = {
       restSeconds: num(data.preferences?.restSeconds) || 90,
       ...normalizeActivityGoals(data.preferences)
     };
+    // A backup is a round-trip of the lifter's choices. Keep existing known settings rather
+    // than letting the importer silently replace them with fresh-profile defaults.
+    for (const key of ['weightStep', 'barWeight'])
+      if (numericScalar(data.preferences?.[key]) && Number(data.preferences[key]) > 0)
+        preferences[key] = Number(data.preferences[key]);
+    for (const key of ['haptics', 'restNotify', 'injuryMode'])
+      if (typeof data.preferences?.[key] === 'boolean') preferences[key] = data.preferences[key];
+    const muscleRanges = data.preferences?.muscleRanges;
+    if (muscleRanges && typeof muscleRanges === 'object' && !Array.isArray(muscleRanges))
+      preferences.muscleRanges = Object.fromEntries(Object.entries(muscleRanges).filter(([muscle, band]) =>
+        /^[A-Za-z0-9 _-]+$/.test(muscle) && !['__proto__', 'constructor', 'prototype'].includes(muscle)
+        && Array.isArray(band) && band.length === 2 && band.every(numericScalar)
+        && Number.isInteger(Number(band[0])) && Number.isInteger(Number(band[1]))
+        && Number(band[0]) >= 0 && Number(band[1]) >= Number(band[0]))
+        .map(([muscle, band]) => [muscle, band.map(Number)]));
     // The chosen workout-volume variant survives the round-trip (Codex P3): silently falling back
     // to the default changes how many sets a one-tap start generates.
     if (['reduced', 'base', 'expanded'].includes(data.preferences?.workoutVolume)) preferences.workoutVolume = data.preferences.workoutVolume;
     // The confirmed backfill weight is a DECISION the lifter made, not a derived value - losing it
     // on import would silently drop their older calisthenics back to zero kilograms.
     if (Number(data.preferences?.backfillBodyweight) > 0) preferences.backfillBodyweight = Number(data.preferences.backfillBodyweight);
+    const exerciseRest = data.preferences?.exerciseRestSeconds;
+    if (exerciseRest && typeof exerciseRest === 'object' && !Array.isArray(exerciseRest))
+      preferences.exerciseRestSeconds = Object.fromEntries(Object.entries(exerciseRest).filter(([id, seconds]) =>
+        /^[A-Za-z0-9_-]+$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id)
+        && numericScalar(seconds) && Number.isInteger(Number(seconds)) && Number(seconds) >= 0 && Number(seconds) <= 3600)
+        .map(([id, seconds]) => [id, Number(seconds)]));
+    const view = data.preferences?.progressView;
+    if (view && typeof view === 'object' && !Array.isArray(view)) {
+      const clean = {};
+      for (const [key, allowed] of Object.entries({ tab: ['week', 'trends', 'records'], period: ['week', 'month'],
+        trendRange: ['3months', '6months', 'year'], activityMetric: ['sets', 'sessions', 'volume'] }))
+        if (allowed.includes(view[key])) clean[key] = view[key];
+      if (view.exerciseId === null || (typeof view.exerciseId === 'string' && /^[A-Za-z0-9_-]+$/.test(view.exerciseId)))
+        clean.exerciseId = view.exerciseId;
+      if (view.exerciseMetric === null || (typeof view.exerciseMetric === 'string'
+        && /^(?:e1rm|(?:seconds|reps):(?:0|[1-9]\d*)(?:\.\d+)?)$/.test(view.exerciseMetric))) clean.exerciseMetric = view.exerciseMetric;
+      if (typeof view.historyAll === 'boolean') clean.historyAll = view.historyAll;
+      preferences.progressView = clean;
+    }
+    const activeSession = data.activeSession == null ? null : JSON.parse(JSON.stringify(data.activeSession));
+    // Rest is transient UI state. An older or dangling timer must not prevent recovery of
+    // the actual workout, its Undo journals, or the rest of the lifter's backup.
+    if (activeSession && !validRest) delete activeSession.restState;
+    if (activeSession?.restState) {
+      activeSession.restState.deadline = Number(activeSession.restState.deadline);
+      activeSession.restState.totalSeconds = Number(activeSession.restState.totalSeconds);
+    }
     return {
       version: 2,
       routines: JSON.parse(JSON.stringify(data.routines)),
       history: JSON.parse(JSON.stringify(data.history)),
+      deletedHistory: JSON.parse(JSON.stringify(data.deletedHistory || [])).map(entry => ({ ...entry, deletedAt: Number(entry.deletedAt) })),
       customExercises: sanitizeCustomExercises(data.customExercises, reservedIds),
-      activeSession: data.activeSession == null ? null : JSON.parse(JSON.stringify(data.activeSession)),
+      activeSession,
       exerciseCues: (data.exerciseCues && typeof data.exerciseCues === 'object' && !Array.isArray(data.exerciseCues)) ? JSON.parse(JSON.stringify(data.exerciseCues)) : {},
       // Favourites survive a backup round-trip; unknown/older backups without them default to empty.
       favourites: Array.isArray(data.favourites) ? data.favourites.filter(id => typeof id === 'string') : [],
+      goals: normalizeGoals(data.goals),
       // Bodyweight log (Wave 3) survives the round-trip; only well-formed {t,kg} points are kept.
       bodyweight: Array.isArray(data.bodyweight) ? data.bodyweight.filter(e => e && typeof e === 'object' && !Array.isArray(e) && Number.isFinite(Number(e.t)) && Number.isFinite(Number(e.kg))).map(e => ({ t: Number(e.t), kg: Number(e.kg) })) : [],
       preferences
@@ -1549,8 +1645,8 @@
     return { rows: ranked.slice(0, Math.max(0, limit)), total: rows.length, all: ranked };
   }
 
-  return { periodWindow, shiftPeriod, localDateKey, sessionsInPeriod, periodStats, muscleVolumeForPeriod,
-    allTimeRecords, recordsInPeriod, setRecordStatus, sessionRecordStatuses, workingWork,
+  return { periodWindow, shiftPeriod, exerciseTrendWindow, localDateKey, sessionsInPeriod, periodStats, muscleVolumeForPeriod,
+    allTimeRecords, recordsInPeriod, setRecordStatus, sessionRecordStatuses, workingWork, sessionWorkSummary,
     muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,

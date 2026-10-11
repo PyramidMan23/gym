@@ -27,6 +27,17 @@
 .picker-quick-tabs .filter-chip{min-height:44px}
 .picker-quick-empty{margin:0 0 12px;color:var(--taupe);font-size:12px}
 .he-del{min-width:44px;min-height:44px}
+.exercise-rest-field small{display:block;color:var(--taupe);font-size:12px;line-height:1.5;margin-top:6px}
+.exercise-rest-field input{min-height:44px}
+.exercise-undo{margin:12px 0}
+.exercise-undo>span{min-width:0;overflow-wrap:anywhere}
+.deleted-history-link{margin:12px 0}
+.deleted-history-list{display:grid;gap:10px}
+.deleted-history-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass)}
+.deleted-history-row>span{flex:1;min-width:0}
+.deleted-history-row strong{display:block;font-size:14px}
+.deleted-history-row small{display:block;font-size:12px;color:var(--taupe);margin-top:5px}
+.deleted-history-row button{min-width:70px;min-height:44px;font-size:12px;padding:8px}
 @media(prefers-color-scheme:light){.set-remove{color:#9a3529}}
 .edit-sets:focus-visible,.set-remove:focus-visible,.set-undo button:focus-visible,.quick-workout-shortcut:focus-visible{outline:2px solid var(--amber-deep);outline-offset:3px}
 @media(max-width:350px){.quick-workout-shortcut small{max-width:110px}.set-edit-bar>span{text-align:right}.set-remove{min-width:44px}}

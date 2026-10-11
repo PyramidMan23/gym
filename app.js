@@ -58,7 +58,7 @@ const workouts = (typeof GYM_WORKOUTS!=='undefined') ? GYM_WORKOUTS : [];
 const plans = (typeof GYM_PLANS!=='undefined') ? GYM_PLANS : [];
 const prepMap = (typeof GYM_PREP!=='undefined') ? GYM_PREP : {warmup:{},cooldown:{}};
 
-function emptyState(){ return {version:2,routines:[],history:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],goals:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
+function emptyState(){ return {version:2,routines:[],history:[],deletedHistory:[],customExercises:[],activeSession:null,exerciseCues:{},favourites:[],bodyweight:[],goals:[],preferences:{restSeconds:90,weeklyWorkoutGoal:4,weeklySetGoal:48,weeklyVolumeGoal:10000,weightStep:2.5,haptics:true}}; }
 // Reads the ACTIVE profile's namespaced state. Legacy dg_*/duckGymV2 migration is bootProfiles()'s job,
 // so a brand-new profile's missing key correctly yields an empty state (never another profile's data).
 // A stored state from a NEWER app version must never be read as "missing" and overwritten with an
@@ -150,7 +150,7 @@ function contextLine(){
   if(!state.history.length)return 'First session starts the record.';
   const last=state.history[0],prs=Core.detectPRs(state.history,last).length;
   if(prs)return `Last session set ${prs} PR${prs===1?'':'s'}.`;
-  const weekly=Core.weeklyStats(state.history);
+  const weekly=weeklyWorkingStats();
   return `Last session ${formatDate(last.started)}. ${weekly.workouts} this week.`;
 }
 function animateNumbers(scope){
@@ -321,6 +321,10 @@ function renderView(view){
   if(view==='workout')renderWorkout();
 }
 
+function weeklyWorkingStats(){
+  const summary=Core.periodStats(state.history,Core.periodWindow('week'));
+  return {workouts:summary.sessionCount,completedSets:summary.sets,volume:summary.volume};
+}
 function renderToday(){
   requestAnimationFrame(syncNavYield);   // the collision exists at scrollY=0, before any scroll fires
 
@@ -332,7 +336,7 @@ function renderToday(){
   // informative line was the small grey one underneath, so that becomes the header's job.
   document.getElementById('todayTitle').textContent=who&&who!=='me'?`${who}’s week`:'Your week';
   document.getElementById('todayPrompt').textContent=contextLine();
-  const weekly=Core.weeklyStats(state.history);
+  const weekly=weeklyWorkingStats();
   // Computed ONCE and shared, so the rest state and the deload card can never both claim the same
   // message (the first draft rendered "back off this week" twice, one above the other).
   const rest=restDayRead(weekly);
@@ -461,7 +465,7 @@ function renderTodayAdvisory(rest){
 // Direct and assisting sets are distinguished by fill PATTERN and by a written count, never by hue.
 function renderTodayDose(){
   const host=document.getElementById('todayDose'); if(!host)return;
-  const dose=Core.muscleDose(state.history,muscleLookup,MUSCLE_GROUPS,state.preferences.muscleRanges,4);
+  const dose=Core.muscleDose(state.history.map(workingSessionCopy),muscleLookup,MUSCLE_GROUPS,state.preferences.muscleRanges,4);
   const trained=dose.all.some(r=>r.direct||r.assisting);
   if(!trained){
     host.innerHTML=`<p class="dose-empty">Log a set and your weekly muscle coverage starts here.</p>`;
@@ -560,8 +564,8 @@ function renderActivityRings(weekly){
 }
 function renderWeekDots(){
   const now=new Date(),monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-((now.getDay()+6)%7));
-  const completed=new Set(state.history.map(s=>{const d=new Date(s.started);d.setHours(0,0,0,0);return d.getTime()}));
-  document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday.getTime()+index*DAY);const done=completed.has(date.getTime());return `<span class="day-dot ${done?'done':''} ${date.toDateString()===now.toDateString()?'today':''}" title="${done?'Trained':'No session'}"><i></i><small>${label}</small></span>`}).join('');
+  const completed=new Set(Core.sessionsInPeriod(state.history,Core.periodWindow('week')).map(s=>Core.localDateKey(s.started)));
+  document.getElementById('weekDots').innerHTML=['M','T','W','T','F','S','S'].map((label,index)=>{const date=new Date(monday);date.setDate(monday.getDate()+index);const done=completed.has(Core.localDateKey(date.getTime()));return `<span class="day-dot ${done?'done':''} ${date.toDateString()===now.toDateString()?'today':''}" title="${done?'Working sets logged':'No working sets'}"><i></i><small>${label}</small></span>`}).join('');
 }
 // `done` = the Set from Core.routinesDoneThisWeek. A tick AND the words - never a colour alone.
 function routineCard(routine,done){
@@ -581,9 +585,12 @@ function routineStripCard(routine,done){
 // v2: the last session is a row in the Today grouped list. Keeps the .history-card class and the
 // openHistory() contract (browser-flow selects '#recentSession .history-card'); only the shell changed.
 function historyCard(session){
-  const summary=Core.summarizeSession(session),prs=Core.detectPRs(state.history,session).length;
-  const meta=[`${summary.durationMinutes} min`,`${summary.completedSets} set${summary.completedSets===1?'':'s'}`];
+  const summary=Core.sessionWorkSummary(session),prs=Core.detectPRs(state.history,session).length;
+  const meta=[summary.durationUnknown?'duration unrecorded':`${summary.durationMinutes} min`,`${summary.sets} working set${summary.sets===1?'':'s'}`];
   if(summary.volume>0)meta.push(`${compact(summary.volume)} kg`);
+  else if(summary.seconds>0)meta.push(`${summary.seconds} s held`);
+  else if(summary.unweightedReps>0)meta.push(`${summary.unweightedReps} reps`);
+  if(summary.warmupSets)meta.push(`${summary.warmupSets} warm-up${summary.warmupSets===1?'':'s'}`);
   return `<button class="history-card group-row" onclick="openHistory('${session.id}')"><span class="row-glyph row-glyph-amber" aria-hidden="true">${prs?'PR':'✓'}</span><span class="row-text"><strong>${esc(session.name)}</strong><small>${formatDate(session.started)} · ${esc(meta.join(' · '))}${prs?` · ${prs} PR${prs===1?'':'s'}`:''}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;
 }
 
@@ -1165,13 +1172,37 @@ function renderProgress(){
   else{const rebuilt=Core.rebuildPRs(state.history);renderPrFeed(rebuilt);renderProgressHistory(rebuilt);}
   renderProgressSegments();
 }
-// One calendar window feeds every period surface. These controls are view state only.
+// Calendar summaries and longer observation windows stay separate. Stable choices belong to
+// the active profile; timestamps and point selections deliberately remain transient.
 let progressKind='week',progressAnchor=null,progressActivity='sets',progressDay=null;
-let progressHistoryAll=false,progressHistoryQuery='',strengthMetric=null,strengthPoint=null,bodyweightPoint=null;
+let progressHistoryAll=false,progressHistoryQuery='',strengthMetric=null,strengthPoint=null,bodyweightPoint=null,progressTrendRange='3months',progressHistoryLimit=30;
+const PROGRESS_SHORT_DATE=new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short'});
+const PROGRESS_FULL_DATE=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+const PROGRESS_MONTH_DATE=new Intl.DateTimeFormat(undefined,{month:'long',year:'numeric'});
+const PROGRESS_NUMBER=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
+function hydrateProgressView(preferences=state.preferences){
+  const saved=preferences?.progressView,p=saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};
+  progressTab=['week','trends','records'].includes(p.tab)?p.tab:'week';
+  progressKind=['week','month'].includes(p.period)?p.period:'week';
+  progressTrendRange=['3months','6months','year'].includes(p.trendRange)?p.trendRange:'3months';
+  progressActivity=['sets','sessions','volume'].includes(p.activityMetric)?p.activityMetric:'sets';
+  strengthPick=typeof p.exerciseId==='string'&&exerciseById(p.exerciseId)?p.exerciseId:null;
+  strengthMetric=typeof p.exerciseMetric==='string'&&/^(e1rm|(reps|seconds):\d+(\.\d+)?)$/.test(p.exerciseMetric)?p.exerciseMetric:null;
+  progressHistoryAll=p.historyAll===true;progressHistoryQuery='';progressHistoryLimit=30;
+  progressAnchor=null;progressDay=null;strengthPoint=null;bodyweightPoint=null;progressRecordLimit=12;progressAllRecords=[];
+  document.querySelectorAll('#view-progress details[open]').forEach(d=>{d.open=false;});
+}
+function persistProgressView(){
+  state.preferences.progressView={tab:progressTab,period:progressKind,trendRange:progressTrendRange,exerciseId:strengthPick,exerciseMetric:strengthMetric,activityMetric:progressActivity,historyAll:progressHistoryAll};
+  saveState();
+}
 function progressWindow(){return Core.periodWindow(progressKind,progressAnchor??Date.now());}
+function progressTrendWindow(){return Core.exerciseTrendWindow(progressTrendRange);}
+function progressTrendRangeLabel(){return progressTrendRange==='year'?'Last year':progressTrendRange==='6months'?'Last 6 months':'Last 3 months';}
+function progressTrendSessions(){return Core.sessionsInPeriod(state.history,progressTrendWindow());}
 function progressSessions(){return Core.sessionsInPeriod(state.history,progressWindow());}
-function progressDate(t,full=false){return new Intl.DateTimeFormat(undefined,full?{weekday:'short',day:'numeric',month:'short',year:'numeric'}:{day:'numeric',month:'short'}).format(new Date(t));}
-function progressNum(v){return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v)||0);}
+function progressDate(t,full=false){return (full?PROGRESS_FULL_DATE:PROGRESS_SHORT_DATE).format(new Date(t));}
+function progressNum(v){return PROGRESS_NUMBER.format(Number(v)||0);}
 function progressWorkDescription(s){return s.volume>0?`${progressNum(s.volume)} kg`:s.seconds>0||s.unweightedReps>0?[s.seconds>0?`${progressNum(s.seconds)} s of holds`:'',s.unweightedReps>0?`${progressNum(s.unweightedReps)} reps`:''].filter(Boolean).join(' · '):'No load measured';}
 function progressActivityDescription(value){return progressActivity==='volume'?`${progressNum(value)} kg`:progressActivity==='sessions'?`${value} session${value===1?'':'s'}`:`${value} working set${value===1?'':'s'}`;}
 function progressEmpty(text,action=''){return `<div class="progress-empty"><p>${esc(text)}</p>${action}</div>`;}
@@ -1179,16 +1210,24 @@ function progressOpenDetails(host){return [...host.querySelectorAll('details[ope
 function restoreProgressDetails(host,labels){host.querySelectorAll('details').forEach(d=>{if(labels.includes(d.querySelector('summary')?.textContent.trim()))d.open=true;});}
 function progressSessionButton(id,label){return `<button class="text-button" onclick="openHistory(${esc(JSON.stringify(String(id)))})">${esc(label||'Open workout')} <span aria-hidden="true">›</span></button>`;}
 function renderProgressPeriod(){
+  if(progressTab==='trends'){
+    const w=progressTrendWindow();
+    document.getElementById('progressPeriod').innerHTML=`<div class="progress-trend-ranges segmented" role="group" aria-label="Exercise and bodyweight trend range">${[['3months','3 months'],['6months','6 months'],['year','Year']].map(([key,label])=>`<button class="seg-button${progressTrendRange===key?' on':''}" aria-pressed="${progressTrendRange===key}" onclick="setProgressTrendRange('${key}')">${label}</button>`).join('')}</div><p class="progress-trend-dates">${esc(progressDate(w.start,true))} to ${esc(progressDate(w.elapsedEnd,true))}<small>Exercise performance and measured bodyweight</small></p>`;
+    const calendar=progressWindow(),last=new Date(calendar.end);last.setDate(last.getDate()-1);
+    const scope=document.getElementById('progressLedgerPeriod');if(scope)scope.textContent=`Calisthenics and side tags · ${progressKind} of ${progressDate(calendar.start,true)} to ${progressDate(last.getTime(),true)}`;
+    return;
+  }
   const w=progressWindow(),last=new Date(w.end);last.setDate(last.getDate()-1);
   const year=new Date(w.start).getFullYear(),endYear=last.getFullYear(),years=year===endYear?String(year):`${year} / ${endYear}`;
   document.getElementById('progressPeriod').innerHTML=`<div class="progress-period-kind" role="group" aria-label="Period length">${['week','month'].map(k=>`<button aria-pressed="${progressKind===k}" class="${progressKind===k?'on':''}" onclick="setProgressPeriod('${k}')">${k==='week'?'Week':'Month'}</button>`).join('')}</div><div class="progress-period-range"><button class="progress-arrow" aria-label="Previous ${progressKind}" onclick="moveProgressPeriod(-1)">‹</button><div><strong>${esc(progressDate(w.start))} – ${esc(progressDate(last.getTime()))}</strong><small>${years}${w.partial?' · so far':''}</small></div><button class="progress-arrow" aria-label="Next ${progressKind}" onclick="moveProgressPeriod(1)" ${w.current?'disabled':''}>›</button></div><button class="text-button progress-current" onclick="currentProgressPeriod()" ${w.current?'disabled':''}>This ${progressKind}</button>`;
 }
-function setProgressPeriod(kind){if(!['week','month'].includes(kind))return;progressKind=kind;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
+function setProgressTrendRange(range){if(!['3months','6months','year'].includes(range))return;progressTrendRange=range;strengthPoint=null;bodyweightPoint=null;persistProgressView();renderProgress();document.querySelector(`[onclick="setProgressTrendRange('${range}')"]`)?.focus({preventScroll:true});}
+function setProgressPeriod(kind){if(!['week','month'].includes(kind))return;progressKind=kind;progressDay=null;strengthPoint=null;bodyweightPoint=null;progressHistoryLimit=30;persistProgressView();renderProgress();}
 function moveProgressPeriod(n){progressAnchor=Core.shiftPeriod(progressWindow(),n).start;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
 function currentProgressPeriod(){progressAnchor=null;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
 function activityValue(day){return progressActivity==='sessions'?day.sessionCount:day[progressActivity];}
 function activityUnit(){return progressActivity==='volume'?'kg':progressActivity==='sessions'?'sessions':'working sets';}
-function progressSourceRows(sessions,w){return sessions?.length?sessions.map(session=>{const summary=Core.periodStats([session],w);return `<div class="progress-source"><span><strong>${esc(session.name||'Workout')}</strong><small>${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}</small></span>${progressSessionButton(session.id)}</div>`;}).join(''):'<p class="progress-note">No sessions on this date.</p>';}
+function progressSourceRows(sessions,w){return sessions?.length?sessions.map(session=>{const summary=Core.sessionWorkSummary(session);return `<div class="progress-source"><span><strong>${esc(session.name||'Workout')}</strong><small>${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}</small></span>${progressSessionButton(session.id)}</div>`;}).join(''):'<p class="progress-note">No sessions on this date.</p>';}
 function progressDayScrubber(days){return progressKind==='month'?`<label class="progress-scrub"><span>Inspect day ${Math.max(0,days.findIndex(d=>d.key===progressDay))+1} of ${days.length}</span><input type="range" min="0" max="${days.length-1}" step="1" value="${Math.max(0,days.findIndex(d=>d.key===progressDay))}" aria-label="Inspect day of selected month" oninput="scrubProgressDay(this)" onchange="selectProgressDay(Core.periodStats(state.history,progressWindow()).days[Number(this.value)].key)"></label>`:'';}
 function scrubProgressDay(input){
   const w=progressWindow(),days=Core.periodStats(state.history,w).days,selected=days[Number(input.value)];if(!selected)return;
@@ -1198,7 +1237,7 @@ function scrubProgressDay(input){
   host.querySelector('.progress-sources').innerHTML=progressSourceRows(selected.sessions,w);
   host.querySelectorAll('[data-progress-day]').forEach(mark=>mark.classList.toggle('selected',mark.dataset.progressDay===progressDay));
 }
-function setProgressActivity(metric){progressActivity=metric;renderWeekPane();}
+function setProgressActivity(metric){if(!['sets','sessions','volume'].includes(metric))return;progressActivity=metric;persistProgressView();renderWeekPane();}
 function selectProgressDay(key,restoreFocus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#weekPane input[type="range"]');progressDay=key;renderWeekPane();const button=document.querySelector(tableFocus?`[data-progress-day-row="${key}"]`:`[data-progress-day="${key}"]`);if(restoreFocus||tableFocus)button?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#weekPane input[type="range"]')?.focus({preventScroll:true});if(restoreFocus||tableFocus)button?.scrollIntoView({block:'nearest',inline:'nearest'});}
 function progressDayKeys(event,index){
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
@@ -1212,7 +1251,10 @@ function renderWeekPane(){
   const w=progressWindow(),s=Core.periodStats(state.history,w),days=s.days;
   if(!days.some(d=>d.key===progressDay))progressDay=(days.findLast(d=>d.sessionCount>0)||days[0])?.key;
   const selected=days.find(d=>d.key===progressDay),max=Math.max(1,...days.map(activityValue));
-  const stat=(label,value,unit='')=>`<div><span>${label}</span><strong>${progressNum(value)}${unit?`<small>${unit}</small>`:''}</strong></div>`;
+  const stat=(label,value,unit='')=>{
+    const duration=label==='Logged duration',missing=duration?s.durationUnknown:0,allMissing=missing>0&&missing===s.sessionCount;
+    return `<div><span>${label}</span><strong${allMissing?' class="progress-duration-unrecorded"':''}>${allMissing?'Not recorded':`${progressNum(value)}${unit?`<small>${unit}</small>`:''}`}</strong>${missing>0&&!allMissing?`<p class="progress-note progress-duration-note">Recorded total · ${missing} of ${s.sessionCount} sessions unrecorded</p>`:''}</div>`;
+  };
   const previous=s.previous,comparison=w.partial?'Period in progress. Comparisons appear after it closes.':!previous?.sessionCount?'No previous data':`Previous ${w.kind}: ${previous.sessionCount} sessions · ${previous.sets} working sets · ${progressNum(previous.volume)} kg`;
   const volumeText=`Load × reps. ${progressNum(s.externalVolume)} kg external load${s.bodyweightVolume>0?` + ${progressNum(s.bodyweightVolume)} kg estimated bodyweight contribution`:''}.`;
   const separate=[s.seconds>0?`${progressNum(s.seconds)} seconds of holds`:null,s.unweightedReps>0?`${progressNum(s.unweightedReps)} reps without a measured load`:null].filter(Boolean).join(' · ');
@@ -1304,7 +1346,7 @@ function renderProgressSegments(){
 }
 function setProgressTab(id){
   if(!PROGRESS_TABS.some(([t])=>t===id))return;
-  progressTab=id;renderProgress();
+  progressTab=id;persistProgressView();renderProgress();
   const main=document.getElementById('main');if(main)main.scrollTop=0;
 }
 // ---- Calisthenics ledger (v2 Progress > Trends) ----------------------------------------------
@@ -1532,15 +1574,16 @@ function renderMuscleVolume(){
 }
 function openMuscleDetail(muscle){
   if(!MUSCLE_GROUPS.includes(muscle))return;
-  const slot=Core.muscleVolume(state.history,muscleLookup)[muscle]||{direct:0,assisting:0,by:{}};
+  const workingHistory=state.history.map(workingSessionCopy);
+  const slot=Core.muscleVolume(workingHistory,muscleLookup)[muscle]||{direct:0,assisting:0,by:{}};
   const rows=key=>Object.entries(slot.by||{}).filter(([,v])=>v[key]).sort((a,b)=>b[1][key]-a[1][key]).map(([id,v])=>`<div class="selected-row"><span><strong>${esc(exerciseById(id)?.name||id)}</strong></span><span class="mv-count">${v[key]} set${v[key]===1?'':'s'}</span></div>`).join('')||'<div class="empty-card card">None this week.</div>';
   const range=(state.preferences.muscleRanges||{})[muscle]||['',''];
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">THIS WEEK · ${muscle.toUpperCase()}</p><h2>${slot.direct} direct · ${slot.assisting} assisting</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>
-  <p style="color:var(--taupe);margin-top:-6px;font-size:13px">Direct = completed sets where ${muscle.toLowerCase()} is the primary mover. Assisting = sets where it helps (bench press: chest direct; shoulders and arms assisting). The two are counted separately, never added.</p>
-  ${(()=>{const ws=new Date();ws.setHours(0,0,0,0);ws.setDate(ws.getDate()-((ws.getDay()+6)%7));const wkStart=ws.getTime();const b=[0,0,0];let tot=0;for(const s of state.history){if(s.started<wkStart)continue;for(const ex of s.exercises||[]){if(muscleLookup(ex.exerciseId)?.primary!==muscle)continue;for(const set of ex.sets||[]){if(!set.done)continue;const r=Number(set.reps)||0;if(!r)continue;tot++;if(r<=5)b[0]++;else if(r<=12)b[1]++;else b[2]++;}}}if(!tot)return '';const p=n=>Math.round(n/tot*100);return `<p class="rep-dist">This week: ${p(b[0])}% sets 1–5 · ${p(b[1])}% 6–12 · ${p(b[2])}% 13+</p>`;})()}
+  <p style="color:var(--taupe);margin-top:-6px;font-size:13px">Direct = completed working sets where ${muscle.toLowerCase()} is the primary mover. Warm-ups stay separate. Assisting = sets where it helps (bench press: chest direct; shoulders and arms assisting). The two are counted separately, never added.</p>
+  ${(()=>{const ws=new Date();ws.setHours(0,0,0,0);ws.setDate(ws.getDate()-((ws.getDay()+6)%7));const wkStart=ws.getTime();const b=[0,0,0];let tot=0;for(const s of state.history){if(s.started<wkStart)continue;for(const ex of s.exercises||[]){if(muscleLookup(ex.exerciseId)?.primary!==muscle)continue;for(const set of Core.evidenceSets(ex)){const r=Number(set.reps)||0;if(!r)continue;tot++;if(r<=5)b[0]++;else if(r<=12)b[1]++;else b[2]++;}}}if(!tot)return '';const p=n=>Math.round(n/tot*100);return `<p class="rep-dist">This week: ${p(b[0])}% sets 1–5 · ${p(b[1])}% 6–12 · ${p(b[2])}% 13+</p>`;})()}
   <div class="section-heading"><div><p class="kicker">DIRECT</p><h2>Working sets</h2></div></div><div class="selected-list">${rows('direct')}</div>
   <div class="section-heading"><div><p class="kicker">ASSISTING</p><h2>Exposure</h2></div></div><div class="selected-list">${rows('assisting')}</div>
-  ${(()=>{const dvals=Core.muscleVolumeWeeks(state.history,muscleLookup,8).map(w=>w[muscle]?.direct||0);const dmax=Math.max(1,...dvals);return dvals.some(v=>v)?`<div class="section-heading"><div><p class="kicker">TREND</p><h2>Direct sets · 8 weeks</h2></div></div><div class="chart-card mv-spark">${dvals.map((v,i)=>`<span class="bar-col ${i===7?'active':''}"><b>${v||''}</b><i style="height:${Math.max(3,v/dmax*72)}%"></i><small>${i===7?'Now':'−'+(7-i)}</small></span>`).join('')}</div>`:'';})()}
+  ${(()=>{const dvals=Core.muscleVolumeWeeks(workingHistory,muscleLookup,8).map(w=>w[muscle]?.direct||0);const dmax=Math.max(1,...dvals);return dvals.some(v=>v)?`<div class="section-heading"><div><p class="kicker">TREND</p><h2>Direct sets · 8 weeks</h2></div></div><div class="chart-card mv-spark">${dvals.map((v,i)=>`<span class="bar-col ${i===7?'active':''}"><b>${v||''}</b><i style="height:${Math.max(3,v/dmax*72)}%"></i><small>${i===7?'Now':'−'+(7-i)}</small></span>`).join('')}</div>`:'';})()}
   <div class="section-heading"><div><p class="kicker">OPTIONAL</p><h2>Weekly range - direct sets only</h2></div></div>
   <div style="display:flex;gap:10px"><div class="field" style="flex:1"><label>MIN</label><input id="mvMin" type="number" min="0" inputmode="numeric" value="${range[0]}"></div><div class="field" style="flex:1"><label>MAX</label><input id="mvMax" type="number" min="0" inputmode="numeric" value="${range[1]}"></div></div>
   <div class="sheet-actions"><button class="secondary-button" onclick="clearMuscleRange('${muscle}')">Clear range</button><button class="primary-button" onclick="saveMuscleRange('${muscle}')">Save</button></div>`;
@@ -1553,7 +1596,7 @@ function openExerciseDetail(id){
   const timed=!!item.timed;
   const observations=Core.exerciseTrend(state.history,id),latest=observations.at(-1),key=latest?progressPointKey(latest):null,trend=observations.filter(p=>progressPointKey(p)===key),metric=latest?.metric||(timed?'seconds':'e1rm');
   const chart=trend.length?`<p class="progress-note">All history · ${progressMetricLabel(metric)}${metric!=='e1rm'?` · ${Number(latest?.set?.weight)>0?'+'+progressNum(latest.set.weight)+' kg added':'no added load'}`:''}</p>${chartSvg(trend.map(p=>({t:p.started,v:p.value})),`${progressMetricLabel(metric)} in ${progressMetricUnit(metric)} for ${item.name}`)}<button class="text-button" onclick="closeSheet();navigate('progress');setProgressTab('trends');pickStrength(${esc(JSON.stringify(id))})">Inspect logged observations</button>`:progressEmpty('No completed working sets yet.');
-  const look=muscleLookup(id),mv=look?Core.muscleVolume(state.history,muscleLookup):{};
+  const look=muscleLookup(id),mv=look?Core.muscleVolume(state.history.map(workingSessionCopy),muscleLookup):{};
   const weekDirect=look&&mv[look.primary]?.by?.[id]?.direct||0;
   const records=Core.repRecords(state.history,id);
   const recordRows=records.length?records.map(r=>`<div class="rr-cell"><strong>${r.weight}</strong><small>${r.reps} rep${r.reps===1?'':'s'}</small></div>`).join(''):'<div class="empty-card card">No completed sets yet.</div>';
@@ -1626,19 +1669,19 @@ function renderStrength(){
   if(!entries.length){picker.innerHTML='';host.innerHTML=progressEmpty('Finish a workout to see your logged performance.',`<button class="text-button" onclick="navigate('train')">Start a workout</button>`);return;}
   if(!entries.some(e=>e.id===strengthPick))strengthPick=entries[0].id;
   picker.innerHTML=`<label class="progress-select"><span>Exercise</span><select aria-label="Exercise trend" onchange="pickStrength(this.value)">${entries.map(e=>`<option value="${esc(e.id)}" ${e.id===strengthPick?'selected':''}>${esc(e.item.name)}</option>`).join('')}</select></label>`;
-  const w=progressWindow(),all=Core.exerciseTrend(state.history,strengthPick),inPeriod=all.filter(p=>p.started>=w.start&&p.started<w.elapsedEnd),keys=[...new Set(all.map(progressPointKey))];
+  const w=progressTrendWindow(),all=Core.exerciseTrend(state.history,strengthPick),inPeriod=all.filter(p=>p.started>=w.start&&p.started<w.elapsedEnd),keys=[...new Set(all.map(progressPointKey))];
   if(!keys.includes(strengthMetric))strengthMetric=progressPointKey(inPeriod[0]||all.at(-1));
   const points=inPeriod.filter(p=>progressPointKey(p)===strengthMetric),example=all.find(p=>progressPointKey(p)===strengthMetric),metric=example?.metric||'e1rm',unit=progressMetricUnit(metric);
   const selector=keys.length>1?`<label class="progress-select progress-series-select"><span>Comparable series</span><select aria-label="Comparable metric and added load" onchange="pickStrengthMetric(this.value)">${keys.map(key=>{const p=all.find(p=>progressPointKey(p)===key);return `<option value="${esc(key)}" ${key===strengthMetric?'selected':''}>${progressMetricLabel(p.metric)}${p.metric!=='e1rm'?` · ${Number(p.set?.weight)>0?'+'+progressNum(p.set.weight)+' kg added':'no added load'}`:''}</option>`;}).join('')}</select></label>`:'';
-  if(!points.length){host.innerHTML=selector+progressEmpty('No observations for this exercise and load in the selected period. Use the arrows to explore another period.');return;}
+  if(!points.length){host.innerHTML=selector+progressEmpty('No observations for this exercise and load in this range. Choose a longer range to explore earlier logs.');return;}
   if(!Number.isInteger(strengthPoint)||strengthPoint>=points.length)strengthPoint=points.length-1;
   const p=points[strengthPoint],best=progressBestSet(p),enough=points.length>=3;
   const rows=points.map((pt,i)=>`<tr${i===strengthPoint?' class="selected"':''}><th scope="row"><button data-strength-row="${i}" onclick="selectStrengthPoint(${i},false,true)">${esc(progressDate(pt.started))}</button></th><td>${esc(progressBestSet(pt))}</td>${metric==='e1rm'?`<td>${progressNum(pt.e1rm)} kg</td>`:''}<td>${progressSessionButton(pt.sessionId,'Open')}</td></tr>`).join('');
   host.innerHTML=`${selector}<div class="st-card progress-trend"><div class="progress-chart-caption"><strong>${progressMetricLabel(metric)}</strong><span>${unit}</span></div><div class="progress-trend-head"><strong>${progressNum(p.value)}<small>${unit}</small></strong><p>${metric==='e1rm'?`Best set: ${esc(best)}<br><small>Estimated one-repetition maximum, not a lifted weight.</small>`:`${esc(best)}<br><small>${Number(p.set?.weight)>0?'Added load shown.':'No added load.'}</small>`}</p></div>${progressObservationChart(points.map(pt=>({t:pt.started,v:pt.value})),strengthPoint,'strength',`${exerciseById(strengthPick)?.name} ${progressMetricLabel(metric)}`)}<div class="progress-readout" aria-live="polite"><strong>${esc(progressDate(p.started,true))}</strong><span>${progressNum(p.value)} ${unit}</span></div><div class="progress-source"><span class="progress-note">${esc(state.history.find(s=>s.id===p.sessionId)?.name||'Source workout')} · ${esc(best)}</span>${progressSessionButton(p.sessionId)}</div><p class="progress-note">${enough?`${points.length} logged observations. Each point comes from a completed working set.`:`${points.length} logged observation${points.length===1?'':'s'}. More comparable sessions are needed to judge a trend.`}</p><details class="progress-details"><summary>Observation table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Actual sets supporting this series</caption><thead><tr><th>Date</th><th>${metric==='seconds'?'Best hold':'Best set'}</th>${metric==='e1rm'?'<th>Est. 1RM</th>':''}<th>Workout</th></tr></thead><tbody>${rows}</tbody></table></div></details></div>`;
   restoreProgressDetails(host,openDetails);
 }
-function pickStrength(id){const focus=document.activeElement?.matches('#strengthPicker select');strengthPick=id;strengthMetric=null;strengthPoint=null;renderStrength();if(focus)document.querySelector('#strengthPicker select')?.focus({preventScroll:true});else document.getElementById('strengthPicker')?.scrollIntoView({block:'nearest'});}
-function pickStrengthMetric(key){const focus=document.activeElement?.matches('.progress-series-select select');strengthMetric=key;strengthPoint=null;renderStrength();if(focus)document.querySelector('.progress-series-select select')?.focus({preventScroll:true});}
+function pickStrength(id){const focus=document.activeElement?.matches('#strengthPicker select');strengthPick=id;strengthMetric=null;strengthPoint=null;renderStrength();persistProgressView();if(focus)document.querySelector('#strengthPicker select')?.focus({preventScroll:true});else document.getElementById('strengthPicker')?.scrollIntoView({block:'nearest'});}
+function pickStrengthMetric(key){const focus=document.activeElement?.matches('.progress-series-select select');strengthMetric=key;strengthPoint=null;renderStrength();persistProgressView();if(focus)document.querySelector('.progress-series-select select')?.focus({preventScroll:true});}
 function selectStrengthPoint(index,focus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#strengthTrend input[type="range"]');strengthPoint=Number(index);renderStrength();if(focus)document.getElementById(`strength-observation-${strengthPoint}`)?.focus({preventScroll:true});if(tableFocus)document.querySelector(`[data-strength-row="${strengthPoint}"]`)?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#strengthTrend input[type="range"]')?.focus({preventScroll:true});}
 function observationKeys(event,kind,index,count){
   if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
@@ -1646,7 +1689,7 @@ function observationKeys(event,kind,index,count){
   if(kind==='strength')selectStrengthPoint(next,true);else selectBodyweightPoint(next,true);
 }
 function progressObservationChart(points,selected,kind,label){
-  const W=340,H=170,PL=38,PR=14,PT=16,PB=32,IW=W-PL-PR,IH=H-PT-PB;
+  const W=340,H=170,PL=52,PR=14,PT=16,PB=32,IW=W-PL-PR,IH=H-PT-PB;
   let lo=Math.min(...points.map(p=>p.v)),hi=Math.max(...points.map(p=>p.v));
   const pad=Math.max(1,(hi-lo)*.15);lo=Math.max(0,lo-pad);hi+=pad;
   const first=points[0].t,last=points.at(-1).t,X=t=>PL+(first===last?IW/2:(t-first)/(last-first)*IW),Y=v=>PT+IH-(v-lo)/(hi-lo)*IH;
@@ -1660,7 +1703,7 @@ function scrubProgressObservation(input,kind){
   // Keep the pointer-owning range element alive during a scrub. Render only when the gesture ends.
   const index=Number(input.value),host=input.closest('.progress-trend')||input.closest('.bw-card');
   if(kind==='strength')strengthPoint=index;else bodyweightPoint=index;
-  const points=kind==='strength'?Core.exerciseTrend(progressSessions(),strengthPick).filter(p=>progressPointKey(p)===strengthMetric):progressBodyweightLog();
+  const points=kind==='strength'?Core.exerciseTrend(progressTrendSessions(),strengthPick).filter(p=>progressPointKey(p)===strengthMetric):progressBodyweightLog();
   const p=points[index];if(!p)return;
   input.previousElementSibling.textContent=`Inspect observation ${index+1} of ${points.length}`;
   const readout=host?.querySelector('.progress-readout');if(readout)readout.innerHTML=`<strong>${esc(progressDate(p.started??p.t,true))}</strong><span>${progressNum(p.value??p.kg)} ${kind==='strength'?progressMetricUnit(p.metric):'kg'}</span>`;
@@ -1726,17 +1769,19 @@ function openProgressRecord(sessionId,exerciseIndex,setIndex){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">SOURCE SET</p><h2>${esc(exerciseById(ex.exerciseId)?.name||ex.exerciseId)}</h2></div><button class="close-button" onclick="closeSheet()" aria-label="Close source set">×</button></div><div class="group progress-record-source"><strong>${esc(result)}</strong><p>Set ${setIndex+1} · ${esc(progressDate(session.started,true))}</p><p>${esc(session.name||'Workout')}</p>${progressSessionButton(sessionId)}</div>`;
   document.getElementById('sheet').showModal();
 }
-function toggleAllHistory(){progressHistoryAll=!progressHistoryAll;renderProgressHistory();}
-function searchProgressHistory(query){progressHistoryQuery=query;renderProgressHistory();}
+function toggleAllHistory(){progressHistoryAll=!progressHistoryAll;progressHistoryLimit=30;persistProgressView();renderProgressHistory();}
+function searchProgressHistory(query){progressHistoryQuery=String(query);progressHistoryLimit=30;renderProgressHistory();}
+function showMoreProgressHistory(){const firstNew=progressHistoryLimit;progressHistoryLimit+=30;renderProgressHistory();const row=document.querySelectorAll('#historyList .history-card')[firstNew];row?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});}
 function renderProgressHistory(rebuilt=Core.rebuildPRs(state.history)){
   const host=document.getElementById('historyList');if(!host)return;
+  const input=document.getElementById('progressHistorySearch');if(input&&input.value!==progressHistoryQuery)input.value=progressHistoryQuery;
   const scope=document.getElementById('historyScope'),button=document.getElementById('allHistoryButton');
   if(scope)scope.textContent=progressHistoryAll?'ALL HISTORY':'SELECTED PERIOD';
   if(button){button.textContent=progressHistoryAll?'Selected period':'All history';button.setAttribute('aria-pressed',String(progressHistoryAll));}
   const query=progressHistoryQuery.trim().toLowerCase(),history=rebuilt,sessions=(progressHistoryAll?history.filter(s=>(s.exercises||[]).some(ex=>Core.evidenceSets(ex).length)):Core.sessionsInPeriod(history,progressWindow())).filter(s=>!query||[s.name,...(s.exercises||[]).map(e=>exerciseById(e.exerciseId)?.name||e.exerciseId)].join(' ').toLowerCase().includes(query)).sort((a,b)=>b.started-a.started);
   if(!sessions.length){host.innerHTML=progressEmpty(query?'No matching workouts.':progressHistoryAll?'Your first finished workout appears here.':'No workouts in the selected period.');return;}
-  const groups=new Map();sessions.forEach(s=>{const key=new Intl.DateTimeFormat(undefined,{month:'long',year:'numeric'}).format(new Date(s.started));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s);});
-  host.innerHTML=[...groups].map(([month,rows])=>`<div class="progress-history-month"><h3>${esc(month)}</h3>${rows.map(s=>{const summary=Core.periodStats([s],Core.periodWindow('month',s.started,Math.max(Date.now(),Number(s.started)+1)));return `<button class="history-card group-row" onclick="openHistory(${esc(JSON.stringify(String(s.id)))})"><span class="row-glyph row-glyph-amber" aria-hidden="true">${s.prs?.length?'PR':'✓'}</span><span class="row-text"><strong>${esc(s.name||'Workout')}</strong><small>${esc(progressDate(s.started))} · ${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}${summary.durationUnknown?' · duration unrecorded':` · ${summary.minutes} min`}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;}).join('')}</div>`).join('');
+  const groups=new Map();sessions.slice(0,progressHistoryLimit).forEach(s=>{const key=PROGRESS_MONTH_DATE.format(new Date(s.started));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s);});
+  host.innerHTML=[...groups].map(([month,rows])=>`<div class="progress-history-month"><h3>${esc(month)}</h3>${rows.map(s=>{const summary=Core.sessionWorkSummary(s);return `<button class="history-card group-row" onclick="openHistory(${esc(JSON.stringify(String(s.id)))})"><span class="row-glyph row-glyph-amber" aria-hidden="true">${s.prs?.length?'PR':'✓'}</span><span class="row-text"><strong>${esc(s.name||'Workout')}</strong><small>${esc(progressDate(s.started))} · ${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}${summary.durationUnknown?' · duration unrecorded':` · ${summary.minutes} min`}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;}).join('')}</div>`).join('')+`<p class="progress-history-count" aria-live="polite">Showing ${Math.min(sessions.length,progressHistoryLimit)} of ${sessions.length} ${query?'matching workouts':'workouts'}</p>${sessions.length>progressHistoryLimit?'<button id="progressHistoryMore" class="text-button full-button" onclick="showMoreProgressHistory()">Show 30 more workouts</button>':''}`;
 }
 function renderWeekChart(){
   const now=Date.now(),weeks=[];
@@ -1813,13 +1858,13 @@ function renderBodyweight(){
   const el=document.getElementById('bodyweightCard');if(!el)return;
   const openDetails=progressOpenDetails(el);
   const log=progressBodyweightLog();
-  if(!log.length){el.innerHTML=progressEmpty('No measured weigh-ins in this period.');return;}
+  if(!log.length){el.innerHTML=progressEmpty('No measured weigh-ins in this range.');return;}
   if(!Number.isInteger(bodyweightPoint)||bodyweightPoint>=log.length)bodyweightPoint=log.length-1;
   const p=log[bodyweightPoint];
-  el.innerHTML=`<div class="bw-card card"><p class="progress-note">Measured bodyweight · selected period</p>${progressObservationChart(log.map(p=>({t:p.t,v:p.kg})),bodyweightPoint,'bodyweight','Measured bodyweight in kilograms')}<div class="progress-readout" aria-live="polite"><strong>${esc(progressDate(p.t,true))}</strong><span>${progressNum(p.kg)} kg</span></div><details class="progress-details"><summary>Weigh-in table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Measurements in the selected period</caption><thead><tr><th>Date</th><th>Bodyweight</th></tr></thead><tbody>${log.map((p,i)=>`<tr><th scope="row"><button data-bodyweight-row="${i}" onclick="selectBodyweightPoint(${i},false,true)">${esc(progressDate(p.t,true))}</button></th><td>${progressNum(p.kg)} kg</td></tr>`).join('')}</tbody></table></div></details></div>`;
+  el.innerHTML=`<div class="bw-card card"><p class="progress-note">Measured bodyweight · ${progressTrendRangeLabel()}</p>${progressObservationChart(log.map(p=>({t:p.t,v:p.kg})),bodyweightPoint,'bodyweight','Measured bodyweight in kilograms')}<div class="progress-readout" aria-live="polite"><strong>${esc(progressDate(p.t,true))}</strong><span>${progressNum(p.kg)} kg</span></div><details class="progress-details"><summary>Weigh-in table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Measurements in the selected trend range</caption><thead><tr><th>Date</th><th>Bodyweight</th></tr></thead><tbody>${log.map((p,i)=>`<tr><th scope="row"><button data-bodyweight-row="${i}" onclick="selectBodyweightPoint(${i},false,true)">${esc(progressDate(p.t,true))}</button></th><td>${progressNum(p.kg)} kg</td></tr>`).join('')}</tbody></table></div></details></div>`;
   restoreProgressDetails(el,openDetails);
 }
-function progressBodyweightLog(){const w=progressWindow();return (state.bodyweight||[]).filter(p=>Number(p.kg)>0&&p.t>=w.start&&p.t<w.elapsedEnd).sort((a,b)=>a.t-b.t);}
+function progressBodyweightLog(){const w=progressTrendWindow();return (state.bodyweight||[]).filter(p=>Number(p.kg)>0&&p.t>=w.start&&p.t<w.elapsedEnd).sort((a,b)=>a.t-b.t);}
 function selectBodyweightPoint(index,focus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#bodyweightCard input[type="range"]');bodyweightPoint=Number(index);renderBodyweight();if(focus)document.getElementById(`bodyweight-observation-${bodyweightPoint}`)?.focus({preventScroll:true});if(tableFocus)document.querySelector(`[data-bodyweight-row="${bodyweightPoint}"]`)?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#bodyweightCard input[type="range"]')?.focus({preventScroll:true});}
 function openBodyweightLog(){
   const log=Core.bodyweightTrend(state.bodyweight,90),latest=log.at(-1);
@@ -1871,6 +1916,7 @@ const copyLogRow=row=>JSON.parse(JSON.stringify(row));
 function clearSetEditing(){setEditExercises.clear();setEditScope=null;}
 function clearProfileSetUndo(){
   if(state.activeSession?._setEdits){delete state.activeSession._setEdits;saveState();}
+  if(state.activeSession?._exerciseEdits){delete state.activeSession._exerciseEdits;saveState();}
   clearSetEditing();
 }
 function ensureSetEditing(session){
@@ -1900,6 +1946,25 @@ function latestSetEdit(ex){
   const j=state.activeSession?._setEdits;
   if(!j||j.profile!==stateKey||j.session!==state.activeSession.id)return null;
   return [...j.stack].reverse().find(op=>op.exercise===ex._logId&&op.exerciseId===ex.exerciseId)||null;
+}
+function exerciseUndoMarkup(session){
+  const journal=session._exerciseEdits;
+  if(!journal||journal.profile!==stateKey||journal.session!==session.id||!journal.stack.length)return '';
+  const op=journal.stack[journal.stack.length-1];
+  return `<div class="set-undo exercise-undo" role="status"><span>${esc(exerciseById(op.exercise.exerciseId)?.name||'Exercise')} removed</span><button onclick="undoWorkoutExercise()">Undo</button></div>`;
+}
+function undoWorkoutExercise(){
+  const session=state.activeSession,journal=session?._exerciseEdits;
+  if(!journal||journal.profile!==stateKey||journal.session!==session.id)return;
+  const op=journal.stack.pop();if(!op)return;
+  if(!session.exercises.some(ex=>ex._logId===op.exercise._logId)){
+    const before=session.exercises.findIndex(ex=>ex._logId===op.before),after=session.exercises.findIndex(ex=>ex._logId===op.after);
+    const index=after>=0?after:before>=0?before+1:Math.min(op.index,session.exercises.length);
+    session.exercises.splice(index,0,copyLogRow(op.exercise));
+    if(op.restState&&!session.restState)session.restState=copyLogRow(op.restState);
+    setEditExercises.add(op.exercise._logId);
+  }
+  saveState();restoreRestTimer(true);renderWorkout();
 }
 function setUndoMarkup(ex,index){
   const op=latestSetEdit(ex);if(!op)return '';
@@ -1947,11 +2012,12 @@ function activeExerciseIndex(session){
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
   ensureSetEditing(session);
+  if(session.restState&&restScope!==`${stateKey}:${session.id}`)restoreRestTimer(true);
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
   const activeIdx=activeExerciseIndex(session);
   const recordStatuses=Core.sessionRecordStatuses?Core.sessionRecordStatuses(state.history,session):[];
-  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map((ex,i)=>workoutExerciseMarkup(ex,i,activeIdx,recordStatuses[i])).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
+  document.getElementById('workoutExercises').innerHTML=exerciseUndoMarkup(session)+checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map((ex,i)=>workoutExerciseMarkup(ex,i,activeIdx,recordStatuses[i])).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
   btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
   document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue - the state must survive colour-blindness
@@ -2052,9 +2118,9 @@ function aboveConfirmedLoadLine(){
 }
 function renderWorkoutMetrics(){
   const session=state.activeSession;if(!session)return;
-  const summary=Core.summarizeSession({...session,finished:Date.now()});
-  const values=[String(summary.completedSets),compact(summary.volume),String(session.exercises.length)];
-  const labels=['Sets done','Volume kg','Exercises'];
+  const summary=Core.sessionWorkSummary({...session,finished:Date.now()});
+  const values=[String(summary.sets),compact(summary.volume),String(session.exercises.length)];
+  const labels=['Working sets','Working kg','Exercises'];
   const wrap=document.getElementById('workoutMetrics');
   let strongs=wrap.querySelectorAll('.live-metric strong');
   if(strongs.length!==3){
@@ -2072,7 +2138,7 @@ function renderWorkoutMetrics(){
   if(ctx)ctx.textContent=aboveConfirmedLoadLine();
   // Live volume beside the clock in the sticky header (v2). Same summary, no second computation.
   const vol=document.getElementById('workoutVolumeLine');
-  if(vol)vol.textContent=summary.volume>0?`${compact(summary.volume)} kg lifted`:'no load yet';
+  if(vol)vol.textContent=summary.volume>0?`${compact(summary.volume)} kg · working`:summary.seconds>0?`${summary.seconds} s held`:summary.unweightedReps>0?`${summary.unweightedReps} reps`:summary.warmupSets?'Warm-up logged':'No working sets yet';
   if(state.activeSession)renderSessionProgress(state.activeSession);
 }
 // Wave 1: the session's pain controller and per-exercise progression target - pure Core, surfaced here.
@@ -2143,9 +2209,9 @@ function workoutExerciseMarkup(exercise,index,activeIdx,recordStatuses){
   const editing=setEditExercises.has(exercise._logId);
   const collapsed=rirDone&&exercise.rir!==undefined&&!forcedOpen.has(index)&&!editing&&!latestSetEdit(exercise);
   const isActive=index===activeIdx;
-  const exVolume=Core.doneSets(exercise).reduce((a,x)=>a+(Number(x.weight)||0)*(Number(x.reps)||0),0);
+  const exWork=Core.sessionWorkSummary({...state.activeSession,exercises:[exercise]});
   const rirWord=exercise.rir===undefined?'':(exercise.rir==='skip'?' · RIR skipped':` · RIR ${exercise.rir==='4'||exercise.rir===4?'4+':exercise.rir}`);
-  const doneSummary=`${doneCount} set${doneCount===1?'':'s'}${exVolume?` · ${compact(exVolume)} kg`:''}${rirWord}`;
+  const doneSummary=`${exWork.sets} working set${exWork.sets===1?'':'s'}${exWork.volume?` · ${compact(exWork.volume)} kg`:''}${exWork.seconds?` · ${exWork.seconds} s held`:''}${exWork.unweightedReps?` · ${exWork.unweightedReps} unweighted reps`:''}${exWork.warmup.sets?` · ${exWork.warmup.sets} warm-up`:''}${rirWord}`;
   const ssLink=exercise.supersetWithNext&&index<state.activeSession.exercises.length-1?'<div class="ss-link" aria-hidden="true"><span>⇅ superset</span></div>':'';
   if(collapsed){
     // The done row is draggable (same gripDown handler) but deliberately does NOT carry
@@ -2426,13 +2492,13 @@ function toggleSet(exerciseIndex,setIndex){
     // Superset: completing a set of the FIRST exercise in a pair skips rest and hands straight to
     // the partner exercise; rest runs normally after the partner (second) exercise's set.
     const pairFirst=state.activeSession.exercises[exerciseIndex].supersetWithNext&&exerciseIndex<state.activeSession.exercises.length-1;
-    if(pairFirst){showToast('Superset - straight to the next exercise');setTimeout(()=>progressToNextSet(exerciseIndex+1),60);}
+    if(pairFirst){clearSessionRest();showToast('Superset - straight to the next exercise');setTimeout(()=>progressToNextSet(exerciseIndex+1),60);}
     else{
       // Second of a pair rests, then progression scans from the pair's FIRST exercise so the
       // superset keeps alternating A1→B1→A2→B2 (Codex verify 2026-07-20).
       const prevPair=exerciseIndex>0&&state.activeSession.exercises[exerciseIndex-1].supersetWithNext;
       // A workout scheme's own rest wins over the global default - the set just finished sets the clock.
-      startRest(state.activeSession.exercises[exerciseIndex].restSeconds||state.preferences.restSeconds,prevPair?exerciseIndex-1:exerciseIndex);
+      startRest(exerciseRestSeconds(state.activeSession.exercises[exerciseIndex]),prevPair?exerciseIndex-1:exerciseIndex);
     }
     if(setIndex===state.activeSession.exercises[exerciseIndex].sets.length-1)addSet(exerciseIndex,true);carryForwardExercise(state.activeSession.exercises[exerciseIndex]);buzz(15);}
   else{ // un-complete: downstream prefills seeded by this set are stale - reset + re-derive (Codex)
@@ -2515,10 +2581,11 @@ function toggleWorkoutPause(){
     const held=now-session.pausedAt;
     session.pausedMs=(session.pausedMs||0)+held;session.pausedAt=null;
     // Rest is deadline-anchored, so it is owed the same held time back before it ticks again.
-    if(restDeadline){restDeadline+=held;if(document.getElementById('restPill').classList.contains('show')){clearInterval(restTimer);tickRest();restTimer=setInterval(tickRest,1000);}}
+    if(session.restState)session.restState.deadline+=held;
+    restoreRestTimer(true);
     showToast('Workout resumed');
   }else{
-    session.pausedAt=now;clearInterval(restTimer);
+    session.pausedAt=now;clearInterval(restTimer);tickRest(true);
     showToast('Workout paused - the clock is stopped');
   }
   saveState();buzz(10);renderWorkout();
@@ -2532,11 +2599,45 @@ function settlePause(session,now=Date.now()){ // close any open pause so `finish
 // an OS-suspended interval can no longer resume stale.
 let restDeadline=0;
 let restTotalSeconds=90; // denominator for the countdown ring; +30s extends it so the arc never overflows
+let restScope=null;
+function exerciseRestSeconds(exercise){
+  const preferred=state.preferences.exerciseRestSeconds?.[exercise.exerciseId];
+  if(Number.isInteger(preferred)&&preferred>=0&&preferred<=3600)return preferred;
+  return Number(exercise.restSeconds)||Number(state.preferences.restSeconds)||90;
+}
+function clearRestRuntime(){
+  clearInterval(restTimer);restTimer=null;restDeadline=0;restRemaining=0;restScope=null;
+  document.getElementById('restPill').classList.remove('show','ending');
+}
+function clearSessionRest(){
+  if(state.activeSession?.restState){delete state.activeSession.restState;saveState();}
+  clearRestRuntime();
+}
+function restoreRestTimer(quiet=true){
+  clearRestRuntime();
+  const session=state.activeSession,rest=session?.restState;if(!rest||lockGate)return;
+  const index=session.exercises.findIndex(ex=>ex._logId===rest.exerciseInstanceId);
+  if(index<0||!(rest.deadline>0)||!(rest.totalSeconds>0)){
+    delete session.restState;saveState();return;
+  }
+  restScope=`${stateKey}:${session.id}`;restDeadline=rest.deadline;restTotalSeconds=rest.totalSeconds;restExerciseIndex=index;
+  document.getElementById('restPill').classList.add('show');
+  tickRest(quiet);
+  if(session.restState&&!session.pausedAt)restTimer=setInterval(tickRest,1000);
+}
 function startRest(seconds,exerciseIndex=0){
-  restTotalSeconds=Number(seconds)||90;
-  restDeadline=Date.now()+restTotalSeconds*1000;restExerciseIndex=exerciseIndex;
-  clearInterval(restTimer);document.getElementById('restPill').classList.add('show');
-  tickRest();restTimer=setInterval(tickRest,1000);
+  const session=state.activeSession,ex=session?.exercises[exerciseIndex];if(!ex)return;
+  ensureSetEditing(session);clearRestRuntime();
+  const duration=Math.max(0,Math.min(3600,Number(seconds)||0));
+  if(!duration){
+    delete session.restState;saveState();revealRirRow(exerciseIndex);
+    const profile=stateKey,instance=ex._logId;
+    // Wait for toggleSet's completed row and carry-forward to render before handing off.
+    setTimeout(()=>{if(stateKey!==profile||state.activeSession!==session)return;const index=session.exercises.findIndex(item=>item._logId===instance);if(index>=0)progressToNextSet(index);},60);
+    return;
+  }
+  session.restState={deadline:(session.pausedAt||Date.now())+duration*1000,totalSeconds:duration,exerciseInstanceId:ex._logId};
+  saveState();restoreRestTimer(true);
   revealRirRow(exerciseIndex);
 }
 // Finishing the last set starts the timer AND asks for reps-in-reserve in the same instant, and the
@@ -2557,14 +2658,23 @@ function revealRirRow(exerciseIndex){
 // Council 2026-07-23: rest is RECOVERY (teal) until the last 10s, when it becomes an ACTION (amber).
 // The label changes with the hue - never hue alone, Mark is colour-blind.
 const REST_ENDING_SECONDS=10;
-function tickRest(){
-  restRemaining=Math.max(0,Math.round((restDeadline-Date.now())/1000));
+function tickRest(quiet=false){
+  const session=state.activeSession,rest=session?.restState;
+  if(!rest||restScope!==`${stateKey}:${session.id}`){clearRestRuntime();return;}
+  const index=session.exercises.findIndex(ex=>ex._logId===rest.exerciseInstanceId);
+  if(index<0){clearSessionRest();return;}
+  restExerciseIndex=index;restDeadline=rest.deadline;restTotalSeconds=rest.totalSeconds;
+  restRemaining=Math.max(0,Math.ceil((restDeadline-(session.pausedAt||Date.now()))/1000));
   updateRest();
   const pill=document.getElementById('restPill'),ending=restRemaining>0&&restRemaining<=REST_ENDING_SECONDS;
   pill.classList.toggle('ending',ending);
   const label=pill.querySelector('.rest-info span');
-  if(label)label.textContent=ending?'Get ready':'Rest';
-  if(restRemaining<=0){clearInterval(restTimer);pill.classList.remove('show','ending');if(label)label.textContent='Rest';buzz(40);showToast('Rest done - next set');notifyRestDone();progressToNextSet(restExerciseIndex);}
+  if(label)label.textContent=session.pausedAt?'Rest paused':ending?'Get ready':'Rest';
+  if(restRemaining<=0&&!session.pausedAt){
+    const from=restExerciseIndex;delete session.restState;saveState();clearRestRuntime();
+    // Consume before any effect: a second visibility/timer callback cannot announce the same rest.
+    if(!quiet){buzz(40);showToast('Rest done - next set');notifyRestDone();progressToNextSet(from);}
+  }
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.activeSession?.pausedAt&&document.getElementById('restPill').classList.contains('show'))tickRest();});
 // Rest-end notification (opt-in). ponytail: fires while the page is alive (incl. a backgrounded tab);
@@ -2579,7 +2689,11 @@ function notifyRestDone(){
   if(state.preferences.restNotify!==true||typeof Notification==='undefined'||Notification.permission!=='granted'||document.visibilityState==='visible')return;
   try{navigator.serviceWorker?.ready.then(r=>r.showNotification('Rest done',{body:'Next set is up.',icon:'icon-180.png',badge:'icon-180.png',tag:'gym-rest'})).catch(()=>{});}catch{}
 }
-function adjustRest(seconds){restDeadline+=seconds*1000;restTotalSeconds+=seconds;tickRest();}
+function adjustRest(seconds){
+  const rest=state.activeSession?.restState;if(!rest)return;
+  const change=Math.max(-rest.totalSeconds+1,Math.min(3600-rest.totalSeconds,Number(seconds)||0));
+  rest.deadline+=change*1000;rest.totalSeconds+=change;saveState();tickRest(true);
+}
 const REST_RING_C=2*Math.PI*18; // r=18 in the 44x44 viewBox
 function updateRest(){
   rollNumber(document.getElementById('restTime'),Core.formatDuration(restRemaining));
@@ -2591,7 +2705,7 @@ function updateRest(){
   }
 }
 // Skip clears the running rest and immediately hands off to the next-set progression.
-function skipRest(){clearInterval(restTimer);restRemaining=0;document.getElementById('restPill').classList.remove('show');progressToNextSet(restExerciseIndex);}
+function skipRest(){const from=restExerciseIndex;clearSessionRest();progressToNextSet(from);}
 // Rest-end "what's next": the next incomplete set (same exercise, else the next exercise with one)
 // gets a one-time amber emphasis on its already-notched active row and scrolls into view. Purely
 // visual - no focus() so the keyboard never pops. Reduced motion: instant scroll, no pulse.
@@ -2709,8 +2823,9 @@ function padKeyboard(){
 function closePad(after){padHoldStop();dismissDialog(document.getElementById('padSheet'),()=>{padTarget=null;if(state.activeSession)renderWorkout();after&&after();});}
 
 function requestFinishWorkout(){
-  const session=state.activeSession,summary=Core.summarizeSession({...session,finished:Date.now()});
-  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.completedSets} completed set${summary.completedSets===1?'':'s'}${summary.volume>0?` · ${compact(summary.volume)} kg moved`:''}.</p><div class="confirm-feel"><p>HOW DID THE BODY FEEL?</p><div class="checkin-row" id="feelRow"><button onclick="setPostCheckin(this,'better')">Better</button><button onclick="setPostCheckin(this,'same')">Same</button><button onclick="setPostCheckin(this,'worse')">Worse</button></div></div><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
+  const session=state.activeSession;if(!session)return;
+  const summary=Core.sessionWorkSummary({...session,finished:Date.now()});
+  document.getElementById('confirmContent').innerHTML=`<h2>Finish workout?</h2><p>${summary.sets} working set${summary.sets===1?'':'s'}${summary.volume>0?` · ${compact(summary.volume)} kg working volume`:''}${summary.warmupSets?` · ${summary.warmupSets} warm-up${summary.warmupSets===1?'':'s'}`:''}.</p><div class="confirm-feel"><p>HOW DID THE BODY FEEL?</p><div class="checkin-row" id="feelRow"><button onclick="setPostCheckin(this,'better')">Better</button><button onclick="setPostCheckin(this,'same')">Same</button><button onclick="setPostCheckin(this,'worse')">Worse</button></div></div><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep training</button><button class="primary-button" onclick="finishWorkout()">Finish</button></div>`;
   document.getElementById('confirmDialog').showModal();
 }
 function setPostCheckin(button,value){
@@ -2734,7 +2849,7 @@ function finishWorkout(){
   // logged BEFORE this build fall back to being derived (council 2026-08-05).
   const bwNow=Core.bodyweightAsOf(state.bodyweight,session.started,state.preferences.backfillBodyweight);
   if(bwNow)session.bodyweightKg=bwNow;
-  delete session._setEdits;clearSetEditing();
+  delete session._setEdits;delete session._exerciseEdits;delete session.restState;clearRestRuntime();clearSetEditing();
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
   checkGoalAchievements(); // the session just finished is new evidence against every declared goal
@@ -2757,13 +2872,11 @@ function workingSessionCopy(session){
   return {...session,exercises:(session.exercises||[]).map(ex=>({...ex,sets:(ex.sets||[]).filter(set=>!set.warmup)}))};
 }
 function sessionWarmupNote(session,receipt=false){
-  const warmupSession={...session,exercises:(session.exercises||[]).map(ex=>({...ex,sets:(ex.sets||[]).filter(set=>set.warmup)}))};
-  const warm=Core.summarizeSession(warmupSession);if(!warm.completedSets)return '';
-  const working=Core.workingWork(session);
-  return `<p class="session-warmup-note">${receipt?'Logged totals include':'Also logged'} ${warm.completedSets} warm-up set${warm.completedSets===1?'':'s'}${warm.volume?` · ${compact(warm.volume)} kg load × reps`:''}.${receipt?` Working sets: ${working.sets} · ${compact(working.volume)} kg.`:' Warm-ups are excluded from working totals and records.'}</p>`;
+  const {warmup:warm}=Core.sessionWorkSummary(session);if(!warm.sets)return '';
+  return `<p class="session-warmup-note">Also logged ${warm.sets} warm-up set${warm.sets===1?'':'s'}${warm.volume?` · ${compact(warm.volume)} kg load × reps`:''}${warm.seconds?` · ${warm.seconds} s held`:''}. Warm-ups are excluded from working totals and records.</p>`;
 }
 function openReceipt(session){
-  const summary=Core.summarizeSession(session),prs=Core.detectPRs(state.history,session);
+  const summary=Core.sessionWorkSummary(session),prs=Core.detectPRs(state.history,session);
   // Verdict layer (council 2026-07-28): the receipt reported totals but never DELTAS. One computed
   // headline of what changed today, one proof line, honest fallback on first exposure. NEXT SESSION
   // stays fully visible below (Codex wanted it collapsed; the anchor is never hidden).
@@ -2775,11 +2888,11 @@ function openReceipt(session){
     :v.considered?`${v.advanced} of ${v.considered} lift${v.considered===1?'':'s'} advanced${v.highlight?' · '+deltaText(v.highlight):''}`:'';
   const verdictBlock=v.verdict==='none'?'':`<div class="receipt-verdict receipt-verdict-${v.verdict}"><strong>${VERDICT_COPY[v.verdict]}</strong>${proof?`<small>${proof}</small>`:''}</div>`;
   // "Volume 0 kg" tells a calisthenics session it did nothing - name the work honestly instead.
-  const lines=[['Duration',summary.durationCapped?'not recorded':`${summary.durationMinutes} min`],['Sets logged',summary.completedSets],['Volume logged',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
+  const lines=[['Duration',summary.durationUnknown?'not recorded':`${summary.durationMinutes} min`],['Working sets',summary.sets],['Working volume',summary.volume>0?`${compact(summary.volume)} kg`:summary.seconds>0?`${summary.seconds} s held`:summary.unweightedReps>0?`${summary.unweightedReps} bodyweight / unweighted reps`:'No measured load'],['PRs',prs.length]];
   // Catch a forgotten load at the ONE moment it is still cheap to fix - before the session becomes
   // history and the number starts disagreeing with an identical session next week.
   const gaps=Core.loadGaps(state.history.filter(x=>x.id!==session.id),session);
-  const workBlock=workBreakdown(Core.sessionWork(session))+sessionWarmupNote(session,true);
+  const workBlock=workBreakdown(summary,Core.sessionWork(session).bodyweightUsed)+sessionWarmupNote(session,true);
   const gapBlock=gaps.length?`<div class="receipt-gap"><strong>${gaps.length} lift${gaps.length===1?'':'s'} logged without a load</strong><small>${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} · last time ${g.lastWeight} kg`).join(' · ')}. Your kg total leaves ${gaps.length===1?'it':'them'} out.</small></div>`:'';
   const prBlocks=sessionRecordMarkup(session,prs);
   // NEXT SESSION prescription - the engagement anchor. Run against the just-finished history state.
@@ -2805,7 +2918,7 @@ function closeReceipt(){const overlay=document.getElementById('receiptOverlay');
 function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
 }
-function confirmCancelWorkout(){state.activeSession=null;clearSetEditing();saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
+function confirmCancelWorkout(){state.activeSession=null;clearRestRuntime();clearSetEditing();saveState();clearInterval(activeTimer);closeConfirm();navigate('today');}
 function closeConfirm(){dismissDialog(document.getElementById('confirmDialog'));}
 
 let swapConfirmed=null; // 'keep' | 'discard' while a swap-with-logged-sets confirmation is open
@@ -2861,6 +2974,7 @@ function pickExercise(id){
     }
     if(ex){
       const keep=Math.max(1,ex.sets.length);
+      if(state.activeSession.restState?.exerciseInstanceId===ex._logId)clearSessionRest();
       ex._logId=loggingId(); // swapped lift is a new instance; old Undo cannot cross into it
       ex.exerciseId=id;ex.sets=Array.from({length:keep},()=>({weight:'',reps:'',done:false}));
       delete ex.rir;delete ex.notes;
@@ -2953,12 +3067,18 @@ function openWorkoutExerciseMenu(index){
   // them, but deleting working features to match a mockup would be the wrong trade.
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${setsDone} OF ${setsTotal} SET${setsTotal===1?'':'S'} LOGGED</p><h2>${esc(name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
     +`<button class="opt-row" onclick="openExercisePicker('workout',${index})"><span class="opt-icon">⇄</span><span class="opt-text"><strong>Swap for another lift</strong><small>Keeps the set count and re-seeds targets</small></span></button>`
-    +`<button class="opt-row opt-danger" onclick="confirmRemoveWorkoutExercise(${index})"><span class="opt-icon">×</span><span class="opt-text"><strong>Remove from this session</strong><small>Deletes the sets logged against it</small></span></button>`
+    +`<button class="opt-row opt-danger" onclick="confirmRemoveWorkoutExercise(${index})"><span class="opt-icon">×</span><span class="opt-text"><strong>Remove from this session</strong><small>You can Undo with all sets intact</small></span></button>`
+    +`<div class="field exercise-rest-field"><label for="exerciseRest">PREFERRED REST FOR THIS EXERCISE (SECONDS)</label><input id="exerciseRest" type="number" min="0" max="3600" step="1" inputmode="numeric" value="${esc(state.preferences.exerciseRestSeconds?.[exercise.exerciseId]??'')}" placeholder="${exerciseRestSeconds(exercise)}"><small>Leave blank to use the routine or default. Enter 0 for no timer. Saved for future workouts.</small></div>`
     +`<div class="field"><label>WORKOUT NOTE (THIS SESSION)</label><textarea id="exerciseNote" rows="2" placeholder="Seat position, how it felt today…">${esc(exercise.notes||'')}</textarea></div><div class="field"><label>STANDING CUE (SHOWS EVERY WORKOUT)</label><textarea id="exerciseCue" rows="2" placeholder="Example: start stance square - right foot drifts out">${esc(cue?.text||'')}</textarea><small style="color:var(--taupe);font-size:11px">A cue is a hypothesis, not a rule - clear it when it stops earning its place.</small></div><p class="goal-help">Tip: tap a set's number to tag it left or right - that's what fills the Left vs right board.</p>${index<state.activeSession.exercises.length-1?`<label class="beighton-toggle"><span><strong>Superset with next exercise</strong><small>Alternate sets with the exercise below - no rest between the pair, the timer runs after the second one.</small></span><input type="checkbox" ${exercise.supersetWithNext?'checked':''} onchange="toggleSuperset(${index},this.checked)"></label>`:''}<div class="sheet-actions"><button class="secondary-button" onclick="moveWorkoutExercise(${index},-1)" ${index===0?'disabled':''} aria-label="Move exercise up">↑ Move up</button><button class="secondary-button" onclick="moveWorkoutExercise(${index},1)" ${index>=state.activeSession.exercises.length-1?'disabled':''} aria-label="Move exercise down">↓ Move down</button></div><div class="sheet-actions"><button class="primary-button" onclick="saveExerciseNote(${index})">Save</button></div>`;document.getElementById('sheet').showModal();
 }
 function saveExerciseNote(index){
   const exercise=state.activeSession?.exercises[index];if(!exercise)return;
   exercise.notes=document.getElementById('exerciseNote').value.trim();
+  const restValue=document.getElementById('exerciseRest').value.trim();
+  const preferred=Number(restValue);
+  if(restValue!==''&&(!Number.isInteger(preferred)||preferred<0||preferred>3600)){showToast('Rest must be 0–3600 whole seconds');return;}
+  if(!state.preferences.exerciseRestSeconds)state.preferences.exerciseRestSeconds={};
+  if(restValue==='')delete state.preferences.exerciseRestSeconds[exercise.exerciseId];else state.preferences.exerciseRestSeconds[exercise.exerciseId]=preferred;
   const cueText=document.getElementById('exerciseCue').value.trim();
   if(!state.exerciseCues)state.exerciseCues={};
   if(cueText)state.exerciseCues[exercise.exerciseId]={text:cueText,updated:Date.now()};
@@ -2972,17 +3092,22 @@ function confirmRemoveWorkoutExercise(index){
   const name=exerciseById(ex.exerciseId)?.name||'this exercise';
   const logged=Core.doneSets(ex).length;
   closeSheet();
-  document.getElementById('confirmContent').innerHTML=`<h2>Remove ${esc(name)}?</h2><p>${logged?`${logged} logged set${logged===1?'':'s'} will be discarded.`:'It has no logged sets.'}</p><div class="sheet-actions"><button class="secondary-button" onclick="closeConfirm()">Keep</button><button class="primary-button" onclick="removeWorkoutExercise(${index})">Remove</button></div>`;
+  document.getElementById('confirmContent').innerHTML=`<h2>Remove ${esc(name)}?</h2><p>${logged?`${logged} logged set${logged===1?'':'s'} will leave this session.`:'It has no logged sets.'} Undo restores the exercise and all its sets.</p><div class="sheet-actions"><button class="secondary-button" onclick="closeConfirm()">Keep</button><button class="primary-button" onclick="removeWorkoutExercise(${index})">Remove</button></div>`;
   document.getElementById('confirmDialog').showModal();
 }
 function removeWorkoutExercise(index){
-  if(!state.activeSession)return;
+  const session=state.activeSession,ex=session?.exercises[index];if(!ex)return;
+  ensureSetEditing(session);
+  if(!session._exerciseEdits||session._exerciseEdits.profile!==stateKey||session._exerciseEdits.session!==session.id)session._exerciseEdits={profile:stateKey,session:session.id,stack:[]};
+  const ownsRest=session.restState?.exerciseInstanceId===ex._logId;
+  session._exerciseEdits.stack.push({exercise:copyLogRow(ex),index,before:session.exercises[index-1]?._logId||null,after:session.exercises[index+1]?._logId||null,restState:ownsRest?copyLogRow(session.restState):null});
   closeConfirm();
-  state.activeSession.exercises.splice(index,1);
+  session.exercises.splice(index,1);
   // A running rest belongs to an exercise by INDEX - after a splice that index points at a different
   // exercise (or past the end), so rest-end would highlight the wrong row. Re-anchor it.
-  if(restExerciseIndex===index)restExerciseIndex=Math.min(index,state.activeSession.exercises.length-1);
+  if(ownsRest)clearSessionRest();
   else if(restExerciseIndex>index)restExerciseIndex--;
+  if(padTarget){closePad();padTarget=null;}
   saveState();closeSheet();renderWorkout();
 }
 // Reorder commit. supersetWithNext travels with its exercise, so a moved pair-first simply pairs with
@@ -2992,7 +3117,7 @@ function commitReorder(from,to){
   const session=state.activeSession;if(!session||from===to)return false;
   const moved=Core.moveExercise(session.exercises,from,to,restExerciseIndex);
   session.exercises=moved.list;restExerciseIndex=moved.tracked;
-  saveState();renderWorkout();return true;
+  saveState();restoreRestTimer(true);renderWorkout();return true;
 }
 // The ••• menu keeps the adjacent move: it is the keyboard, assistive-tech and no-pointer route.
 function moveWorkoutExercise(index,delta){
@@ -3143,17 +3268,17 @@ function saveCustomExercise(){const name=document.getElementById('customName').v
 // figure: kilograms lifted, reps of bodyweight work the kilogram axis cannot honestly describe, and
 // seconds held. Reporting only the first is exactly how Ty's calisthenics came to read as nothing.
 // Every line is suppressed when it has nothing to say, so a pure barbell session looks unchanged.
-function workBreakdown(work){
+function workBreakdown(work,bodyweightUsed){
   if(!work)return '';
   const parts=[];
-  if(work.bodyweightKg>0)
-    parts.push(`<span><strong>${compact(work.bodyweightKg)} kg</strong> of that is bodyweight, counted at your ${work.bodyweightUsed} kg</span>`);
+  if(work.bodyweightVolume>0)
+    parts.push(`<span><strong>${compact(work.bodyweightVolume)} kg</strong> of that is bodyweight, counted at your ${bodyweightUsed} kg</span>`);
   if(work.seconds>0)
     parts.push(`<span><strong>${work.seconds}s</strong> held</span>`);
   // Lever work (hanging leg raise, nordic curl, dragon flag) has no honest body-mass multiplier, so
   // it is counted in reps rather than handed a fabricated load. Saying so out loud is the point.
-  if(work.setsUncounted>0)
-    parts.push(`<span><strong>${work.setsUncounted} set${work.setsUncounted===1?'':'s'} · ${work.repsUncounted} reps</strong> of work with no load to measure</span>`);
+  if(work.unweightedReps>0)
+    parts.push(`<span><strong>${work.unweightedReps} reps</strong> of work with no load to measure</span>`);
   const prompt=work.needsBodyweight
     ? `<button class="bw-prompt" onclick="closeSheet();setTimeout(openBodyweightLog,300)">Add your bodyweight so your calisthenics count</button>`:'';
   if(!parts.length&&!prompt)return '';
@@ -3162,12 +3287,12 @@ function workBreakdown(work){
 // The MINUTES tile reads "1618" for a session left open overnight, so an implausible wall time is
 // reported as unknown rather than as a number that is certainly wrong (Core.sessionMinutes).
 function durationTile(summary){
-  if(summary.durationCapped)return `<div class="metric"><strong>—</strong><span>MINUTES</span></div>`;
+  if(summary.durationCapped||summary.durationUnknown||summary.durationMinutes==null)return `<div class="metric"><strong>—</strong><span>MINUTES · UNKNOWN</span></div>`;
   return `<div class="metric"><strong>${summary.durationMinutes}</strong><span>MINUTES${summary.durationEstimated?' · EST':''}</span></div>`;
 }
 function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;
-  const summary=Core.summarizeSession(session),earned=Core.detectPRs(state.history,session),working=Core.workingWork(session);
+  const summary=Core.sessionWorkSummary(session),earned=Core.detectPRs(state.history,session),working=summary.working;
   // Volume honesty: kg only measures the lifts that carried a load, so say how many that was, and
   // name the lifts that were logged bare AFTER being loaded before - that gap IS the inconsistency.
   const prior=state.history.filter(s=>s.id!==session.id&&Number(s.started)<Number(session.started));
@@ -3200,7 +3325,7 @@ function openHistory(id){
   }).join('');
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
     +`<div class="metric-grid">${durationTile(summary)}<div class="metric"><strong>${working.sets}</strong><span>WORKING SETS</span></div><div class="metric"><strong>${compact(working.volume)}</strong><span>WORKING KG</span></div></div>`
-    +workBreakdown(work)+sessionWarmupNote(session)+coverNote+gapNote
+    +workBreakdown(summary,work.bodyweightUsed)+sessionWarmupNote(session)+coverNote+gapNote
     +`<div class="selected-list">${rows}</div>${earned.length?`<p class="kicker">RECORDS EARNED</p><div class="receipt-prs">${sessionRecordMarkup(session,earned)}</div>`:''}`
     // Three stacked full-width buttons with no gap read as one cramped block (Mark 2026-08-05).
     // Grouped with real spacing, and the destructive action sits apart from the two safe ones.
@@ -3285,7 +3410,7 @@ function openHistoryEdit(id){
 function renderHistoryEdit(){
   const d=historyDraft;if(!d)return;
   // Volume recomputes as you type, so the correction proves itself before you commit it.
-  const live=Core.summarizeSession(d),cover=Core.volumeCoverage(d);
+  const live=Core.workingWork(d),cover=Core.volumeCoverage(d);
   const rows=d.exercises.map((ex,ei)=>{
     const item=exerciseById(ex.exerciseId),timed=!!item?.timed;
     const bwF=Core.bodyweightFactor(ex.exerciseId);
@@ -3304,12 +3429,16 @@ function renderHistoryEdit(){
       +`<button class="he-add" onclick="addHistorySet(${ei})">+ Add set</button></div>`;
   }).join('');
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">FIX A MISTAKE</p><h2>Edit ${esc(d.name)}</h2></div><button class="close-button" onclick="openHistory('${esc(d.id)}')">×</button></div>`
-    +`<p class="he-live"><strong>${compact(live.volume)} kg</strong> · ${live.completedSets} sets · ${cover.loaded} of ${cover.total} lifts carrying a load</p>`
+    +`<p class="he-live">${historyEditSummary(d)} · ${cover.loaded} of ${cover.total} lifts carrying a load</p>`
     +`<p class="he-help">Correct any weight or rep count below. A set with no reps logs as done but adds nothing to your total - that is usually the mistake.</p>`
     +`${historySetUndo.length?'<div class="set-undo" role="status"><span>Set removed from draft</span><button onclick="undoHistorySet()">Undo</button></div>':''}<div class="he-list">${rows}</div>`
     +`<div class="sheet-stack"><button class="primary-button full-button" onclick="saveHistoryEdit()">Save changes</button>`
     +`<button class="secondary-button full-button" onclick="openHistory('${esc(d.id)}')">Cancel</button></div>`;
   document.getElementById('sheet').showModal();
+}
+function historyEditSummary(session){
+  const work=Core.workingWork(session),warmups=(session.exercises||[]).reduce((total,ex)=>total+(ex.sets||[]).filter(set=>set.done&&set.warmup&&Number(set.reps)>0).length,0);
+  return `<strong>${compact(work.volume)} kg working volume</strong> · ${work.sets} working sets${warmups?` · ${warmups} warm-up ${warmups===1?'set':'sets'}`:''}`;
 }
 function editHistorySet(ei,si,field,value){
   const set=historyDraft?.exercises?.[ei]?.sets?.[si];if(!set)return;
@@ -3317,9 +3446,9 @@ function editHistorySet(ei,si,field,value){
   // A set given real numbers is a set that happened - tick it, or the correction would not count.
   if(String(set.weight??'')!==''||String(set.reps??'')!=='')set.done=true;
   // Only the live totals change while typing; re-rendering would blow away the caret mid-edit.
-  const live=Core.summarizeSession(historyDraft),cover=Core.volumeCoverage(historyDraft);
+  const cover=Core.volumeCoverage(historyDraft);
   const el=document.querySelector('.he-live');
-  if(el)el.innerHTML=`<strong>${compact(live.volume)} kg</strong> · ${live.completedSets} sets · ${cover.loaded} of ${cover.total} lifts carrying a load`;
+  if(el)el.innerHTML=`${historyEditSummary(historyDraft)} · ${cover.loaded} of ${cover.total} lifts carrying a load`;
 }
 function addHistorySet(ei){
   const ex=historyDraft?.exercises?.[ei];if(!ex)return;
@@ -3343,7 +3472,7 @@ function saveHistoryEdit(){
   const d=historyDraft;if(!d)return;
   const i=state.history.findIndex(s=>s.id===d.id);
   if(i<0){historyDraft=null;return closeSheet();}
-  const before=Core.summarizeSession(state.history[i]).volume;
+  const before=Core.workingWork(state.history[i]).volume;
   // Drop exercises left with no sets at all, so an emptied lift does not linger as a ghost row.
   d.exercises=(d.exercises||[]).filter(ex=>(ex.sets||[]).length);
   state.history[i]=d;
@@ -3355,7 +3484,7 @@ function saveHistoryEdit(){
   const saved=state.history.find(s=>s.id===d.id)||d;
   saveState();
   if(Sync)try{Sync.onSessionComplete(saved);}catch{} // the stored copy must carry the correction too
-  const after=Core.summarizeSession(d).volume;
+  const after=Core.workingWork(d).volume;
   historyDraft=null;
   renderToday();renderProgress();renderTrain();
   openHistory(d.id);
@@ -3363,16 +3492,36 @@ function saveHistoryEdit(){
   showToast(delta?`Updated · ${delta>0?'+':''}${compact(Math.abs(delta))} kg`:'Workout updated');
 }
 function deleteHistory(id){
-  state.history=state.history.filter(s=>s.id!==id);
+  const session=state.history.find(s=>s.id===id);if(!session)return;
+  if(!Array.isArray(state.deletedHistory))state.deletedHistory=[];
+  state.deletedHistory=state.deletedHistory.filter(entry=>entry.session.id!==id);
+  state.deletedHistory.unshift({session:copyLogRow(session),deletedAt:Date.now()});
+  state.history=Core.rebuildPRs(state.history.filter(s=>s.id!==id));
   // Remove the Drive copy too (best-effort) - deleteRemote also forgets the queue entry and the
   // file mapping, so a deleted session can neither re-upload nor keep living in the backup folder.
   if(Sync)try{(Sync.deleteRemote||Sync.forget)(id);}catch{}
-  saveState();closeSheet();renderProgress();showToast('Workout deleted');
+  saveState();closeSheet();renderProgress();renderToday();showToast('Moved to Recently deleted');
+}
+function openDeletedHistory(){
+  const entries=state.deletedHistory||[];
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">RECOVERY</p><h2>Recently deleted</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p class="settings-note">Removed workouts stay here until you restore them. They are included in your downloaded backup.</p><div class="deleted-history-list">${entries.length?entries.map(entry=>`<article class="deleted-history-row"><span><strong>${esc(entry.session.name)}</strong><small>${esc(formatDate(entry.session.started))} · ${Core.summarizeSession(entry.session).completedSets} sets logged</small></span><button class="secondary-button" onclick="restoreDeletedHistory('${esc(entry.session.id)}')" aria-label="Restore ${esc(entry.session.name)}">Restore</button></article>`).join(''):'<p class="empty-card">No deleted workouts.</p>'}</div>`;
+  document.getElementById('sheet').showModal();
+}
+function restoreDeletedHistory(id){
+  const entry=(state.deletedHistory||[]).find(entry=>entry.session.id===id);if(!entry)return;
+  // Never replace a later edited copy that already has this identity.
+  if(!state.history.some(session=>session.id===id))state.history.push(copyLogRow(entry.session));
+  state.deletedHistory=state.deletedHistory.filter(entry=>entry.session.id!==id);
+  state.history=Core.rebuildPRs(state.history).sort((a,b)=>Number(b.started)-Number(a.started));
+  saveState();
+  const restored=state.history.find(session=>session.id===id);
+  if(Sync)try{Sync.onSessionComplete(restored);}catch{}
+  renderToday();renderProgress();openDeletedHistory();showToast('Workout restored');
 }
 
 function openRingGoals(){
   const p=state.preferences;
-  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">ACTIVITY RINGS</p><h2>Weekly goals</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">Set targets that feel challenging but realistic. Going over still keeps your real number.</p><div class="field"><label>WORKOUTS PER WEEK</label><input id="goalWorkouts" type="number" min="1" max="14" value="${p.weeklyWorkoutGoal}"></div><div class="field"><label>COMPLETED SETS PER WEEK</label><input id="goalSets" type="number" min="1" step="1" value="${p.weeklySetGoal}"></div><div class="field"><label>TRAINING VOLUME PER WEEK (KG)</label><input id="goalVolume" type="number" min="1" step="500" value="${p.weeklyVolumeGoal}"></div><button class="primary-button full-button" onclick="saveRingGoals()">Save goals</button>`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">ACTIVITY RINGS</p><h2>Weekly goals</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><p style="color:var(--muted);margin-top:-6px">Set targets that feel challenging but realistic. Going over still keeps your real number.</p><div class="field"><label>WORKOUTS PER WEEK</label><input id="goalWorkouts" type="number" min="1" max="14" value="${p.weeklyWorkoutGoal}"></div><div class="field"><label>WORKING SETS PER WEEK</label><input id="goalSets" type="number" min="1" step="1" value="${p.weeklySetGoal}"></div><div class="field"><label>WORKING VOLUME PER WEEK (KG)</label><input id="goalVolume" type="number" min="1" step="500" value="${p.weeklyVolumeGoal}"></div><button class="primary-button full-button" onclick="saveRingGoals()">Save goals</button>`;
   document.getElementById('sheet').showModal();
 }
 function saveRingGoals(){
@@ -3400,6 +3549,7 @@ function openSettings(){
   // so it moves there: same design language, zero scrolling, no new component.
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">BUILD ${esc(typeof BUILD!=='undefined'?BUILD:'dev')}</p><h2>Settings &amp; data</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
     +profileSettingsMarkup()
+    +`<button class="secondary-button full-button deleted-history-link" onclick="openDeletedHistory()">Recently deleted${state.deletedHistory?.length?` · ${state.deletedHistory.length}`:''}</button>`
     +seg('restSetting','DEFAULT REST TIMER',[[60,'1 min'],[90,'1.5 min'],[120,'2 min'],[180,'3 min']],Number(state.preferences.restSeconds)||90,'setRestPreference')
     +seg('barSetting','BAR WEIGHT (PLATE MATH)',[[15,'15 kg'],[20,'20 kg']],Number(state.preferences.barWeight)||20,'setBarWeight')
     +sw('Haptics','A short buzz on set complete, rest end and PRs. Android only - iPhone has no web vibration.',state.preferences.haptics!==false,'toggleHaptics','hapticsToggle')
@@ -3452,17 +3602,23 @@ async function importBackup(file){
   try{
     const candidate=Core.validateBackup(JSON.parse(await file.text()),DUCK_EXERCISES.map(e=>e.id));
     const previous=state;
-    state=candidate;
-    if(!saveState()){state=previous;return;}
+    const defaults=emptyState();
+    state={...defaults,...candidate,preferences:{...defaults.preferences,...candidate.preferences}};
+    clearRestRuntime();clearSetEditing();
+    if(state.activeSession?._setEdits)state.activeSession._setEdits.profile=stateKey;
+    if(state.activeSession?._exerciseEdits)state.activeSession._exerciseEdits.profile=stateKey;
+    hydrateProgressView();
+    if(!saveState()){state=previous;hydrateProgressView();restoreRestTimer(true);return;}
     // If the imported state can't RENDER, it must not stay persisted either - restore the previous
     // state on any throw past the save, or the bad import bricks the next boot (cross-review 2026-08-17).
-    try{closeSheet();renderView(currentView);}
-    catch(err){state=previous;saveState();renderView(currentView);showToast('That backup could not be read');return;}
+    try{closeSheet();restoreRestTimer(true);renderView(currentView);}
+    catch(err){console.error('Backup render failed',err);state=previous;hydrateProgressView();saveState();restoreRestTimer(true);renderView(currentView);showToast('That backup could not be read');return;}
+    if(Sync)for(const entry of state.deletedHistory||[])try{(Sync.deleteRemote||Sync.forget)(entry.session.id);}catch{}
     showToast('Backup imported');
   }catch{showToast('That backup could not be read');}
   finally{document.getElementById('importInput').value='';}
 }
-function clearAllData(){if(!confirm('Delete all routines, custom exercises and workout history?'))return;state=emptyState();saveState();closeSheet();renderView(currentView);showToast('All data cleared');}
+function clearAllData(){if(!confirm('Delete all routines, custom exercises and workout history, including Recently deleted?'))return;state=emptyState();clearRestRuntime();clearSetEditing();hydrateProgressView();saveState();closeSheet();renderView(currentView);showToast('All data cleared');}
 async function installApp(){
   if(deferredInstall){deferredInstall.prompt();await deferredInstall.userChoice;deferredInstall=null;return;}
   const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
@@ -3677,15 +3833,17 @@ function enterProfile(id){
 // The actual swap: persist active pointer, re-point state + sync (token reset), reset transient UI, re-render.
 function commitSwitch(id){
   clearProfileSetUndo();historyDraft=null;historySetUndo=[];
+  clearRestRuntime();
   Profiles.setActive(localStorage,id);
   activeProfileId=id;
   stateKey=Profiles.stateKeyFor(id);
   if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(id)); // hard auth reset - no cross-profile token bleed
   pinContext=null;pinBuffer='';lockGate=false; // leaving any gate: the switched-to profile is unlocked-by-definition here
   state=readState();
+  hydrateProgressView();restoreRestTimer(true);
   clearInterval(activeTimer);clearInterval(restTimer);
   const pill=document.getElementById('restPill');if(pill)pill.classList.remove('show');
-  routineDraft=null;pickerTarget=null;strengthPick=null;
+  routineDraft=null;pickerTarget=null;
   libraryFilter=newFilterState();pickerFilterState=newFilterState();
   closeSheet();
   currentView='today';
@@ -3851,6 +4009,7 @@ renderProfileChip();
 // case its data is never rendered until the PIN clears (council: locked = data hidden).
 function renderAllViews(){renderToday();renderTrain();renderLibrary();renderProgress();renderReturnChip();}
 function afterUnlockBoot(){
+  hydrateProgressView();restoreRestTimer(true);
   renderAllViews();
   // Flush any queued sessions and pull the latest coach plan on launch - silent, deferred, never blocking.
   if(Sync)try{Sync.flush();Sync.downSync().then(()=>renderCoach()).catch(()=>{});}catch{}
@@ -3945,8 +4104,8 @@ window.addEventListener('storage',event=>{
     try{
       const remote=JSON.parse(event.newValue);
       if(remote?.version!==2)return;
-      if(!state.activeSession){state=readState();renderAllViews();return;}
-      const have=new Set(state.history.map(s=>s.id));
+      if(!state.activeSession){state=readState();hydrateProgressView();restoreRestTimer(true);renderAllViews();return;}
+      const have=new Set([...state.history.map(s=>s.id),...(state.deletedHistory||[]).map(entry=>entry.session.id)]);
       const missing=(Array.isArray(remote.history)?remote.history:[]).filter(s=>s&&s.id&&!have.has(s.id));
       if(missing.length){
         state.history=[...missing,...state.history].sort((a,b)=>(Number(b.started)||0)-(Number(a.started)||0));
@@ -3959,6 +4118,7 @@ window.addEventListener('storage',event=>{
   const reg=Profiles.getRegistry(localStorage);if(!reg)return;
   if(reg.activeId!==activeProfileId){
     clearProfileSetUndo();historyDraft=null;historySetUndo=[];
+    clearRestRuntime();
     activeProfileId=reg.activeId;
     stateKey=Profiles.stateKeyFor(activeProfileId);
     if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(activeProfileId));
@@ -3966,7 +4126,7 @@ window.addEventListener('storage',event=>{
     const p=Profiles.getActive(localStorage);
     renderProfileChip();
     if(p&&p.locked&&!unlockedProfiles.has(p.id)){gateLockedProfile(p);return;}
-    lockGate=false;state=readState();renderAllViews();
+    lockGate=false;state=readState();hydrateProgressView();restoreRestTimer(true);renderAllViews();
     return;
   }
   renderProfileChip(); // rename/PIN change elsewhere - refresh the chip only

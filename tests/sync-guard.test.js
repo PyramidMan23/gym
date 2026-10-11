@@ -76,3 +76,45 @@ test('delayed ensureFolder (via connect path) never writes a folderId into the n
   const b = JSON.parse(localStorage.getItem('gym:user:p_bbb:sync'));
   assert.equal(b.folderId ?? null, null, "A's new Drive folderId was written into B's config");
 });
+
+test('delete during upload cannot dequeue an identical Restore or let delayed deletion remove its replacement', async () => {
+  store.clear();
+  const key='gym:user:recovery:sync',session={id:'restore-1',name:'Original',started:1,finished:2,exercises:[]};
+  const payload=Sync.sessionToPayload(session);
+  Sync.setUser(key);
+  localStorage.setItem(key,JSON.stringify({clientId:'x',enabled:true,folderId:'folder',queue:[payload],uploadedFiles:{'restore-1':'old-file'}}));
+  Sync._test.grantToken('token',3600000);
+  let releaseUpload,releaseDelete;
+  const requests=[];
+  global.fetch=(url,options)=>{
+    requests.push([options.method,url]);
+    if(options.method==='PATCH')return new Promise(resolve=>{releaseUpload=()=>resolve({ok:true,json:async()=>({id:'old-file'})});});
+    if(options.method==='DELETE'&& !releaseDelete)return new Promise(resolve=>{releaseDelete=()=>resolve({ok:true});});
+    return Promise.resolve({ok:true,json:async()=>({id:'restored-file'})});
+  };
+  const upload=Sync.flush();await tick();assert.equal(typeof releaseUpload,'function');
+  const deletion=Sync.deleteRemote(session.id);await tick();assert.equal(typeof releaseDelete,'function');
+  const restore=Sync.onSessionComplete(session);
+  releaseUpload();const finalStatus=await upload;await restore;
+  assert.equal(finalStatus.queued,0,'Resolved status must include the completed follow-up upload');
+  let config=JSON.parse(localStorage.getItem(key));
+  assert.deepEqual(config.queue,[]);
+  assert.equal(config.uploadedFiles[session.id],'restored-file');
+  assert.equal(requests.filter(([method])=>method==='POST').length,1,'Restore must create a new cloud file');
+  releaseDelete();await deletion;
+  config=JSON.parse(localStorage.getItem(key));
+  assert.equal(config.uploadedFiles[session.id],'restored-file');
+  assert.ok(requests.filter(([method])=>method==='DELETE').every(([,url])=>url.endsWith('/old-file')));
+});
+
+test('delete during initial upload removes its late orphan and never reinstates its mapping', async () => {
+  store.clear();const key='gym:user:initial-delete:sync';Sync.setUser(key);
+  localStorage.setItem(key,JSON.stringify({clientId:'x',enabled:true,folderId:'folder',queue:[{sessionId:'gone'}],uploadedFiles:{}}));
+  Sync._test.grantToken('token',3600000);
+  let release;const deleted=[];
+  global.fetch=(url,options)=>options.method==='POST'?new Promise(resolve=>{release=()=>resolve({ok:true,json:async()=>({id:'late-file'})});}):(deleted.push(url),Promise.resolve({ok:true}));
+  const upload=Sync.flush();await tick();await Sync.deleteRemote('gone');release();await upload;
+  const config=JSON.parse(localStorage.getItem(key));
+  assert.deepEqual(config.queue,[]);assert.deepEqual(config.uploadedFiles,{});
+  assert.deepEqual(deleted,['https://www.googleapis.com/drive/v3/files/late-file']);
+});

@@ -16,6 +16,7 @@
   // Per-profile isolation (Track B): the active config key is swapped on profile switch via setUser().
   // Defaults to the legacy key so node tests and a pre-profiles boot keep working unchanged.
   let activeSyncKey = SYNC_KEY;
+  let sessionRevisions = new Map();
   const FOLDER_NAME = 'Gym-Sync';
   const PLAN_NAME = 'coach-plan.json';
   const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -80,6 +81,7 @@
   // backup (audit 2026-07-22). Also stops uploadedFiles growing forever on deleted ids.
   function forget(sessionId) {
     if (!sessionId) return;
+    if (flushInFlight) sessionRevisions.set(sessionId, (sessionRevisions.get(sessionId) || 0) + 1);
     updateConfig(c => {
       c.queue = removeFromQueue(c.queue, sessionId);
       if (c.uploadedFiles) delete c.uploadedFiles[sessionId];
@@ -292,16 +294,24 @@
   // Single-flight: concurrent callers share one in-flight promise so the same session is
   // never uploaded twice in parallel; a lost response re-PATCHes via uploadedFiles, not re-POSTs.
   let flushInFlight = null;
+  let flushAgain = false;
   function flush() {
-    if (flushInFlight) return flushInFlight;
+    if (flushInFlight) { flushAgain = true; return flushInFlight; }
     if (!configured() || !(loadConfig().queue || []).length) return Promise.resolve(status());
     const g = gen;
     flushInFlight = ensureToken(false)
       .then(() => ensureFolder(g))
-      .then(folderId => { guard(g); return loadConfig().queue.reduce((chain, payload) => chain.then(() => {
+      .then(folderId => { guard(g); return loadConfig().queue.map(payload => ({payload, revision:sessionRevisions.get(payload.sessionId) || 0})).reduce((chain, {payload, revision}) => chain.then(() => {
         guard(g);
+        if ((sessionRevisions.get(payload.sessionId) || 0) !== revision) return;
         return uploadSession(folderId, payload, loadConfig().uploadedFiles[payload.sessionId]).then(fileId => {
           guard(g); // a switch mid-upload: the file may exist on A's Drive, but B's config is never touched
+          // A delete invalidates this upload even if Restore requeued the identical snapshot.
+          // Never let the old response claim/dequeue that restored workout. Its replacement is a
+          // new file, so a delayed DELETE of the old file cannot remove the restored cloud copy.
+          if ((sessionRevisions.get(payload.sessionId) || 0) !== revision) {
+            return api(`https://www.googleapis.com/drive/v3/files/${fileId}`, {method:'DELETE'}).catch(() => {});
+          }
           updateConfig(c => {
             // Dequeue ONLY the exact snapshot that was uploaded. A correction enqueued while this
             // upload was in flight replaces the queue entry; removing by id alone deleted that newer
@@ -315,7 +325,12 @@
       }), Promise.resolve()); })
       .then(() => status())
       .catch(() => status()) // deferred to next launch
-      .finally(() => { if (g === gen) flushInFlight = null; }); // stale flush must not clear the new profile's single-flight slot
+      .finally(() => {
+        if (g !== gen) return; // a stale flush must not clear another profile's slot
+        flushInFlight = null;
+        sessionRevisions.clear(); // all captured uploads settled; later runs capture a fresh baseline
+        if (flushAgain) { flushAgain = false; return flush(); }
+      }).then(() => status()); // include any queued correction/restore completed by the follow-up run
     return flushInFlight;
   }
 
@@ -359,7 +374,8 @@
   function setUser(configKey) {
     gen++; // invalidate every in-flight async chain (generation guard) BEFORE re-pointing the key
     activeSyncKey = configKey || SYNC_KEY;
-    accessToken = null; tokenExpiry = 0; pending = null; flushInFlight = null;
+    accessToken = null; tokenExpiry = 0; pending = null; flushInFlight = null; flushAgain = false;
+    sessionRevisions = new Map();
     tokenClient = null; tokenClientId = null; // rebuilt on demand for the new profile's clientId
     if (typeof document !== 'undefined') { try { preload(); } catch (e) { } }
     return activeSyncKey;

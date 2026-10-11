@@ -50,7 +50,7 @@ try{
     const set=(weight,reps,extra={})=>({weight,reps,done:true,...extra});
     const session=(id,n,exercises)=>({id,name:'QA '+id,started:day(n),finished:day(n)+30*60000,exercises});
     const lift=(weight,reps)=>({exerciseId:'ch1',sets:[set(weight,reps)]});
-    const old=session('older-best',-7,[lift(120,5)]);
+    const old=session('older-best',-110,[lift(120,5)]);
     const a=session('monday',0,[{exerciseId:'ch1',sets:[set(80,5),set(20,10,{warmup:true}),set(200,0),set(200,10,{done:false})]},{exerciseId:timed,sets:[set(0,30)]},{exerciseId:cali,sets:[set(0,8)]}]);
     const b=session('wednesday',2,[lift(85,5),{exerciseId:'ch1',sets:[set(82.5,5)]},{exerciseId:timed,sets:[set(0,45),set(5,25)]},{exerciseId:cali,sets:[set(10,6),set(0,10)]}]);
     const c=session('friday',4,[lift(90,5),{exerciseId:timed,sets:[set(0,40)]}]);
