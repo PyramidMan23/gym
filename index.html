@@ -18,6 +18,8 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="logging.css">
+  <link rel="stylesheet" href="progress.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -77,6 +79,7 @@
              then the plan shelf. The grid of boxes is gone; rows live in grouped inset lists. -->
         <div class="page-lead"><p class="kicker accent">TRAIN</p><h1 id="trainTitle">Train</h1><p>One order, every time: your plan, your routines, then the session library.</p></div>
         <div id="planHero"></div>
+        <button class="quick-workout-shortcut" onclick="startQuickWorkout()"><span aria-hidden="true">＋</span> Quick workout <small>Add exercises as you go</small></button>
         <div class="section-heading"><div><p class="kicker">YOUR ROUTINES</p><h2>Your routines</h2></div><button class="text-button" onclick="openRoutineEditor()">New</button></div>
         <div id="routineList" class="group"></div>
         <div class="section-heading"><div><p class="kicker">SESSIONS</p><h2>Sessions</h2></div><span id="workoutCount" class="section-count"></span></div>
@@ -105,46 +108,31 @@
 
       <section id="view-progress" class="view" aria-labelledby="progressTitle">
         <div class="page-lead compact-lead"><p class="kicker accent">STRENGTH</p><h1 id="progressTitle">Progress</h1></div>
-        <!-- Intent-based structure (council 2026-07-28): This week (what happened) then Direction
-             (where it's going) then Record (what it has been). DOM order IS visual order - modules
-             keep a permanent address; a no-evidence module compresses in place, never moves. -->
-        <!-- v2: the SAME modules, grouped into three segments so one intent is visible at a time
-             instead of a 3000px scroll. DOM order INSIDE each segment is unchanged, and the
-             intent order above still holds: Week (what happened) -> Trends (where it is going)
-             -> Records (what it has been). -->
         <div id="progressSegments" class="segmented" role="tablist" aria-label="Progress view"></div>
+        <div id="progressPeriod" class="progress-period"></div>
         <div class="prog-group" data-seg="week">
           <div id="weekPane"></div>
-          <div class="section-heading"><div><p class="kicker">THIS WEEK</p><h2>By the numbers</h2></div></div>
-          <div id="progressStats" class="metric-grid"></div>
-          <div id="weeklyRecap"></div>
-          <div class="section-heading"><div><p class="kicker">WEEKLY VOLUME</p><h2>Sets per muscle</h2></div></div>
-          <div id="muscleVolume" class="mv-board"></div>
-          <div class="section-heading"><div><p class="kicker">GOALS</p><h2>What you're working toward</h2></div><button class="text-button" onclick="openGoalSheet()">New goal</button></div>
+          <div class="section-heading"><div><p class="kicker">GOALS · CURRENT STATUS</p><h2>Your targets</h2></div><button class="text-button" onclick="openGoalSheet()">New goal</button></div>
           <div id="goalBoard" class="stack"></div>
         </div>
         <div class="prog-group" data-seg="trends">
-          <div id="painTrend"></div>
-          <p class="kicker wk-kicker" id="strengthKicker">STRENGTH · EST. 1RM</p>
-          <div id="strengthTrend"></div>
+          <div class="section-heading"><div><p class="kicker">EXERCISE</p><h2>Logged performance</h2></div></div>
           <div id="strengthPicker" class="trend-picker"></div>
-          <div class="section-heading"><div><p class="kicker">BODYWEIGHT STRENGTH</p><h2>Calisthenics</h2></div><span id="caliDelta" class="section-count"></span></div>
+          <div id="strengthTrend"></div>
+          <div class="section-heading"><div><p class="kicker">SELECTED PERIOD</p><h2>Calisthenics</h2></div></div>
           <div id="caliBoard"></div>
-          <div class="section-heading"><div><p class="kicker">BALANCE</p><h2>Left vs right</h2></div></div>
-          <div id="balanceBoard"></div>
+          <details class="progress-details"><summary>Side-tagged sets in this period</summary><div id="balanceBoard"></div></details>
           <div class="section-heading"><div><p class="kicker">BODY</p><h2>Bodyweight</h2></div><button class="text-button" onclick="openBodyweightLog()">Log weight</button></div>
           <div id="bodyweightCard"></div>
         </div>
         <div class="prog-group" data-seg="records">
           <div class="fold-2">
-            <!-- The design's Records pane is two grouped lists: PERSONAL RECORDS then ALL
-                 WORKOUTS. It has no consistency chart, so #weekChart stays in the DOM (its
-                 renderer still runs) but is not painted. -->
-            <div class="section-heading"><div><p class="kicker">CONSISTENCY</p><h2>Last 8 weeks</h2></div></div>
-            <div id="weekChart" class="chart-card"></div>
-            <div class="section-heading"><div><p class="kicker">PERSONAL RECORDS</p><h2>Personal records</h2></div></div>
+            <div class="section-heading"><div><p class="kicker">ACROSS YOUR HISTORY</p><h2>All-time bests</h2></div></div>
+            <div id="allTimeBests" class="group"></div>
+            <div class="section-heading"><div><p class="kicker">SELECTED PERIOD</p><h2>Records earned</h2></div></div>
             <div id="prFeed" class="pr-feed group"></div>
-            <div class="section-heading"><div><p class="kicker">ALL WORKOUTS</p><h2>All workouts</h2></div></div>
+            <div class="section-heading"><div><p class="kicker" id="historyScope">SELECTED PERIOD</p><h2>Workout history</h2></div><button id="allHistoryButton" class="text-button" onclick="toggleAllHistory()" aria-pressed="false">All history</button></div>
+            <label class="progress-search"><span>Find an exercise or workout</span><input id="progressHistorySearch" type="search" placeholder="Search history" oninput="searchProgressHistory(this.value)"></label>
             <div id="historyList" class="group"></div>
           </div>
         </div>

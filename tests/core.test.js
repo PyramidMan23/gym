@@ -35,8 +35,8 @@ test('detectPRs finds weight and estimated one rep max records without double co
     { exerciseId: 'row', sets: [{ weight: 50, reps: 10, done: true }] }
   ] };
   const prs = Core.detectPRs(history, session);
-  assert.equal(prs.length, 2);
-  assert.deepEqual(prs.map(x => x.exerciseId), ['bench', 'row']);
+  assert.equal(prs.length, 1, 'the new row exercise establishes a baseline');
+  assert.deepEqual(prs.map(x => x.exerciseId), ['bench']);
 });
 
 test('summarizeSession returns duration, completed sets and volume', () => {
@@ -155,7 +155,7 @@ test('exerciseExposures counts sessions with completed sets; prFeed flattens new
       exercises: [{ exerciseId: 'bench', sets: [{ weight: 80, reps: 5, done: true }] }] }
   ];
   assert.deepEqual(Core.exerciseExposures(history), { bench: 2 });
-  assert.deepEqual(Core.prFeed(history, 5).map(p => p.started), [200, 100]);
+  assert.deepEqual(Core.prFeed(history, 5).map(p => p.started), [200], 'stored first-log PRs are re-derived as baselines');
 });
 
 test('lastConfirmedExposure requires post!=worse AND flare===false', () => {

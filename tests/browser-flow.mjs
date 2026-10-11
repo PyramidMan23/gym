@@ -134,9 +134,9 @@ try {
   // ---- Drag to reorder (2026-08-01). Runs BEFORE the reduced-motion override so the animated path
   // (FLIP gap + settle) is the one under test. A trusted CDP mouse drag on the grip: element.click()
   // and synthetic events would both miss the pointer-capture + autoscroll machinery entirely.
-  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();
+  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();closeSheet();
     addExerciseToWorkout('ch1');addExerciseToWorkout('ch2');addExerciseToWorkout('ch3');})();true`);
-  await waitFor(`document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
+  await waitFor(`!document.getElementById('sheet').open && document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
   assert.deepEqual(await evaluate(`state.activeSession.exercises.map(e=>e.exerciseId)`), ['ch1', 'ch2', 'ch3']);
   // Index mapping must come from the stamped attribute: check-in and bookend cards share the container.
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('#workoutExercises .workout-exercise')].map(c=>c.dataset.index)`), ['0', '1', '2']);
@@ -160,6 +160,7 @@ try {
     await sleep(90);
   }
   await sleep(1200);
+  await waitFor(`window.scrollY===0`); // the taller readable clock header may require a little more scroll
   const midDrag = await evaluate(`(()=>{const c=document.querySelector('.workout-exercise.drag-lift');
     return {lifted:!!c, ink:document.body.classList.contains('reordering'), scroll:window.scrollY,
       shifted:[...document.querySelectorAll('#workoutExercises .workout-exercise')].filter(e=>e.style.transform.includes('translateY(')).length};})()`);
@@ -373,6 +374,9 @@ try {
 
   await evaluate(`navigate('train'); document.querySelector('#view-train .big-button').click(); true`);
   await waitFor(`document.body.classList.contains('workout-active') && !!JSON.parse(localStorage.getItem(stateKey)).activeSession`);
+  await waitFor(`document.getElementById('sheet').open && !!document.getElementById('pk_search')`);
+  await realClick('#sheet .close-button');
+  await waitFor(`!document.getElementById('sheet').open`);
 
   await evaluate(`addExerciseToWorkout('ch1'); true`);
   await waitFor(`document.querySelectorAll('.set-row').length === 1`);
@@ -493,7 +497,7 @@ try {
     const deskSecs=state.activeSession.exercises.some(e=>DuckGymCore.isTimed(e.exerciseId))
       && [...document.querySelectorAll('.set-grid.header span')].some(s=>s.textContent==='Sec');
     // A loaded session still gets one.
-    state.activeSession=null; startQuickWorkout(); addExerciseToWorkout('lg4');
+    state.activeSession=null; startQuickWorkout(); closeSheet(); addExerciseToWorkout('lg4');
     const loadedStrip=!!document.querySelector('.bookend-strip');
     // Save the RUNNING workout as a routine.
     const before=state.routines.length;
@@ -531,22 +535,22 @@ try {
     if(state.activeSession) state.activeSession=null;
     navigate('train'); renderTrain();
     const chips=[...document.querySelectorAll('#workoutGoals .filter-chip')].map(c=>c.textContent);
-    const cards=document.querySelectorAll('#workoutList .workout-card').length;
-    const starts=document.querySelectorAll('#workoutList .workout-start').length;
+    const cards=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row)').length;
+    const starts=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row) .workout-start').length;
     const moreLabel=(document.querySelector('#workoutList .list-more')||{}).textContent||'';
     // Expanding must reveal every curated session, and collapsing must go back to the short list -
     // a cap that cannot be undone would be hiding content, not organising it.
     expandWorkouts();
-    const expanded=document.querySelectorAll('#workoutList .workout-card').length;
-    const expandedStarts=document.querySelectorAll('#workoutList .workout-start').length;
+    const expanded=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row)').length;
+    const expandedStarts=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row) .workout-start').length;
     collapseWorkouts();
-    const recollapsed=document.querySelectorAll('#workoutList .workout-card').length;
+    const recollapsed=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row)').length;
     // A goal chip filters; a fresh Train render must clear it, or a stale chip hides 12 workouts.
     setWorkoutGoal('STRENGTH');
-    const filtered=document.querySelectorAll('#workoutList .workout-card').length;
+    const filtered=document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row)').length;
     renderTrain();
     return {chips,cards,starts,moreLabel,expanded,expandedStarts,recollapsed,filtered,
-      reset:document.querySelectorAll('#workoutList .workout-card').length,
+      reset:document.querySelectorAll('#workoutList .workout-card:not(.quick-workout-row)').length,
       resetMore:!!document.querySelector('#workoutList .list-more'),
       seeds:routineSeeds().filter(s=>s.key.startsWith('wk:')).length};
   })()`);
@@ -615,9 +619,9 @@ try {
   await waitFor(`!document.getElementById('sheet').open`);
   // Reduced motion (emulated since the top of this run): the drag still reorders, it just skips the
   // FLIP transitions and the settle, and commits the moment the finger lifts.
-  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();
+  await evaluate(`(()=>{if(state.activeSession)state.activeSession=null;startQuickWorkout();closeSheet();
     addExerciseToWorkout('ch1');addExerciseToWorkout('ch2');addExerciseToWorkout('ch3');})();true`);
-  await waitFor(`document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
+  await waitFor(`!document.getElementById('sheet').open && document.querySelectorAll('#workoutExercises .workout-exercise').length === 3`);
   // Pinned at scrollY 0 so the maths is fixed: synthetic pointer events need no hit-test, and with
   // nothing left to scroll the autoscroll cannot move the target under us.
   await evaluate(`(()=>{
@@ -723,7 +727,7 @@ try {
     renderTrain(); await new Promise(r=>setTimeout(r,80));
     await tapped('#routineList .routine-open','routineName');
     renderTrain(); await new Promise(r=>setTimeout(r,80));
-    await tapped('#workoutList .workout-open','workoutName');
+    await tapped('#workoutList .workout-card:not(.quick-workout-row) .workout-open','workoutName');
     renderTrain(); await new Promise(r=>setTimeout(r,80));
     await tapped('#planList .plan-shelf-card','planShelfCard');
     // The routine preview must actually SHOW the exercises - a sheet that previews nothing is the

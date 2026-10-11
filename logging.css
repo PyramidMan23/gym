@@ -1,0 +1,32 @@
+/* Refinement of the existing logger: room for corrections, quieter secondary details. */
+.quick-workout-shortcut{display:flex;align-items:center;gap:7px;width:100%;min-height:44px;margin:8px 0 16px;padding:4px 2px;background:none;border:0;color:var(--cream);font:inherit;font-size:14px;font-weight:700;text-align:left}
+.quick-workout-shortcut>span{color:var(--amber-deep);font-size:22px}
+.quick-workout-shortcut small{margin-left:auto;color:var(--taupe);font-size:11px;font-weight:500}
+.quick-workout-row .workout-meta{font-size:12px}
+.quick-workout-row .workout-start{font-size:25px}
+.set-edit-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 12px 4px}
+.edit-sets{min-height:44px;padding:8px 2px;border:0;background:none;color:var(--taupe);font:inherit;font-size:12px;font-weight:700}
+.edit-sets[aria-pressed="true"]{color:var(--cream)}
+.set-edit-bar>span{font-size:11px;color:var(--taupe)}
+.set-remove{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:48px;min-height:52px;padding:3px;border:1px solid var(--hair);border-radius:var(--radius-sm);background:var(--glass);color:var(--danger);font:inherit}
+.set-remove>span{font-size:21px;line-height:21px}
+.set-remove>small{font-size:11px;line-height:14px;font-weight:700}
+.set-undo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 12px;padding:0 8px 0 12px;border:1px solid var(--hair);border-radius:var(--radius-sm);color:var(--taupe);font-size:12px}
+.set-undo button{min-height:44px;min-width:52px;border:0;background:none;color:var(--cream);font:inherit;font-weight:700}
+.no-set-rows{margin:10px 12px;color:var(--taupe);font-size:13px}
+.set-comparison{margin:0 8px 7px 46px;color:var(--taupe);font-size:11px}
+.set-grid.header{font-variant-numeric:tabular-nums}
+.set-row:not(.now) .set-unit{color:var(--taupe)}
+.set-row.completed .set-done.done{background:var(--amber-soft);box-shadow:none}
+.target-strip .ts-top,.previous-strip{font-size:12px}
+.workout-clock{flex-wrap:wrap;row-gap:5px}
+#workoutClock{flex:0 0 auto}
+.session-warmup-note{color:var(--taupe);font-size:12px;line-height:1.5;margin:10px 0}
+@media(max-width:500px){.workout-clock{flex-direction:column;align-items:flex-start;gap:5px}.workout-clock small{line-height:1.3;white-space:normal;max-width:100%}}
+.picker-quick-tabs{display:flex;gap:6px;margin:10px 0 7px}
+.picker-quick-tabs .filter-chip{min-height:44px}
+.picker-quick-empty{margin:0 0 12px;color:var(--taupe);font-size:12px}
+.he-del{min-width:44px;min-height:44px}
+@media(prefers-color-scheme:light){.set-remove{color:#9a3529}}
+.edit-sets:focus-visible,.set-remove:focus-visible,.set-undo button:focus-visible,.quick-workout-shortcut:focus-visible{outline:2px solid var(--amber-deep);outline-offset:3px}
+@media(max-width:350px){.quick-workout-shortcut small{max-width:110px}.set-edit-bar>span{text-align:right}.set-remove{min-width:44px}}

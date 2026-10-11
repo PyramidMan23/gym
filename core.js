@@ -11,7 +11,9 @@
   // 2026-08-17: the old rule only rejected blank-BLANK, so "60 kg × (blank)" counted as a completed
   // set and could mint a 60 kg weight PR while adding zero work. Negative reps are excluded too.
   // Timed holds store seconds in `reps`, so the same >0 rule covers them unchanged.
-  const doneSets = exercise => (exercise?.sets || []).filter(set => set.done && Number(set.reps) > 0);
+  const doneSets = exercise => (exercise?.sets || []).filter(set => set?.done
+    && Number.isFinite(Number(set.reps)) && Number(set.reps) > 0
+    && Number.isFinite(Number(set.weight || 0)) && Number(set.weight || 0) >= 0);
   // Evidence sets for records: completed sets excluding warm-up rungs. LAW (w63): warm-ups are work
   // but NOT evidence - without this a high-rep warm-up could mint an e1RM PR working sets never earned.
   const evidenceSets = exercise => doneSets(exercise).filter(set => !set.warmup);
@@ -221,72 +223,186 @@
     return { weight, e1rm, seconds };
   }
 
-  function detectPRs(history, session) {
-    const records = [];
-    const seen = new Set(); // duplicate rows of one exercise judge ONCE, against all their sets
-    for (const exercise of session?.exercises || []) {
-      if (seen.has(exercise.exerciseId)) continue;
-      seen.add(exercise.exerciseId);
-      // Warm-ups are excluded on BOTH sides of the comparison (evidence law, w63/2026-08-17).
-      const completed = exerciseRows(session, exercise.exerciseId).flatMap(row => evidenceSets(row));
-      if (!completed.length) continue;
-      const prior = exerciseBest(history, exercise.exerciseId);
-      const bestWeight = Math.max(...completed.map(set => num(set.weight)), 0);
-      // A hold's record is TIME (or a heavier hold for the same style) - without this a bodyweight
-      // hang could never PR at all, since its weight and e1RM are permanently 0. The recorded pair
-      // is ONE real set (best seconds, tiebreak weight) - stitching max weight and max seconds from
-      // different sets described a weighted long hold that never happened (cross-review 2026-08-17).
-      if (isTimed(exercise.exerciseId)) {
-        const bestHold = completed.reduce((a, b) => (num(b.reps) > num(a.reps) || (num(b.reps) === num(a.reps) && num(b.weight) > num(a.weight))) ? b : a, completed[0]);
-        if (num(bestHold.reps) > prior.seconds || bestWeight > prior.weight) {
-          records.push({ exerciseId: exercise.exerciseId, weight: bestWeight > prior.weight ? bestWeight : num(bestHold.weight), seconds: num(bestHold.reps) });
-        }
-        continue;
-      }
-      const bestE1rm = Math.max(...completed.map(set => estimatedOneRepMax(set.weight, set.reps)), 0);
-      if (bestWeight > prior.weight || bestE1rm > prior.e1rm) {
-        records.push({ exerciseId: exercise.exerciseId, weight: bestWeight, estimated1RM: Math.round(bestE1rm * 10) / 10 });
+  // A record always carries the actual source set. Reps and hold time compare at the same
+  // added load; e1RM uses typed load only, never the bodyweight work-accounting estimate.
+  function sourceSets(session, exerciseId) {
+    const out = [];
+    (session?.exercises || []).forEach((exercise, exerciseIndex) => {
+      if (exerciseId != null && exercise.exerciseId !== exerciseId) return;
+      const valid = new Set(evidenceSets(exercise));
+      (exercise.sets || []).forEach((set, setIndex) => {
+        if (!valid.has(set)) return;
+        out.push({ exerciseId: exercise.exerciseId, sessionId: session.id, started: num(session.started),
+          exerciseIndex, setIndex, set: { ...set }, weight: num(set.weight), reps: num(set.reps) });
+      });
+    });
+    return out;
+  }
+  const recordKey = record => `${record.exerciseId}:${record.type}:${record.type === 'reps' || record.type === 'seconds' ? record.weight : ''}`;
+  function recordCandidates(session, exerciseId) {
+    const best = new Map();
+    const add = (source, type, value) => {
+      if (!(value > 0)) return;
+      const record = { ...source, type, value,
+        ...(type === 'seconds' ? { seconds: source.reps } : {}),
+        ...(type === 'e1rm' ? { estimated1RM: Math.round(value * 10) / 10 } : {}) };
+      const key = recordKey(record), prior = best.get(key);
+      if (!prior || value > prior.value) best.set(key, record);
+    };
+    for (const source of sourceSets(session, exerciseId)) {
+      if (source.weight > 0) add(source, 'weight', source.weight);
+      if (isTimed(source.exerciseId)) add(source, 'seconds', source.reps);
+      else {
+        if (source.weight > 0 && bodyweightFactor(source.exerciseId) == null)
+          add(source, 'e1rm', estimatedOneRepMax(source.weight, source.reps));
+        add(source, 'reps', source.reps);
       }
     }
-    return records;
+    return [...best.values()];
   }
-
-  // Recompute every session's PRs in true chronological order. Editing an old session can both
-  // create and invalidate records in LATER sessions, so the whole line re-derives - detectPRs
-  // against only the sessions that came before each one (cross-review 2026-08-17). Returns a new
-  // array in the caller's original order; untouched sessions keep identical PR results by construction.
+  function allTimeRecords(history, exerciseId) {
+    const best = new Map();
+    for (const session of [...(history || [])].sort((a, b) => num(a.started) - num(b.started))) {
+      for (const record of recordCandidates(session, exerciseId)) {
+        const key = recordKey(record), old = best.get(key);
+        if (!old || record.value > old.value) best.set(key, record);
+      }
+    }
+    return [...best.values()];
+  }
+  // Saved history can contain the current session, or a later session during an edit. Neither
+  // belongs in its historical comparison. Equal timestamps have no evidenced order: compare
+  // that entire batch against strictly earlier sessions, just as rebuildPRs does below.
+  // Timestamp-free shadow/legacy callers deliberately retain their compare-all contract.
+  function priorHistory(history, session) {
+    return (history || []).filter(s => s !== session && !(session?.id && s.id === session.id)
+      && (!(num(session?.started) > 0) || !(num(s.started) > 0) || num(s.started) < num(session.started)));
+  }
+  function earnedRecords(history, session) {
+    const prior = new Map(allTimeRecords(priorHistory(history, session)).map(r => [recordKey(r), r]));
+    return recordCandidates(session).filter(record => {
+      const was = prior.get(recordKey(record));
+      // A new metric/load establishes a baseline, even when another metric already exists.
+      return was && record.value > was.value + 1e-9;
+    });
+  }
+  function groupedRecords(earned) {
+    const byExercise = new Map();
+    for (const record of earned) {
+      if (!byExercise.has(record.exerciseId)) byExercise.set(record.exerciseId, []);
+      byExercise.get(record.exerciseId).push(record);
+    }
+    const rank = { e1rm: 4, seconds: 3, weight: 2, reps: 1 };
+    return [...byExercise].map(([exerciseId, records]) => {
+      const source = [...records].sort((a, b) => rank[b.type] - rank[a.type])[0];
+      // The old receipt expects one result per exercise. Keep that API, but never stitch a
+      // heaviest-set load to the repetitions/e1RM/time earned by a different set.
+      return { exerciseId, weight: source.weight, reps: source.reps, type: source.type,
+        value: source.value, sessionId: source.sessionId, started: source.started,
+        exerciseIndex: source.exerciseIndex, setIndex: source.setIndex, set: { ...source.set },
+        ...(isTimed(exerciseId) ? { seconds: source.reps }
+          : source.weight > 0 && bodyweightFactor(exerciseId) == null
+            ? { estimated1RM: Math.round(estimatedOneRepMax(source.weight, source.reps) * 10) / 10 } : {}),
+        records };
+    });
+  }
+  function detectPRs(history, session) {
+    return groupedRecords(earnedRecords(history, session));
+  }
   function rebuildPRs(history) {
     const asc = [...(history || [])].sort((a, b) => num(a.started) - num(b.started));
-    const prior = [], map = new Map();
-    for (const session of asc) { map.set(session, detectPRs(prior, session)); prior.push(session); }
+    const ledger = new Map(), map = new Map();
+    // Compare a timestamp batch against the ledger BEFORE it, then update the standing bests.
+    // Array order or arbitrary ids must not invent chronology for coarse-timestamp imports.
+    // Undated legacy entries retain the existing prefix rebuild policy; their actual order is
+    // unknown, while timestamp-free detectPRs shadow callers intentionally compare all history.
+    for (let i = 0; i < asc.length;) {
+      const timestamp = num(asc[i].started), pending = [];
+      let end = i + 1;
+      if (timestamp > 0) while (end < asc.length && num(asc[end].started) === timestamp) end++;
+      for (; i < end; i++) {
+        const session = asc[i], candidates = recordCandidates(session), earned = [];
+        for (const record of candidates) {
+          const old = ledger.get(recordKey(record));
+          if (old && record.value > old.value + 1e-9) earned.push(record);
+          pending.push(record);
+        }
+        map.set(session, groupedRecords(earned));
+      }
+      for (const record of pending) {
+        const key = recordKey(record), old = ledger.get(key);
+        if (!old || record.value > old.value) ledger.set(key, record);
+      }
+    }
     return (history || []).map(session => ({ ...session, prs: map.get(session) }));
   }
+  function recordsInPeriod(history, window) {
+    const rebuilt = rebuildPRs(history);
+    return sessionsInPeriod(rebuilt, window).flatMap(session =>
+      (session.prs || []).flatMap(pr => pr.records || []));
+  }
+  function recordStatusForSet(exercise, set, past, records) {
+    if (!exercise || !evidenceSets(exercise).includes(set))
+      return { pr: false, betterThanLast: false, baseline: false, records: [] };
+    const id = exercise.exerciseId;
+    const comparable = past.filter(s => num(s.weight) === num(set.weight));
+    const betterThanLast = isTimed(id) || bodyweightFactor(id) != null || num(set.weight) === 0
+      ? comparable.length > 0 && num(set.reps) > Math.max(...comparable.map(s => num(s.reps)))
+      : past.some(s => num(s.weight) > 0) && estimatedOneRepMax(set.weight, set.reps)
+        > Math.max(...past.map(s => estimatedOneRepMax(s.weight, s.reps))) + 1e-9;
+    return { pr: records.length > 0, betterThanLast, baseline: !past.length, records };
+  }
+  function setRecordStatus(history, session, exerciseIndex, setIndex) {
+    const exercise = session?.exercises?.[exerciseIndex], set = exercise?.sets?.[setIndex];
+    const prior = priorHistory(history, session), past = previousPerformance(prior, exercise?.exerciseId);
+    const records = earnedRecords(prior, session).filter(r => r.exerciseIndex === exerciseIndex && r.setIndex === setIndex);
+    return recordStatusForSet(exercise, set, past, records);
+  }
+  // Logger renderers can read every row from this matrix with one historical ledger pass.
+  // No cache is retained, so editing old records or removing a current set cannot leave stale PRs.
+  function sessionRecordStatuses(history, session) {
+    const prior = priorHistory(history, session), records = earnedRecords(prior, session);
+    const past = new Map(), bySet = new Map();
+    for (const record of records) {
+      const key = `${record.exerciseIndex}:${record.setIndex}`;
+      if (!bySet.has(key)) bySet.set(key, []);
+      bySet.get(key).push(record);
+    }
+    return (session?.exercises || []).map((exercise, exerciseIndex) => {
+      if (!past.has(exercise.exerciseId)) past.set(exercise.exerciseId, previousPerformance(prior, exercise.exerciseId));
+      return (exercise.sets || []).map((set, setIndex) => recordStatusForSet(exercise, set,
+        past.get(exercise.exerciseId), bySet.get(`${exerciseIndex}:${setIndex}`) || []));
+    });
+  }
 
-  // Strength trend: one point per session containing completed sets of the exercise,
-  // oldest first - value is the best estimated 1RM that day.
+  // One actual observation per metric and load in each session. Mixed loaded/unweighted work
+  // stays on separate axes. No smoothing or three-session gate is applied to logged evidence.
   function exerciseTrend(history, exerciseId) {
     const points = [];
     for (const session of history || []) {
-      const sets = exerciseRows(session, exerciseId).flatMap(exercise => evidenceSets(exercise));
-      if (!sets.length) continue;
-      points.push({
-        started: num(session.started),
-        // Timed exercises trend on best hold seconds; e1rm stays 0 so no caller plots a phantom 1RM.
-        e1rm: isTimed(exerciseId) ? 0 : Math.round(Math.max(...sets.map(set => estimatedOneRepMax(set.weight, set.reps))) * 10) / 10,
-        seconds: isTimed(exerciseId) ? bestSecondsOf(sets) : 0,
-        topWeight: Math.max(...sets.map(set => num(set.weight)))
-      });
+      const sources = sourceSets(session, exerciseId), groups = new Map();
+      for (const source of sources) {
+        const metric = isTimed(exerciseId) ? 'seconds'
+          : source.weight > 0 && bodyweightFactor(exerciseId) == null ? 'e1rm' : 'reps';
+        const value = metric === 'e1rm' ? estimatedOneRepMax(source.weight, source.reps) : source.reps;
+        // Holds with different added loads are not a single comparable series.
+        const key = metric === 'e1rm' ? metric : `${metric}:${source.weight}`;
+        const old = groups.get(key);
+        if (!old || value > old.value) groups.set(key, { ...source, metric, value });
+      }
+      for (const point of groups.values()) points.push({ ...point,
+        value: point.metric === 'e1rm' ? Math.round(point.value * 10) / 10 : point.value,
+        e1rm: point.metric === 'e1rm' ? Math.round(point.value * 10) / 10 : 0,
+        seconds: point.metric === 'seconds' ? point.reps : 0,
+        topWeight: point.weight });
     }
     return points.sort((a, b) => a.started - b.started);
   }
-
-  // Sessions-per-exercise exposure count, for evidence-gating chart unlocks.
   function exerciseExposures(history) {
     const counts = {};
     for (const session of history || []) {
-      for (const exercise of session.exercises || []) {
-        if (doneSets(exercise).length) counts[exercise.exerciseId] = (counts[exercise.exerciseId] || 0) + 1;
-      }
+      const ids = new Set(sourceSets(session).map(source => source.exerciseId));
+      for (const id of ids) counts[id] = (counts[id] || 0) + 1;
     }
     return counts;
   }
@@ -321,11 +437,8 @@
 
   function prFeed(history, limit = 8) {
     const feed = [];
-    for (const session of history || []) {
-      for (const pr of Array.isArray(session.prs) ? session.prs : []) {
-        feed.push({ ...pr, started: num(session.started), sessionId: session.id });
-      }
-    }
+    for (const session of rebuildPRs(history))
+      for (const pr of session.prs || []) feed.push({ ...pr, started: num(session.started), sessionId: session.id });
     return feed.sort((a, b) => b.started - a.started).slice(0, limit);
   }
 
@@ -372,6 +485,110 @@
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - day);
     return date.getTime();
+  }
+
+  const localDateKey = timestamp => {
+    const d = new Date(timestamp);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  // Calendar operations deliberately use local dates, so a DST week may be 167 or 169 hours.
+  // The selected interval is always [start,end); elapsedEnd caps an open interval at now.
+  function periodWindow(kind = 'week', anchor = Date.now(), now = Date.now(), offset = 0) {
+    if (kind !== 'week' && kind !== 'month') throw new TypeError('Period must be week or month');
+    if (!Number.isFinite(Number(anchor)) || !Number.isFinite(Number(now))) throw new TypeError('Invalid period date');
+    const d = new Date(Number(anchor)); d.setHours(0, 0, 0, 0);
+    if (!Number.isFinite(d.getTime()) || !Number.isFinite(Number(offset))) throw new TypeError('Invalid period date');
+    if (kind === 'week') d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 7 * Math.trunc(offset));
+    else { d.setDate(1); d.setMonth(d.getMonth() + Math.trunc(offset)); }
+    const e = new Date(d);
+    if (kind === 'week') e.setDate(e.getDate() + 7); else e.setMonth(e.getMonth() + 1);
+    const start = d.getTime(), end = e.getTime(), clock = Number(now);
+    return { kind, start, end, now: clock, elapsedEnd: Math.min(end, Math.max(start, clock)),
+      partial: clock < end, current: start <= clock && clock < end,
+      startKey: localDateKey(start), endKey: localDateKey(end) };
+  }
+  function shiftPeriod(window, offset, now = window.now ?? Date.now()) {
+    return periodWindow(window.kind, window.start, now, offset);
+  }
+  const workingSessionCounts = session => (session?.exercises || []).some(exercise => evidenceSets(exercise).length);
+  function sessionsInPeriod(history, window) {
+    const end = Math.min(window.end, window.elapsedEnd ?? window.end);
+    return (history || []).filter(session => Number.isFinite(Number(session?.started))
+      && Number(session.started) >= window.start && Number(session.started) < end && workingSessionCounts(session))
+      .sort((a, b) => num(a.started) - num(b.started));
+  }
+  // Preserve the existing bodyweight model, while all numbers in Progress count working sets
+  // only. Missing body mass is reported as reps rather than an invented kilogram contribution.
+  function workingWork(session) {
+    let sets = 0, externalVolume = 0, bodyweightVolume = 0, seconds = 0, unweightedReps = 0;
+    let needsBodyweight = false;
+    const bw = num(BW_FOR_SESSION(session));
+    for (const exercise of session?.exercises || []) for (const set of evidenceSets(exercise)) {
+      sets++;
+      const id = exercise.exerciseId, reps = num(set.reps), weight = num(set.weight);
+      if (isTimed(id)) { seconds += reps; continue; }
+      externalVolume += weight * reps;
+      const factor = bodyweightFactor(id);
+      if (factor != null && bw > 0) bodyweightVolume += bw * factor * reps;
+      else {
+        if (factor != null && !(bw > 0)) needsBodyweight = true;
+        if (weight === 0) unweightedReps += reps;
+      }
+    }
+    return { sets, volume: externalVolume + bodyweightVolume, externalVolume, bodyweightVolume,
+      seconds, unweightedReps, needsBodyweight };
+  }
+  function measurePeriod(history, window) {
+    const sessions = sessionsInPeriod(history, window), days = [];
+    for (let d = new Date(window.start); d.getTime() < window.end; d.setDate(d.getDate() + 1))
+      days.push({ key: localDateKey(d.getTime()), t: d.getTime(), sessions: [], sessionCount: 0,
+        sets: 0, completedSets: 0, volume: 0, minutes: 0, durationUnknown: 0 });
+    const byDay = new Map(days.map(day => [day.key, day]));
+    const total = { sessions, sessionCount: sessions.length, workouts: sessions.length,
+      sets: 0, completedSets: 0, volume: 0, externalVolume: 0, bodyweightVolume: 0,
+      seconds: 0, unweightedReps: 0, minutes: 0, durationUnknown: 0, needsBodyweight: false, days };
+    for (const session of sessions) {
+      const work = workingWork(session), day = byDay.get(localDateKey(session.started));
+      const read = num(session.finished) > num(session.started) ? sessionMinutes(session) : { minutes: null };
+      for (const key of ['sets', 'volume', 'externalVolume', 'bodyweightVolume', 'seconds', 'unweightedReps']) total[key] += work[key];
+      total.needsBodyweight ||= work.needsBodyweight;
+      total.minutes += read.minutes ?? 0; total.durationUnknown += read.minutes == null ? 1 : 0;
+      day.sessions.push(session); day.sessionCount++; day.sets += work.sets;
+      day.completedSets += work.sets; day.volume += work.volume;
+      day.minutes += read.minutes ?? 0; day.durationUnknown += read.minutes == null ? 1 : 0;
+    }
+    total.completedSets = total.sets;
+    return total;
+  }
+  function periodStats(history, window) {
+    const total = measurePeriod(history, window), previousWindow = shiftPeriod(window, -1);
+    const previous = measurePeriod(history, previousWindow);
+    // A partial calendar month has no unambiguous elapsed counterpart in a shorter month.
+    // Suppress deltas for every unfinished period consistently, including weeks.
+    const comparison = !window.partial && previous.sessionCount > 0 ? {
+      sessions: total.sessionCount - previous.sessionCount, workouts: total.workouts - previous.workouts,
+      sets: total.sets - previous.sets, volume: total.volume - previous.volume,
+      minutes: total.durationUnknown || previous.durationUnknown ? null : total.minutes - previous.minutes
+    } : null;
+    return { ...total, window, previous, previousWindow, comparison,
+      comparisonReason: window.partial ? 'Period in progress' : previous.sessionCount ? null : 'No previous data' };
+  }
+  function muscleVolumeForPeriod(history, getMuscles, window) {
+    const out = {};
+    const bump = (muscle, key, id, n) => {
+      if (!muscle) return;
+      const slot = out[muscle] || (out[muscle] = { direct: 0, assisting: 0, by: {} });
+      slot[key] += n;
+      const at = slot.by[id] || (slot.by[id] = { direct: 0, assisting: 0 }); at[key] += n;
+    };
+    for (const session of sessionsInPeriod(history, window)) for (const exercise of session.exercises || []) {
+      const n = evidenceSets(exercise).length, muscles = getMuscles(exercise.exerciseId);
+      if (!n || !muscles?.primary) continue;
+      bump(muscles.primary, 'direct', exercise.exerciseId, n);
+      for (const muscle of new Set(muscles.all || []))
+        if (muscle !== muscles.primary) bump(muscle, 'assisting', exercise.exerciseId, n);
+    }
+    return out;
   }
 
   function weeklyStats(history, now = Date.now()) {
@@ -818,34 +1035,42 @@
     return out;
   }
 
-  // Weekly recap (Wave 2): this local week vs last, with per-muscle direct-set deltas + pain delta.
+  // Legacy weekly recap compares equivalent LOCAL elapsed days and time, never Wednesday
+  // against all of last week. Progress uses periodStats and suppresses partial-period deltas.
   function weeklyRecap(history, getMuscles, now = Date.now()) {
-    const thisStart = startOfLocalWeek(now);
-    const lastEnd = thisStart - 1, lastStart = startOfLocalWeek(lastEnd);
-    const inWindow = (start, end) => (history || []).filter(s => num(s.started) >= start && num(s.started) <= end);
-    const measure = sessions => {
-      let sets = 0, volume = 0, prs = 0, preSum = 0, preCount = 0;
-      for (const s of sessions) {
-        sets += summarizeSession(s).completedSets;
-        volume += calculateVolume(s);
-        prs += Array.isArray(s.prs) ? s.prs.length : num(s.prs);
-        const pre = s.checkin ? s.checkin.pre : null;
-        if (pre != null) { preSum += num(pre); preCount += 1; }
+    const currentWindow = periodWindow('week', now, now);
+    const previousWindow = shiftPeriod(currentWindow, -1);
+    const date = new Date(now), previousEnd = new Date(previousWindow.start);
+    previousEnd.setDate(previousEnd.getDate() + ((date.getDay() + 6) % 7));
+    previousEnd.setHours(date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds());
+    previousWindow.elapsedEnd = previousEnd.getTime();
+    const rebuilt = rebuildPRs(history);
+    const measure = window => {
+      const measured = measurePeriod(rebuilt, window);
+      let prs = 0, preSum = 0, preCount = 0;
+      for (const session of measured.sessions) {
+        prs += session.prs.length;
+        const pre = session.checkin?.pre;
+        if (pre != null) { preSum += num(pre); preCount++; }
       }
-      return { sets, volume: Math.round(volume), workouts: sessions.length, prs, preAvg: preCount ? preSum / preCount : null };
+      return { ...measured, prs, preAvg: preCount ? preSum / preCount : null };
     };
-    const cur = measure(inWindow(thisStart, now)), prev = measure(inWindow(lastStart, lastEnd));
-    const curMv = muscleVolume(history, getMuscles, now), lastMv = muscleVolume(history, getMuscles, lastEnd);
+    const cur = measure(currentWindow), prev = measure(previousWindow);
+    const canCompare = prev.sessionCount > 0;
+    const curMv = muscleVolumeForPeriod(history, getMuscles, currentWindow);
+    const lastMv = muscleVolumeForPeriod(history, getMuscles, previousWindow);
     const muscles = new Set([...Object.keys(curMv), ...Object.keys(lastMv)]);
-    const deltas = [...muscles].map(m => ({ muscle: m, delta: (curMv[m]?.direct || 0) - (lastMv[m]?.direct || 0) }))
-      .filter(d => d.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 2);
-    const painDelta = (cur.preAvg != null && prev.preAvg != null) ? Math.round((cur.preAvg - prev.preAvg) * 10) / 10 : null;
+    const deltas = canCompare ? [...muscles].map(m => ({ muscle: m, delta: (curMv[m]?.direct || 0) - (lastMv[m]?.direct || 0) }))
+      .filter(d => d.delta !== 0).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 2) : [];
+    const painDelta = canCompare && cur.preAvg != null && prev.preAvg != null
+      ? Math.round((cur.preAvg - prev.preAvg) * 10) / 10 : null;
     return {
-      sets: cur.sets, setsDelta: cur.sets - prev.sets,
-      volume: cur.volume, volumeDelta: cur.volume - prev.volume,
-      workouts: cur.workouts, workoutsDelta: cur.workouts - prev.workouts,
-      prs: cur.prs, prsDelta: cur.prs - prev.prs,
-      topMuscleDeltas: deltas, painDelta
+      sets: cur.sets, setsDelta: canCompare ? cur.sets - prev.sets : null,
+      volume: Math.round(cur.volume), volumeDelta: canCompare ? Math.round(cur.volume - prev.volume) : null,
+      workouts: cur.workouts, workoutsDelta: canCompare ? cur.workouts - prev.workouts : null,
+      prs: cur.prs, prsDelta: canCompare ? cur.prs - prev.prs : null,
+      topMuscleDeltas: deltas, painDelta,
+      comparisonLabel: canCompare ? 'Same point last week' : 'No previous data'
     };
   }
 
@@ -1324,7 +1549,9 @@
     return { rows: ranked.slice(0, Math.max(0, limit)), total: rows.length, all: ranked };
   }
 
-  return { muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
+  return { periodWindow, shiftPeriod, localDateKey, sessionsInPeriod, periodStats, muscleVolumeForPeriod,
+    allTimeRecords, recordsInPeriod, setRecordStatus, sessionRecordStatuses, workingWork,
+    muscleDose, DEFAULT_MUSCLE_RANGE, warmupSets, volumeCoverage, loadGaps, openingLoads, trainingSpanMs, sessionMinutes, MAX_PLAUSIBLE_SESSION_MS,
     setBodyweightModel, bodyweightFactor, effectiveLoad, sessionWork, bodyweightAsOf, sessionsAwaitingBodyweight,
     goalProgress, goalCurrent, normalizeGoals, newlyAchieved, weekStreak, latestBodyweight, moveExercise,
     setTimedExercises, isTimed, doneSets, evidenceSets, sessionCounts, rebuildPRs, calculateVolume, createSession, workoutScheme, previousPerformance, estimatedOneRepMax, exerciseBest, detectPRs, sessionElapsedMs, summarizeSession, routinesDoneThisWeek, weeklyStats, migrateLegacy, formatDuration, ringProgress, normalizeActivityGoals, activityMessage, setCompletionState, validateBackup, exerciseTrend, exerciseExposures, prFeed, lastConfirmedExposure, matchesExercise, searchScore, filterExercises, quickPicks, coachEligible, carryForward, blockDoneTick, showAdoptAction, stepValue, shouldBuzz, muscleVolume, planVolume, plateBreakdown, muscleVolumeWeeks, confirmedBasis, nextTarget, painGate, sideBalance, weeklyRecap, recapInsights, repRecords, recentSessionsFor, bodyweightTrend, caliProgress, sessionPatterns, prepFor, weeklyVolumes, deloadCheck, sessionVerdict };

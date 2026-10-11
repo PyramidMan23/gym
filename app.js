@@ -148,7 +148,7 @@ function contextLine(){
     return `${remaining} set${remaining===1?'':'s'} left.`;
   }
   if(!state.history.length)return 'First session starts the record.';
-  const last=state.history[0],prs=last.prs?.length??last.prs??0;
+  const last=state.history[0],prs=Core.detectPRs(state.history,last).length;
   if(prs)return `Last session set ${prs} PR${prs===1?'':'s'}.`;
   const weekly=Core.weeklyStats(state.history);
   return `Last session ${formatDate(last.started)}. ${weekly.workouts} this week.`;
@@ -581,7 +581,7 @@ function routineStripCard(routine,done){
 // v2: the last session is a row in the Today grouped list. Keeps the .history-card class and the
 // openHistory() contract (browser-flow selects '#recentSession .history-card'); only the shell changed.
 function historyCard(session){
-  const summary=Core.summarizeSession(session),prs=session.prs?.length??session.prs??0;
+  const summary=Core.summarizeSession(session),prs=Core.detectPRs(state.history,session).length;
   const meta=[`${summary.durationMinutes} min`,`${summary.completedSets} set${summary.completedSets===1?'':'s'}`];
   if(summary.volume>0)meta.push(`${compact(summary.volume)} kg`);
   return `<button class="history-card group-row" onclick="openHistory('${session.id}')"><span class="row-glyph row-glyph-amber" aria-hidden="true">${prs?'PR':'✓'}</span><span class="row-text"><strong>${esc(session.name)}</strong><small>${formatDate(session.started)} · ${esc(meta.join(' · '))}${prs?` · ${prs} PR${prs===1?'':'s'}`:''}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;
@@ -817,7 +817,8 @@ function renderWorkouts(){
   const cards=list.map(w=>`<article class="workout-card group-row"><button class="workout-open" onclick="openWorkoutDetail('${esc(w.id)}')" aria-label="${esc(w.name)} - see the exercises"><strong>${esc(w.name)}</strong><small class="workout-meta">${esc(String(w.goal).toLowerCase())} · ${w.mins} min · ${w.exercises.length} lifts</small></button><button class="workout-start" onclick="startWorkout('${esc(w.id)}')" aria-label="Start ${esc(w.name)} now"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button></article>`).join('');
   const more=shown.length>cap?`<button class="list-more" onclick="expandWorkouts()">Show all ${shown.length} sessions</button>`
     :(workoutsExpanded&&shown.length>TRAIN_LIST_CAP?`<button class="list-more" onclick="collapseWorkouts()">Show fewer</button>`:'');
-  document.getElementById('workoutList').innerHTML=shown.length?cards+more:`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions match</strong><small>Clear the filter to see them all.</small></span></div>`;
+  const quick=`<article class="workout-card group-row quick-workout-row"><button class="workout-open" onclick="startQuickWorkout()"><strong>Quick workout</strong><small class="workout-meta">Start empty. Add exercises as you go.</small></button><button class="workout-start" onclick="startQuickWorkout()" aria-label="Start Quick workout"><span aria-hidden="true">＋</span></button></article>`;
+  document.getElementById('workoutList').innerHTML=quick+(shown.length?cards+more:`<div class="group-row group-row-empty"><span class="row-text"><strong>No sessions match</strong><small>Clear the filter to see them all.</small></span></div>`);
   const count=document.getElementById('workoutCount');
   // Count what is ON SCREEN. It read "16 of 16" while showing five, which is the kind of small lie
   // that makes every other number on the page suspect.
@@ -876,12 +877,17 @@ function startWorkout(id,variant){
 // closeSheet() is a no-op when nothing is open (dismissDialog guards on .open), so the one call
 // covers both the Train card and the routine preview sheet without a second entry point.
 function startRoutine(id){ const routine=state.routines.find(r=>r.id===id);if(!routine)return;closeSheet();beginSession(routine); }
-function startQuickWorkout(){ beginSession({id:null,name:'Quick workout',exerciseIds:[]}); }
+function startQuickWorkout(){
+  const running=state.activeSession;
+  beginSession({id:null,name:'Quick workout',exerciseIds:[]});
+  if(!running&&state.activeSession)openExercisePicker('workout');
+}
 function beginSession(routine){
   forcedOpen=new Set(); // reopened-card state never leaks between sessions
   if(state.activeSession){showToast('You already have a workout running');navigate('workout');return;}
   pickerFilterState=newFilterState(); // each workout's add-exercise flow starts clean, then persists across opens
   state.activeSession=Core.createSession(routine);
+  clearSetEditing();
   state.activeSession.checkin={pre:null,post:null}; // three-touch safety loop (council 2026-07-18)
   seedOpeningLoads(state.activeSession);
   saveState();navigate('workout');
@@ -1010,6 +1016,15 @@ function renderLibraryScope(){
 }
 function renderCatalogueQuick(ctx){
   const host=catEl(ctx,'quick'); if(!host)return;
+  if(ctx==='picker'){
+    const recent=Core.quickPicks([],state.history,id=>!!exerciseById(id),8);
+    const favourites=(state.favourites||[]).filter(id=>exerciseById(id));
+    const choices=pickerQuickScope==='favourites'?favourites:recent;
+    const buttons=[['recent','Recent'],['favourites','Favourites']].map(([id,label])=>`<button class="filter-chip ${pickerQuickScope===id?'active':''}" aria-pressed="${pickerQuickScope===id}" onclick="setPickerQuickScope('${id}')">${label}</button>`).join('');
+    const rows=choices.slice(0,8).map(id=>`<button class="quick-chip" data-id="${esc(id)}" aria-label="Add ${esc(exerciseById(id).name)} to workout">${pickerQuickScope==='favourites'?'<span class="quick-star" aria-hidden="true">★</span>':''}<span>${esc(exerciseById(id).name)}</span></button>`).join('');
+    host.innerHTML=`<div class="picker-quick-tabs" role="group" aria-label="Quick exercise choices">${buttons}</div>${rows?`<div class="quick-row">${rows}</div>`:`<p class="picker-quick-empty">${pickerQuickScope==='favourites'?'Star an exercise to keep it here.':'Your recently logged exercises will appear here.'}</p>`}`;
+    return;
+  }
   const ids=Core.quickPicks(state.favourites,state.history,id=>!!exerciseById(id),8);
   if(!ids.length){host.innerHTML='';return;}
   const favSet=new Set(state.favourites||[]);
@@ -1057,7 +1072,7 @@ function renderCatalogueList(ctx,animate){
   host._catKey=key;
   const empty=(ctx==='library'&&libraryScope==='yours'&&!fs.query)
     ? `<div class="empty-card card"><strong>Nothing here yet</strong>Exercises you log, star or put in a routine show up here. <button class="text-button" onclick="setLibraryScope('all')">Browse all ${allExercises().length}</button></div>`
-    : `<div class="empty-card card"><strong>No exercises match</strong>Nothing fits this search and filter set. <button class="text-button" onclick="resetCatalogue('${ctx}')">Clear filters</button></div>`;
+    : `<div class="empty-card card"><strong>No exercises match</strong>Try another name or browse the full library. <button class="text-button" onclick="browseAllCatalogue('${ctx}')">Browse all exercises</button></div>`;
   host.innerHTML=list.length?list.map(e=>exerciseRow(e,fs.muscle)).join(''):empty;
   if(animate&&!REDUCED_MOTION){host.style.animation='none';void host.offsetWidth;host.style.animation='catFade .18s var(--ease)';}
 }
@@ -1112,6 +1127,9 @@ function toggleFavourite(id,ctx,starEl){
   showToast(willFav?'Added to favourites':'Removed from favourites');
 }
 function resetCatalogue(ctx){if(ctx==='library')libraryFilter=newFilterState();else pickerFilterState=newFilterState();renderCatalogue(ctx);}
+function browseAllCatalogue(ctx){if(ctx==='library')libraryScope='all';resetCatalogue(ctx);}
+let pickerQuickScope='recent';
+function setPickerQuickScope(scope){pickerQuickScope=scope;renderCatalogueQuick('picker');}
 // Secondary facets (pattern / equipment / family) live in their own dialog so the muscle row stays a single fast strip.
 // Facet vocab is derived from the catalogue itself (custom exercises carry no tags → they contribute none, and are never crashed by a facet).
 function distinctTags(getter){const s=new Set();for(const e of allExercises())for(const v of (getter(e)||[]))s.add(v);return [...s].sort();}
@@ -1141,32 +1159,71 @@ function quickExercise(id){
 }
 
 function renderProgress(){
-  const weekly=Core.weeklyStats(state.history),lifetimeVolume=state.history.reduce((sum,s)=>sum+Core.calculateVolume(s),0);
-  // The headline was a static "Getting stronger." even when every recap number was down - a
-  // billion-dollar app never asserts what the data contradicts (council 2026-07-28). Derived from
-  // the same recap the cards below show, so the page can never disagree with itself.
-  // The prototype titles this screen with a plain "Progress" and lets the modules speak, so the
-  // derived mood headline is no longer written over it. The recap it was based on is unchanged and
-  // still rendered by renderWeeklyRecap() below, where the numbers actually live.
-  // A lifter who only trains bodyweight has a real lifetime of work and zero kilos - count their
-  // sets rather than showing them a proud "0".
-  const lifetimeSets=state.history.reduce((sum,s)=>sum+Core.summarizeSession(s).completedSets,0);
-  const third=lifetimeVolume>0?{n:Math.round(lifetimeVolume),fmt:' data-fmt="compact"',label:'LIFETIME KG'}:{n:lifetimeSets,fmt:'',label:'LIFETIME SETS'};
-  document.getElementById('progressStats').innerHTML=`<div class="metric"><strong data-count="${weekly.workouts}">0</strong><span>WORKOUTS THIS WEEK</span></div><div class="metric"><strong data-count="${state.history.length}">0</strong><span>TOTAL SESSIONS</span></div><div class="metric"><strong data-count="${third.n}"${third.fmt}>0</strong><span>${third.label}</span></div>`;
-  animateNumbers(document.getElementById('progressStats'));
-  renderGoals();
-  renderWeeklyRecap();
-  renderPainTrend();
-  renderStrength();
-  renderMuscleVolume();
-  renderBalance();
-  renderBodyweight();
-  renderWeekChart();
-  renderPrFeed();
-  renderCalisthenics();
-  renderWeekPane();
-  document.getElementById('historyList').innerHTML=state.history.length?state.history.map(historyCard).join(''):`<div class="group-row group-row-empty"><span class="row-text"><strong>Your progress starts at one</strong><small>Finish a workout and it will appear here.</small></span></div>`;
+  renderProgressPeriod();
+  if(progressTab==='week'){renderWeekPane();renderGoals();}
+  else if(progressTab==='trends'){renderStrength();renderBalance();renderBodyweight();renderCalisthenics();}
+  else{const rebuilt=Core.rebuildPRs(state.history);renderPrFeed(rebuilt);renderProgressHistory(rebuilt);}
   renderProgressSegments();
+}
+// One calendar window feeds every period surface. These controls are view state only.
+let progressKind='week',progressAnchor=null,progressActivity='sets',progressDay=null;
+let progressHistoryAll=false,progressHistoryQuery='',strengthMetric=null,strengthPoint=null,bodyweightPoint=null;
+function progressWindow(){return Core.periodWindow(progressKind,progressAnchor??Date.now());}
+function progressSessions(){return Core.sessionsInPeriod(state.history,progressWindow());}
+function progressDate(t,full=false){return new Intl.DateTimeFormat(undefined,full?{weekday:'short',day:'numeric',month:'short',year:'numeric'}:{day:'numeric',month:'short'}).format(new Date(t));}
+function progressNum(v){return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v)||0);}
+function progressWorkDescription(s){return s.volume>0?`${progressNum(s.volume)} kg`:s.seconds>0||s.unweightedReps>0?[s.seconds>0?`${progressNum(s.seconds)} s of holds`:'',s.unweightedReps>0?`${progressNum(s.unweightedReps)} reps`:''].filter(Boolean).join(' · '):'No load measured';}
+function progressActivityDescription(value){return progressActivity==='volume'?`${progressNum(value)} kg`:progressActivity==='sessions'?`${value} session${value===1?'':'s'}`:`${value} working set${value===1?'':'s'}`;}
+function progressEmpty(text,action=''){return `<div class="progress-empty"><p>${esc(text)}</p>${action}</div>`;}
+function progressOpenDetails(host){return [...host.querySelectorAll('details[open]')].map(d=>d.querySelector('summary')?.textContent.trim());}
+function restoreProgressDetails(host,labels){host.querySelectorAll('details').forEach(d=>{if(labels.includes(d.querySelector('summary')?.textContent.trim()))d.open=true;});}
+function progressSessionButton(id,label){return `<button class="text-button" onclick="openHistory(${esc(JSON.stringify(String(id)))})">${esc(label||'Open workout')} <span aria-hidden="true">›</span></button>`;}
+function renderProgressPeriod(){
+  const w=progressWindow(),last=new Date(w.end);last.setDate(last.getDate()-1);
+  const year=new Date(w.start).getFullYear(),endYear=last.getFullYear(),years=year===endYear?String(year):`${year} / ${endYear}`;
+  document.getElementById('progressPeriod').innerHTML=`<div class="progress-period-kind" role="group" aria-label="Period length">${['week','month'].map(k=>`<button aria-pressed="${progressKind===k}" class="${progressKind===k?'on':''}" onclick="setProgressPeriod('${k}')">${k==='week'?'Week':'Month'}</button>`).join('')}</div><div class="progress-period-range"><button class="progress-arrow" aria-label="Previous ${progressKind}" onclick="moveProgressPeriod(-1)">‹</button><div><strong>${esc(progressDate(w.start))} – ${esc(progressDate(last.getTime()))}</strong><small>${years}${w.partial?' · so far':''}</small></div><button class="progress-arrow" aria-label="Next ${progressKind}" onclick="moveProgressPeriod(1)" ${w.current?'disabled':''}>›</button></div><button class="text-button progress-current" onclick="currentProgressPeriod()" ${w.current?'disabled':''}>This ${progressKind}</button>`;
+}
+function setProgressPeriod(kind){if(!['week','month'].includes(kind))return;progressKind=kind;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
+function moveProgressPeriod(n){progressAnchor=Core.shiftPeriod(progressWindow(),n).start;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
+function currentProgressPeriod(){progressAnchor=null;progressDay=null;strengthPoint=null;bodyweightPoint=null;renderProgress();}
+function activityValue(day){return progressActivity==='sessions'?day.sessionCount:day[progressActivity];}
+function activityUnit(){return progressActivity==='volume'?'kg':progressActivity==='sessions'?'sessions':'working sets';}
+function progressSourceRows(sessions,w){return sessions?.length?sessions.map(session=>{const summary=Core.periodStats([session],w);return `<div class="progress-source"><span><strong>${esc(session.name||'Workout')}</strong><small>${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}</small></span>${progressSessionButton(session.id)}</div>`;}).join(''):'<p class="progress-note">No sessions on this date.</p>';}
+function progressDayScrubber(days){return progressKind==='month'?`<label class="progress-scrub"><span>Inspect day ${Math.max(0,days.findIndex(d=>d.key===progressDay))+1} of ${days.length}</span><input type="range" min="0" max="${days.length-1}" step="1" value="${Math.max(0,days.findIndex(d=>d.key===progressDay))}" aria-label="Inspect day of selected month" oninput="scrubProgressDay(this)" onchange="selectProgressDay(Core.periodStats(state.history,progressWindow()).days[Number(this.value)].key)"></label>`:'';}
+function scrubProgressDay(input){
+  const w=progressWindow(),days=Core.periodStats(state.history,w).days,selected=days[Number(input.value)];if(!selected)return;
+  progressDay=selected.key;const host=input.closest('.progress-activity');
+  input.previousElementSibling.textContent=`Inspect day ${Number(input.value)+1} of ${days.length}`;
+  host.querySelector('.progress-readout').innerHTML=`<strong>${esc(progressDate(selected.t,true))}</strong><span>${progressActivityDescription(activityValue(selected))}</span>`;
+  host.querySelector('.progress-sources').innerHTML=progressSourceRows(selected.sessions,w);
+  host.querySelectorAll('[data-progress-day]').forEach(mark=>mark.classList.toggle('selected',mark.dataset.progressDay===progressDay));
+}
+function setProgressActivity(metric){progressActivity=metric;renderWeekPane();}
+function selectProgressDay(key,restoreFocus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#weekPane input[type="range"]');progressDay=key;renderWeekPane();const button=document.querySelector(tableFocus?`[data-progress-day-row="${key}"]`:`[data-progress-day="${key}"]`);if(restoreFocus||tableFocus)button?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#weekPane input[type="range"]')?.focus({preventScroll:true});if(restoreFocus||tableFocus)button?.scrollIntoView({block:'nearest',inline:'nearest'});}
+function progressDayKeys(event,index){
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();const days=Core.periodStats(state.history,progressWindow()).days;
+  const next=event.key==='Home'?0:event.key==='End'?days.length-1:Math.max(0,Math.min(days.length-1,index+(event.key==='ArrowRight'?1:-1)));
+  selectProgressDay(days[next].key,true);
+}
+function renderWeekPane(){
+  const host=document.getElementById('weekPane');if(!host)return;
+  const openDetails=progressOpenDetails(host);
+  const w=progressWindow(),s=Core.periodStats(state.history,w),days=s.days;
+  if(!days.some(d=>d.key===progressDay))progressDay=(days.findLast(d=>d.sessionCount>0)||days[0])?.key;
+  const selected=days.find(d=>d.key===progressDay),max=Math.max(1,...days.map(activityValue));
+  const stat=(label,value,unit='')=>`<div><span>${label}</span><strong>${progressNum(value)}${unit?`<small>${unit}</small>`:''}</strong></div>`;
+  const previous=s.previous,comparison=w.partial?'Period in progress. Comparisons appear after it closes.':!previous?.sessionCount?'No previous data':`Previous ${w.kind}: ${previous.sessionCount} sessions · ${previous.sets} working sets · ${progressNum(previous.volume)} kg`;
+  const volumeText=`Load × reps. ${progressNum(s.externalVolume)} kg external load${s.bodyweightVolume>0?` + ${progressNum(s.bodyweightVolume)} kg estimated bodyweight contribution`:''}.`;
+  const separate=[s.seconds>0?`${progressNum(s.seconds)} seconds of holds`:null,s.unweightedReps>0?`${progressNum(s.unweightedReps)} reps without a measured load`:null].filter(Boolean).join(' · ');
+  const bars=days.map((d,i)=>{const bar=`<span class="progress-bar-space"><i style="height:${activityValue(d)>0?Math.max(2,activityValue(d)/max*100):0}%"></i></span>`,date=new Date(d.t).getDate();return progressKind==='month'?`<span class="progress-month-day${d.key===progressDay?' selected':''}" data-progress-day="${d.key}" aria-hidden="true">${bar}<small>${i===0||i===days.length-1||(date%5===0&&i<days.length-3)?date:''}</small></span>`:`<button class="progress-day${d.key===progressDay?' selected':''}" data-progress-day="${d.key}" aria-pressed="${d.key===progressDay}" aria-label="${esc(progressDate(d.t,true))}: ${progressActivityDescription(activityValue(d))}" onclick="selectProgressDay('${d.key}')" onkeydown="progressDayKeys(event,${i})">${bar}<small>${date}</small></button>`;}).join('');
+  const sourceRows=progressSourceRows(selected?.sessions,w);
+  const table=days.map(d=>`<tr${d.key===progressDay?' class="selected"':''}><th scope="row"><button data-progress-day-row="${d.key}" onclick="selectProgressDay('${d.key}',false,true)">${esc(progressDate(d.t))}</button></th><td>${d.sessionCount}</td><td>${d.sets}</td><td>${progressNum(d.volume)}</td></tr>`).join('');
+  const ledger=Core.muscleVolumeForPeriod(state.history,muscleLookup,w),muscles=Object.entries(ledger).filter(([,v])=>v.direct||v.assisting).sort((a,b)=>b[1].direct-a[1].direct||b[1].assisting-a[1].assisting);
+  const muscleMax=Math.max(1,...muscles.map(([,v])=>v.direct));
+  const muscleRows=muscles.map(([name,v])=>`<details class="progress-muscle"><summary><span>${esc(name)}</span><span class="progress-muscle-bar"><i style="width:${v.direct/muscleMax*100}%"></i></span><strong>${v.direct}<small> direct</small></strong></summary><p class="progress-note">${v.direct} direct sets · ${v.assisting} assisting exposures. These ledgers are separate.</p>${Object.entries(v.by).map(([id,counts])=>`<div class="progress-contribution"><span>${esc(exerciseById(id)?.name||id)}</span><span>${counts.direct||0} direct · ${counts.assisting||0} assisting</span></div>`).join('')}</details>`).join('');
+  host.innerHTML=`<div class="progress-summary group">${stat('Sessions',s.sessionCount)}${stat('Working sets',s.sets)}${stat('Training volume',s.volume,'kg')}${stat('Logged duration',s.minutes,'min')}</div><p class="progress-note">${esc(comparison)}</p><details class="progress-details progress-volume-note"><summary>Volume = load × reps${separate?' · holds and reps counted separately':''}</summary><p class="progress-note">${esc(volumeText)}${separate?`<br>${esc(separate)}.`:''}${s.durationUnknown?'<br>Some sessions have no recorded duration.':''}</p></details><div class="section-heading"><div><h2>Daily activity</h2></div></div><div class="progress-metrics segmented" role="group" aria-label="Activity metric">${[['sets','Sets'],['sessions','Sessions'],['volume','Volume']].map(([key,label])=>`<button class="seg-button${progressActivity===key?' on':''}" aria-pressed="${progressActivity===key}" onclick="setProgressActivity('${key}')">${label}</button>`).join('')}</div><div class="progress-activity card"><div class="progress-chart-caption"><span>${activityUnit()}</span><span>0 to ${progressNum(max)}</span></div><div class="progress-bars${progressKind==='month'?' month':''}" role="group" aria-label="Daily ${activityUnit()}, select a date">${bars}</div>${progressDayScrubber(days)}<div class="progress-readout" aria-live="polite"><strong>${selected?esc(progressDate(selected.t,true)):''}</strong><span>${progressActivityDescription(selected?activityValue(selected):0)}</span></div><div class="progress-sources">${sourceRows}</div><details class="progress-details"><summary>Daily data table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Daily totals for the selected period</caption><thead><tr><th>Date</th><th>Sessions</th><th>Sets</th><th>kg</th></tr></thead><tbody>${table}</tbody><tfoot><tr><th>Total</th><td>${s.sessionCount}</td><td>${s.sets}</td><td>${progressNum(s.volume)}</td></tr></tfoot></table></div></details></div><div class="section-heading"><div><p class="kicker">WORKING SETS</p><h2>Sets per muscle</h2></div></div><div class="group progress-muscles">${muscleRows||progressEmpty('No completed working sets in this period.')}</div>`;
+  restoreProgressDetails(host,openDetails);
 }
 // ---- Progress > WEEK, ported from the prototype ------------------------------------------------
 // Four blocks, in this order: volume hero with a week-on-week delta, an area chart of recent weeks,
@@ -1177,7 +1234,7 @@ function deltaChip(n,invert){
   const up=n>0, good=invert?!up:up;
   return `<span class="wk-delta ${good?'up':'down'}">${up?'\u25B2':'\u25BC'} ${Math.abs(Math.round(n))}</span>`;
 }
-function renderWeekPane(){
+function renderWeekPaneLegacy(){
   const host=document.getElementById('weekPane');if(!host)return;
   const rc=Core.weeklyRecap(state.history,muscleLookup);
   const weeks=Core.weeklyVolumes(state.history,8);
@@ -1238,7 +1295,7 @@ function renderWeekPane(){
 // ---- Progress segments (v2) -----------------------------------------------------------------
 // The SAME modules, one intent visible at a time instead of a 3000px scroll. Nothing is rebuilt or
 // re-ordered: each group is hidden or shown, so DOM order inside a segment is exactly what it was.
-const PROGRESS_TABS=[['week','Week'],['trends','Trends'],['records','Records']];
+const PROGRESS_TABS=[['week','Overview'],['trends','Trends'],['records','Records']];
 let progressTab='week';
 function renderProgressSegments(){
   const host=document.getElementById('progressSegments');if(!host)return;
@@ -1247,7 +1304,7 @@ function renderProgressSegments(){
 }
 function setProgressTab(id){
   if(!PROGRESS_TABS.some(([t])=>t===id))return;
-  progressTab=id;renderProgressSegments();
+  progressTab=id;renderProgress();
   const main=document.getElementById('main');if(main)main.scrollTop=0;
 }
 // ---- Calisthenics ledger (v2 Progress > Trends) ----------------------------------------------
@@ -1259,7 +1316,7 @@ function caliIds(){
   for(const id of CALI_EXTRA_IDS)if(exerciseById(id))ids.add(id);
   return [...ids];
 }
-function renderCalisthenics(){
+function renderCalisthenicsLegacy(){
   const board=document.getElementById('caliBoard');if(!board)return;
   const deltaEl=document.getElementById('caliDelta');
   const r=Core.caliProgress(state.history,caliIds(),{step:Number(state.preferences.weightStep)||2.5});
@@ -1315,6 +1372,19 @@ function renderCalisthenics(){
   }
   board.innerHTML=`<div class="cali-card">${repRows?`<p class="cali-head">MAX SET · REPS</p>${repRows}`:''}${holdRows?`<p class="cali-head">HOLDS · SECONDS</p>${holdRows}`:''}${unlock}</div>`;
 }
+function renderCalisthenics(){
+  const board=document.getElementById('caliBoard');if(!board)return;
+  const ids=caliIds(),sessions=progressSessions();
+  const rows=ids.flatMap(id=>{
+    const points=Core.exerciseTrend(sessions,id);
+    if(!points.length)return [];
+    const groups=new Map();
+    points.forEach(p=>{const load=Number(p.set?.weight??p.topWeight)||0,key=`${p.metric}:${load}`;if(!groups.has(key)||p.value>groups.get(key).value)groups.set(key,p);});
+    return [...groups.values()].map(p=>({id,p}));
+  });
+  if(!rows.length){board.innerHTML=progressEmpty('No calisthenics logged in this period.');return;}
+  board.innerHTML=`<div class="group progress-cali"><p class="progress-note">Best logged sets in the selected period. Added loads stay separate.</p>${rows.map(({id,p})=>`<button class="group-row" onclick="pickStrength(${esc(JSON.stringify(id))})"><span class="row-text"><strong>${esc(exerciseById(id)?.name||id)}</strong><small>${esc(progressDate(p.started))} · ${Number(p.set?.weight)>0?`+${progressNum(p.set.weight)} kg added`:'No added load'}</small></span><span class="progress-result">${progressBestSet(p)}<span aria-hidden="true"> ›</span></span></button>`).join('')}</div>`;
+}
 // ---- Declared goals (2026-07-22) ----------------------------------------------------------
 // The app measured process (weekly rings) and emergent PRs, but nothing the lifter actually said
 // they wanted. A goal is stated once and then answered by their own logged evidence - the same
@@ -1354,8 +1424,8 @@ function renderGoals(){
   const board=document.getElementById('goalBoard');if(!board)return;
   const active=state.goals.filter(g=>!g.achievedAt),done=state.goals.filter(g=>g.achievedAt);
   board.innerHTML=(active.length||done.length)
-    ?active.map(goalCardMarkup).join('')+(done.length?`<details class="goal-done"><summary>${done.length} achieved</summary>${done.map(goalCardMarkup).join('')}</details>`:'')
-    :`<button class="empty-card card starter-row" onclick="openGoalSheet()"><span><strong>No goals yet</strong><small>Name one thing you're chasing and every workout measures against it</small></span><b aria-hidden="true">›</b></button>`;
+    ?`<div class="group progress-goals">${active.slice(0,2).map(g=>{const p=Core.goalProgress(g,goalCtx());return `<button class="group-row" onclick="openGoalMenu(${esc(JSON.stringify(g.id))})"><span class="row-text"><strong>${esc(goalName(g))}</strong><small>${p?.noEvidence?'No logged evidence yet':p?.current!=null?`${p.current} / ${p.target} ${p.unit}`:'Target saved'}</small></span><span>${p?.noEvidence?'':Math.round((p?.pct||0)*100)+'%'}</span></button>`;}).join('')}<details class="progress-details"><summary>Goal details${done.length?` · ${done.length} achieved`:''}</summary>${active.map(goalCardMarkup).join('')}${done.map(goalCardMarkup).join('')}</details></div>`
+    :progressEmpty('Set a target to track your progress.',`<button class="text-button" onclick="openGoalSheet()">Add a goal</button>`);
   renderTodayGoal();
 }
 // Today shows the single nearest-to-done active goal: a reminder of why you're here, not a list.
@@ -1480,9 +1550,9 @@ function openMuscleDetail(muscle){
 // Opened from Library rows and the workout exercise head - one lean screen, no tabs.
 function openExerciseDetail(id){
   const item=exerciseById(id);if(!item)return;
-  const timed=!!item.timed; // a hold trends on best TIME; an estimated 1RM from a hang is meaningless
-  const trend=Core.exerciseTrend(state.history,id);
-  const chart=trend.length>=2?chartSvg(trend.map(p=>({t:p.started,v:timed?p.seconds:p.e1rm})),`${timed?'Best hold time':'Estimated one rep max'} trend for ${item.name}`):`<div class="locked-card card"><strong>Trend builds with data</strong>Log this ${timed?'hold':'lift'} across a few sessions and its ${timed?'best-time':'estimated-1RM'} line appears here.</div>`;
+  const timed=!!item.timed;
+  const observations=Core.exerciseTrend(state.history,id),latest=observations.at(-1),key=latest?progressPointKey(latest):null,trend=observations.filter(p=>progressPointKey(p)===key),metric=latest?.metric||(timed?'seconds':'e1rm');
+  const chart=trend.length?`<p class="progress-note">All history · ${progressMetricLabel(metric)}${metric!=='e1rm'?` · ${Number(latest?.set?.weight)>0?'+'+progressNum(latest.set.weight)+' kg added':'no added load'}`:''}</p>${chartSvg(trend.map(p=>({t:p.started,v:p.value})),`${progressMetricLabel(metric)} in ${progressMetricUnit(metric)} for ${item.name}`)}<button class="text-button" onclick="closeSheet();navigate('progress');setProgressTab('trends');pickStrength(${esc(JSON.stringify(id))})">Inspect logged observations</button>`:progressEmpty('No completed working sets yet.');
   const look=muscleLookup(id),mv=look?Core.muscleVolume(state.history,muscleLookup):{};
   const weekDirect=look&&mv[look.primary]?.by?.[id]?.direct||0;
   const records=Core.repRecords(state.history,id);
@@ -1494,7 +1564,7 @@ function openExerciseDetail(id){
   <p class="detail-equip">${esc(item.equipment||'')}${item.muscle?` · ${esc(item.muscle)}`:''}</p>
   ${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}
   <div class="detail-stat"><strong class="hero-num">${weekDirect}</strong><span>DIRECT SET${weekDirect===1?'':'S'} THIS WEEK</span></div>
-  <div class="section-heading"><div><p class="kicker">${timed?'BEST HOLD':'EST. 1-REP MAX'}</p><h2>${timed?'Hold-time trend':'Strength trend'}</h2></div></div>${chart}
+  <div class="section-heading"><div><p class="kicker">LOGGED PERFORMANCE</p><h2>${progressMetricLabel(metric)}</h2></div></div>${chart}
   ${timed?'':`<div class="section-heading"><div><p class="kicker">REP RECORDS</p><h2>Heaviest at each rep</h2></div></div><div class="rr-grid">${recordRows}</div>`}
   <div class="section-heading"><div><p class="kicker">RECENT</p><h2>Last sessions</h2></div></div><div class="selected-list">${recentRows}</div>`;
   document.getElementById('sheet').showModal();
@@ -1512,7 +1582,7 @@ function clearMuscleRange(muscle){
 // Strength trend - evidence-gated (council 2026-07-18): a lift unlocks its chart after 3 logged sessions.
 const TREND_UNLOCK=3;
 let strengthPick=null;
-function renderStrength(){
+function renderStrengthLegacy(){
   const exposures=Core.exerciseExposures(state.history);
   const entries=Object.entries(exposures).map(([id,count])=>({id,count,item:exerciseById(id)})).filter(e=>e.item).sort((a,b)=>b.count-a.count);
   const unlocked=entries.filter(e=>e.count>=TREND_UNLOCK);
@@ -1540,7 +1610,67 @@ function renderStrength(){
   +`</div>`;
   animateNumbers(trendEl);
 }
-function pickStrength(id){strengthPick=id;renderStrength();}
+function progressPointKey(p){return p.metric==='e1rm'?'e1rm':`${p.metric}:${Number(p.set?.weight)||0}`;}
+function progressBestSet(p){
+  const set=p.set||{},load=Number(set.weight)||0,reps=Number(set.reps??p.reps)||0;
+  if(p.metric==='seconds')return `${reps} s${load>0?` · +${progressNum(load)} kg`:''}`;
+  if(p.metric==='reps')return `${reps} reps${load>0?` · +${progressNum(load)} kg`:''}`;
+  return `${progressNum(load)} kg × ${reps}`;
+}
+function progressMetricLabel(metric){return metric==='e1rm'?'Estimated 1RM':metric==='seconds'?'Best hold':'Best reps';}
+function progressMetricUnit(metric){return metric==='e1rm'?'kg':metric==='seconds'?'s':'reps';}
+function renderStrength(){
+  const picker=document.getElementById('strengthPicker'),host=document.getElementById('strengthTrend');if(!picker||!host)return;
+  const openDetails=progressOpenDetails(host);
+  const entries=Object.entries(Core.exerciseExposures(state.history)).map(([id,count])=>({id,count,item:exerciseById(id)})).filter(e=>e.item&&Core.exerciseTrend(state.history,e.id).length).sort((a,b)=>a.item.name.localeCompare(b.item.name));
+  if(!entries.length){picker.innerHTML='';host.innerHTML=progressEmpty('Finish a workout to see your logged performance.',`<button class="text-button" onclick="navigate('train')">Start a workout</button>`);return;}
+  if(!entries.some(e=>e.id===strengthPick))strengthPick=entries[0].id;
+  picker.innerHTML=`<label class="progress-select"><span>Exercise</span><select aria-label="Exercise trend" onchange="pickStrength(this.value)">${entries.map(e=>`<option value="${esc(e.id)}" ${e.id===strengthPick?'selected':''}>${esc(e.item.name)}</option>`).join('')}</select></label>`;
+  const w=progressWindow(),all=Core.exerciseTrend(state.history,strengthPick),inPeriod=all.filter(p=>p.started>=w.start&&p.started<w.elapsedEnd),keys=[...new Set(all.map(progressPointKey))];
+  if(!keys.includes(strengthMetric))strengthMetric=progressPointKey(inPeriod[0]||all.at(-1));
+  const points=inPeriod.filter(p=>progressPointKey(p)===strengthMetric),example=all.find(p=>progressPointKey(p)===strengthMetric),metric=example?.metric||'e1rm',unit=progressMetricUnit(metric);
+  const selector=keys.length>1?`<label class="progress-select progress-series-select"><span>Comparable series</span><select aria-label="Comparable metric and added load" onchange="pickStrengthMetric(this.value)">${keys.map(key=>{const p=all.find(p=>progressPointKey(p)===key);return `<option value="${esc(key)}" ${key===strengthMetric?'selected':''}>${progressMetricLabel(p.metric)}${p.metric!=='e1rm'?` · ${Number(p.set?.weight)>0?'+'+progressNum(p.set.weight)+' kg added':'no added load'}`:''}</option>`;}).join('')}</select></label>`:'';
+  if(!points.length){host.innerHTML=selector+progressEmpty('No observations for this exercise and load in the selected period. Use the arrows to explore another period.');return;}
+  if(!Number.isInteger(strengthPoint)||strengthPoint>=points.length)strengthPoint=points.length-1;
+  const p=points[strengthPoint],best=progressBestSet(p),enough=points.length>=3;
+  const rows=points.map((pt,i)=>`<tr${i===strengthPoint?' class="selected"':''}><th scope="row"><button data-strength-row="${i}" onclick="selectStrengthPoint(${i},false,true)">${esc(progressDate(pt.started))}</button></th><td>${esc(progressBestSet(pt))}</td>${metric==='e1rm'?`<td>${progressNum(pt.e1rm)} kg</td>`:''}<td>${progressSessionButton(pt.sessionId,'Open')}</td></tr>`).join('');
+  host.innerHTML=`${selector}<div class="st-card progress-trend"><div class="progress-chart-caption"><strong>${progressMetricLabel(metric)}</strong><span>${unit}</span></div><div class="progress-trend-head"><strong>${progressNum(p.value)}<small>${unit}</small></strong><p>${metric==='e1rm'?`Best set: ${esc(best)}<br><small>Estimated one-repetition maximum, not a lifted weight.</small>`:`${esc(best)}<br><small>${Number(p.set?.weight)>0?'Added load shown.':'No added load.'}</small>`}</p></div>${progressObservationChart(points.map(pt=>({t:pt.started,v:pt.value})),strengthPoint,'strength',`${exerciseById(strengthPick)?.name} ${progressMetricLabel(metric)}`)}<div class="progress-readout" aria-live="polite"><strong>${esc(progressDate(p.started,true))}</strong><span>${progressNum(p.value)} ${unit}</span></div><div class="progress-source"><span class="progress-note">${esc(state.history.find(s=>s.id===p.sessionId)?.name||'Source workout')} · ${esc(best)}</span>${progressSessionButton(p.sessionId)}</div><p class="progress-note">${enough?`${points.length} logged observations. Each point comes from a completed working set.`:`${points.length} logged observation${points.length===1?'':'s'}. More comparable sessions are needed to judge a trend.`}</p><details class="progress-details"><summary>Observation table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Actual sets supporting this series</caption><thead><tr><th>Date</th><th>${metric==='seconds'?'Best hold':'Best set'}</th>${metric==='e1rm'?'<th>Est. 1RM</th>':''}<th>Workout</th></tr></thead><tbody>${rows}</tbody></table></div></details></div>`;
+  restoreProgressDetails(host,openDetails);
+}
+function pickStrength(id){const focus=document.activeElement?.matches('#strengthPicker select');strengthPick=id;strengthMetric=null;strengthPoint=null;renderStrength();if(focus)document.querySelector('#strengthPicker select')?.focus({preventScroll:true});else document.getElementById('strengthPicker')?.scrollIntoView({block:'nearest'});}
+function pickStrengthMetric(key){const focus=document.activeElement?.matches('.progress-series-select select');strengthMetric=key;strengthPoint=null;renderStrength();if(focus)document.querySelector('.progress-series-select select')?.focus({preventScroll:true});}
+function selectStrengthPoint(index,focus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#strengthTrend input[type="range"]');strengthPoint=Number(index);renderStrength();if(focus)document.getElementById(`strength-observation-${strengthPoint}`)?.focus({preventScroll:true});if(tableFocus)document.querySelector(`[data-strength-row="${strengthPoint}"]`)?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#strengthTrend input[type="range"]')?.focus({preventScroll:true});}
+function observationKeys(event,kind,index,count){
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?count-1:Math.max(0,Math.min(count-1,index+(event.key==='ArrowRight'?1:-1)));
+  if(kind==='strength')selectStrengthPoint(next,true);else selectBodyweightPoint(next,true);
+}
+function progressObservationChart(points,selected,kind,label){
+  const W=340,H=170,PL=38,PR=14,PT=16,PB=32,IW=W-PL-PR,IH=H-PT-PB;
+  let lo=Math.min(...points.map(p=>p.v)),hi=Math.max(...points.map(p=>p.v));
+  const pad=Math.max(1,(hi-lo)*.15);lo=Math.max(0,lo-pad);hi+=pad;
+  const first=points[0].t,last=points.at(-1).t,X=t=>PL+(first===last?IW/2:(t-first)/(last-first)*IW),Y=v=>PT+IH-(v-lo)/(hi-lo)*IH;
+  const line=points.map((p,i)=>`${i?'L':'M'}${X(p.t).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ');
+  const ticks=[0,.5,1].map(k=>`<line class="trend-grid-line" x1="${PL}" y1="${PT+k*IH}" x2="${W-PR}" y2="${PT+k*IH}"/><text class="trend-tick" x="${PL-6}" y="${PT+k*IH+4}" text-anchor="end">${progressNum(hi-k*(hi-lo))}</text>`).join('');
+  const dots=points.map((p,i)=>`<circle class="trend-dot${i===selected?' selected':''}" cx="${X(p.t)}" cy="${Y(p.v)}" r="${i===selected?5:3.5}"/>`).join('');
+  const buttons=points.map((p,i)=>`<button id="${kind}-observation-${i}" class="progress-point${i===selected?' selected':''}" style="left:${X(p.t)/W*100}%;top:${Y(p.v)/H*100}%" aria-label="${esc(progressDate(p.t,true))}, ${progressNum(p.v)}${kind==='bodyweight'?' kg':''}" aria-pressed="${i===selected}" onclick="${kind==='strength'?'selectStrengthPoint':'selectBodyweightPoint'}(${i},true)" onkeydown="observationKeys(event,'${kind}',${i},${points.length})"><span class="sr-only">Observation ${i+1}</span></button>`).join('');
+  return `<div class="progress-observations"><svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}. ${points.length} logged observations. Use the point buttons or scrubber to inspect exact values.">${ticks}${points.length>1?`<path class="trend-line" d="${line}"/>`:''}${dots}<text class="trend-tick" x="${PL}" y="${H-8}">${esc(progressDate(first))}</text>${points.length>1?`<text class="trend-tick" x="${W-PR}" y="${H-8}" text-anchor="end">${esc(progressDate(last))}</text>`:''}</svg><div class="progress-point-controls" role="group" aria-label="Logged observations">${buttons}</div></div>${points.length>1?`<label class="progress-scrub"><span>Inspect observation ${selected+1} of ${points.length}</span><input type="range" min="0" max="${points.length-1}" step="1" value="${selected}" aria-label="Inspect ${kind==='strength'?'exercise':'bodyweight'} observation" oninput="scrubProgressObservation(this,'${kind}')" onchange="${kind==='strength'?'selectStrengthPoint':'selectBodyweightPoint'}(Number(this.value))"></label>`:''}`;
+}
+function scrubProgressObservation(input,kind){
+  // Keep the pointer-owning range element alive during a scrub. Render only when the gesture ends.
+  const index=Number(input.value),host=input.closest('.progress-trend')||input.closest('.bw-card');
+  if(kind==='strength')strengthPoint=index;else bodyweightPoint=index;
+  const points=kind==='strength'?Core.exerciseTrend(progressSessions(),strengthPick).filter(p=>progressPointKey(p)===strengthMetric):progressBodyweightLog();
+  const p=points[index];if(!p)return;
+  input.previousElementSibling.textContent=`Inspect observation ${index+1} of ${points.length}`;
+  const readout=host?.querySelector('.progress-readout');if(readout)readout.innerHTML=`<strong>${esc(progressDate(p.started??p.t,true))}</strong><span>${progressNum(p.value??p.kg)} ${kind==='strength'?progressMetricUnit(p.metric):'kg'}</span>`;
+  // Source links must change with the exact observation, including during a drag.
+  if(kind==='strength'){
+    const source=host?.querySelector('.progress-source');if(source)source.innerHTML=`<span class="progress-note">${esc(state.history.find(s=>s.id===p.sessionId)?.name||'Source workout')} · ${esc(progressBestSet(p))}</span>${progressSessionButton(p.sessionId)}`;
+    const heading=host?.querySelector('.progress-trend-head');if(heading)heading.innerHTML=`<strong>${progressNum(p.value)}<small>${progressMetricUnit(p.metric)}</small></strong><p>Best set: ${esc(progressBestSet(p))}${p.metric==='e1rm'?'<br><small>Estimated one-repetition maximum, not a lifted weight.</small>':''}</p>`;
+  }
+  host?.querySelectorAll('.progress-point').forEach((button,i)=>{button.classList.toggle('selected',i===index);button.setAttribute('aria-pressed',String(i===index));});
+}
 // Shared line-chart SVG (council 2026-07-20 refactor): points=[{t,v}], oldest→newest. Reused by the
 // strength trend, the exercise detail sheet's e1RM, and the bodyweight trend - one drawing routine.
 function chartSvg(points,ariaLabel){
@@ -1564,13 +1694,49 @@ function trendChart(points,name){
   const svg=chartSvg(points.map(p=>({t:p.started,v:p.e1rm})),`Estimated one rep max trend for ${name}`);
   return `<div class="trend-card"><div class="trend-head"><strong>${esc(name)}</strong><span>${latest} kg est. 1RM${delta?` · ${delta>0?'+':''}${delta} kg`:''}</span></div>${svg}</div>`;
 }
-function renderPrFeed(){
-  const feed=Core.prFeed(state.history,8);
-  document.getElementById('prFeed').innerHTML=feed.length?feed.map(pr=>{
-    const item=exerciseById(pr.exerciseId);
-    const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
-    return `<div class="pr-row"><span class="pr-mark notched">PR</span><span><strong>${esc(item?.name||'Exercise')}</strong><small>${parts}</small></span><time>${formatDate(pr.started)}</time></div>`;
-  }).join(''):`<div class="empty-card card starter-row"><span><strong>No records yet</strong><small>Beat a previous best and it lands here automatically</small></span></div>`;
+let progressAllRecords=[],progressRecordLimit=12;
+function progressRecordMarkup(r,showExercise=true){
+  const labels={weight:'Heaviest load',e1rm:'Estimated 1RM',reps:'Rep best',seconds:'Best hold'},load=Number(r.weight)||0,timed=Core.isTimed(r.exerciseId);
+  const result=r.type==='weight'?`${progressNum(r.value)} kg · ${r.reps} ${timed?'s':'reps'}`:r.type==='e1rm'?`${progressNum(r.value)} kg estimate · ${progressNum(load)} kg × ${r.reps}`:r.type==='seconds'?`${r.value} s · ${load>0?'+'+progressNum(load)+' kg added':'no added load'}`:`${r.value} reps · ${load>0?progressNum(load)+' kg':'no added load'}`;
+  return `<button class="group-row progress-record" onclick="openProgressRecord(${esc(JSON.stringify(String(r.sessionId)))},${Number(r.exerciseIndex)},${Number(r.setIndex)})"><span class="row-text">${showExercise?`<strong>${esc(exerciseById(r.exerciseId)?.name||r.exerciseId)}</strong>`:''}<small>${labels[r.type]||'Best set'} · ${esc(progressDate(r.started,true))}</small><span class="progress-record-value">${esc(result)}</span></span><span class="row-chev" aria-hidden="true">›</span></button>`;
+}
+function renderPrFeed(rebuilt=Core.rebuildPRs(state.history)){
+  progressAllRecords=Core.allTimeRecords(state.history);
+  const earned=Core.sessionsInPeriod(rebuilt,progressWindow()).flatMap(session=>(session.prs||[]).flatMap(pr=>pr.records||[])),groups=new Map();
+  progressAllRecords.forEach(r=>{if(!groups.has(r.exerciseId))groups.set(r.exerciseId,[]);groups.get(r.exerciseId).push(r);});
+  const entries=[...groups].sort((a,b)=>(exerciseById(a[0])?.name||a[0]).localeCompare(exerciseById(b[0])?.name||b[0]));
+  const rows=entries.slice(0,progressRecordLimit).map(([id,records])=>{
+    const loaded=records.filter(r=>r.type==='weight'||r.type==='e1rm'),primary=loaded.length?loaded:[records.find(r=>Number(r.weight)===0)||records[0]],details=records.filter(r=>!primary.includes(r));
+    return `<div class="progress-record-exercise"><h3>${esc(exerciseById(id)?.name||id)}</h3>${primary.map(r=>progressRecordMarkup(r,false)).join('')}${details.length?`<details class="progress-details" ontoggle="renderRecordDetails(this,${esc(JSON.stringify(id))})"><summary>${Core.isTimed(id)?'Hold bests':'Rep bests'} by load · ${details.length}</summary><div class="progress-record-loads"></div></details>`:''}</div>`;
+  }).join('');
+  document.getElementById('allTimeBests').innerHTML=rows+(entries.length>progressRecordLimit?`<button class="text-button full-button" onclick="showMoreProgressRecords()">Show more exercises · ${entries.length-progressRecordLimit} remaining</button>`:'')||progressEmpty('Your first completed working set establishes a baseline.');
+  document.getElementById('prFeed').innerHTML=earned.length?earned.sort((a,b)=>b.started-a.started).map(r=>progressRecordMarkup(r)).join(''):progressEmpty('No records earned in this period. First logs establish a baseline; later improvements can earn a record.');
+}
+function renderRecordDetails(details,id){
+  if(!details.open)return;
+  const records=progressAllRecords.filter(r=>r.exerciseId===id),loaded=records.filter(r=>r.type==='weight'||r.type==='e1rm'),primary=loaded.length?loaded:[records.find(r=>Number(r.weight)===0)||records[0]];
+  details.querySelector('.progress-record-loads').innerHTML=records.filter(r=>!primary.includes(r)).sort((a,b)=>Number(a.weight)-Number(b.weight)).map(r=>progressRecordMarkup(r,false)).join('');
+}
+function showMoreProgressRecords(){progressRecordLimit+=12;renderPrFeed();}
+function openProgressRecord(sessionId,exerciseIndex,setIndex){
+  const session=state.history.find(s=>String(s.id)===String(sessionId)),ex=session?.exercises?.[exerciseIndex],set=ex?.sets?.[setIndex];
+  if(!session||!ex||!set)return;
+  const timed=Core.isTimed(ex.exerciseId),load=Number(set.weight)||0;
+  const result=timed?`${set.reps} seconds${load?` · +${progressNum(load)} kg added`:''}`:`${progressNum(load)} kg × ${set.reps} reps`;
+  document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">SOURCE SET</p><h2>${esc(exerciseById(ex.exerciseId)?.name||ex.exerciseId)}</h2></div><button class="close-button" onclick="closeSheet()" aria-label="Close source set">×</button></div><div class="group progress-record-source"><strong>${esc(result)}</strong><p>Set ${setIndex+1} · ${esc(progressDate(session.started,true))}</p><p>${esc(session.name||'Workout')}</p>${progressSessionButton(sessionId)}</div>`;
+  document.getElementById('sheet').showModal();
+}
+function toggleAllHistory(){progressHistoryAll=!progressHistoryAll;renderProgressHistory();}
+function searchProgressHistory(query){progressHistoryQuery=query;renderProgressHistory();}
+function renderProgressHistory(rebuilt=Core.rebuildPRs(state.history)){
+  const host=document.getElementById('historyList');if(!host)return;
+  const scope=document.getElementById('historyScope'),button=document.getElementById('allHistoryButton');
+  if(scope)scope.textContent=progressHistoryAll?'ALL HISTORY':'SELECTED PERIOD';
+  if(button){button.textContent=progressHistoryAll?'Selected period':'All history';button.setAttribute('aria-pressed',String(progressHistoryAll));}
+  const query=progressHistoryQuery.trim().toLowerCase(),history=rebuilt,sessions=(progressHistoryAll?history.filter(s=>(s.exercises||[]).some(ex=>Core.evidenceSets(ex).length)):Core.sessionsInPeriod(history,progressWindow())).filter(s=>!query||[s.name,...(s.exercises||[]).map(e=>exerciseById(e.exerciseId)?.name||e.exerciseId)].join(' ').toLowerCase().includes(query)).sort((a,b)=>b.started-a.started);
+  if(!sessions.length){host.innerHTML=progressEmpty(query?'No matching workouts.':progressHistoryAll?'Your first finished workout appears here.':'No workouts in the selected period.');return;}
+  const groups=new Map();sessions.forEach(s=>{const key=new Intl.DateTimeFormat(undefined,{month:'long',year:'numeric'}).format(new Date(s.started));if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s);});
+  host.innerHTML=[...groups].map(([month,rows])=>`<div class="progress-history-month"><h3>${esc(month)}</h3>${rows.map(s=>{const summary=Core.periodStats([s],Core.periodWindow('month',s.started,Math.max(Date.now(),Number(s.started)+1)));return `<button class="history-card group-row" onclick="openHistory(${esc(JSON.stringify(String(s.id)))})"><span class="row-glyph row-glyph-amber" aria-hidden="true">${s.prs?.length?'PR':'✓'}</span><span class="row-text"><strong>${esc(s.name||'Workout')}</strong><small>${esc(progressDate(s.started))} · ${summary.sets} working set${summary.sets===1?'':'s'} · ${progressWorkDescription(summary)}${summary.durationUnknown?' · duration unrecorded':` · ${summary.minutes} min`}</small></span><span class="row-chev" aria-hidden="true">›</span></button>`;}).join('')}</div>`).join('');
 }
 function renderWeekChart(){
   const now=Date.now(),weeks=[];
@@ -1621,9 +1787,9 @@ function renderPainTrend(){
 // ---- L/R balance board (Wave 2): mirrored bars from a center axis, shared scale, persistent-gap flag. ----
 function renderBalance(){
   const el=document.getElementById('balanceBoard');if(!el)return;
-  const bal=Core.sideBalance(state.history);
+  const bal=Core.sideBalance(progressSessions().map(session=>({...session,exercises:(session.exercises||[]).map(ex=>({...ex,sets:Core.evidenceSets(ex)}))})));
   const entries=Object.entries(bal);
-  if(!entries.length){el.innerHTML=`<div class="empty-card card starter-row"><span><strong>No side-tagged sets yet</strong><small>Tap a set's number mid-workout to tag it Left or Right</small></span></div>`;return;}
+  if(!entries.length){el.innerHTML=progressEmpty("No side-tagged sets in this period. Tap a set's number while logging to tag Left or Right.");return;}
   // Mirrored comparison only for exercises with BOTH sides; one-sided data gets a truthful partial
   // row instead of a misleading "no data" empty state (Codex P3).
   const both=entries.filter(([,b])=>b.left.sets>0&&b.right.sets>0);
@@ -1645,12 +1811,16 @@ function renderBalance(){
 // ---- Bodyweight (Wave 3): current weight + 90-day trend via the shared chart. ----
 function renderBodyweight(){
   const el=document.getElementById('bodyweightCard');if(!el)return;
-  const log=Core.bodyweightTrend(state.bodyweight,90);
-  if(!log.length){el.innerHTML=`<button class="empty-card card starter-row" onclick="openBodyweightLog()"><span><strong>No weigh-ins yet</strong><small>Log your first weight to start the trend</small></span><b aria-hidden="true">›</b></button>`;return;}
-  const latest=log.at(-1),first=log[0],d=Math.round((latest.kg-first.kg)*10)/10;
-  const chart=log.length>=2?chartSvg(log.map(p=>({t:p.t,v:p.kg})),'Bodyweight trend, last 90 days'):'';
-  el.innerHTML=`<div class="bw-card card"><div class="bw-head"><strong class="hero-num">${latest.kg}</strong><span>kg${d?` · ${d>0?'+':''}${d} kg over ${log.length} weigh-in${log.length===1?'':'s'}`:''}</span></div>${chart}</div>`;
+  const openDetails=progressOpenDetails(el);
+  const log=progressBodyweightLog();
+  if(!log.length){el.innerHTML=progressEmpty('No measured weigh-ins in this period.');return;}
+  if(!Number.isInteger(bodyweightPoint)||bodyweightPoint>=log.length)bodyweightPoint=log.length-1;
+  const p=log[bodyweightPoint];
+  el.innerHTML=`<div class="bw-card card"><p class="progress-note">Measured bodyweight · selected period</p>${progressObservationChart(log.map(p=>({t:p.t,v:p.kg})),bodyweightPoint,'bodyweight','Measured bodyweight in kilograms')}<div class="progress-readout" aria-live="polite"><strong>${esc(progressDate(p.t,true))}</strong><span>${progressNum(p.kg)} kg</span></div><details class="progress-details"><summary>Weigh-in table</summary><div class="progress-table-wrap"><table class="progress-table"><caption>Measurements in the selected period</caption><thead><tr><th>Date</th><th>Bodyweight</th></tr></thead><tbody>${log.map((p,i)=>`<tr><th scope="row"><button data-bodyweight-row="${i}" onclick="selectBodyweightPoint(${i},false,true)">${esc(progressDate(p.t,true))}</button></th><td>${progressNum(p.kg)} kg</td></tr>`).join('')}</tbody></table></div></details></div>`;
+  restoreProgressDetails(el,openDetails);
 }
+function progressBodyweightLog(){const w=progressWindow();return (state.bodyweight||[]).filter(p=>Number(p.kg)>0&&p.t>=w.start&&p.t<w.elapsedEnd).sort((a,b)=>a.t-b.t);}
+function selectBodyweightPoint(index,focus=false,tableFocus=false){const scrubFocus=document.activeElement?.matches('#bodyweightCard input[type="range"]');bodyweightPoint=Number(index);renderBodyweight();if(focus)document.getElementById(`bodyweight-observation-${bodyweightPoint}`)?.focus({preventScroll:true});if(tableFocus)document.querySelector(`[data-bodyweight-row="${bodyweightPoint}"]`)?.focus({preventScroll:true});if(scrubFocus)document.querySelector('#bodyweightCard input[type="range"]')?.focus({preventScroll:true});}
 function openBodyweightLog(){
   const log=Core.bodyweightTrend(state.bodyweight,90),latest=log.at(-1);
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">BODYWEIGHT</p><h2>Log weight</h2></div><button class="close-button" onclick="closeSheet()">×</button></div><div class="field"><label>WEIGHT (KG)</label><input id="bwInput" type="number" inputmode="decimal" min="0" step="0.1" value="${latest?esc(latest.kg):''}" placeholder="e.g. 82.5" onkeydown="if(event.key==='Enter')saveBodyweight()"></div><button class="primary-button full-button" onclick="saveBodyweight()">Save</button>`;
@@ -1693,6 +1863,81 @@ function clearBodyweightBackfill(){
 // Exercises the lifter re-opened by tapping their done row. Session-scoped, deliberately not
 // persisted: reopening is a glance, not a state change worth surviving a reload.
 let forcedOpen=new Set();
+// Undo stores one row operation, never a session snapshot. Stable instance IDs keep duplicate lifts
+// and reordered rows distinct; the journal lives with the active session so reload is forgiving too.
+let setEditExercises=new Set(),setEditScope=null;
+const loggingId=()=>typeof crypto.randomUUID==='function'?crypto.randomUUID():`log-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const copyLogRow=row=>JSON.parse(JSON.stringify(row));
+function clearSetEditing(){setEditExercises.clear();setEditScope=null;}
+function clearProfileSetUndo(){
+  if(state.activeSession?._setEdits){delete state.activeSession._setEdits;saveState();}
+  clearSetEditing();
+}
+function ensureSetEditing(session){
+  const scope=`${stateKey}:${session.id}`;
+  if(setEditScope!==scope){clearSetEditing();setEditScope=scope;}
+  let changed=false;
+  for(const ex of session.exercises||[]){
+    if(!ex._logId){ex._logId=loggingId();changed=true;}
+    for(const row of ex.sets||[])if(!row._logId){row._logId=loggingId();changed=true;}
+  }
+  if(session._setEdits&&(session._setEdits.profile!==stateKey||session._setEdits.session!==session.id)){delete session._setEdits;changed=true;}
+  if(changed)saveState();
+  return session._setEdits||(session._setEdits={profile:stateKey,session:session.id,stack:[]});
+}
+function toggleSetEditing(index){
+  const session=state.activeSession,ex=session?.exercises[index];if(!ex)return;
+  ensureSetEditing(session);
+  if(setEditExercises.has(ex._logId))setEditExercises.delete(ex._logId);else setEditExercises.add(ex._logId);
+  renderWorkout();
+}
+function rowOperation(ex,index,kind,row){
+  const journal=ensureSetEditing(state.activeSession);
+  journal.stack.push({kind,exercise:ex._logId,exerciseId:ex.exerciseId,row:copyLogRow(row),index,
+    before:ex.sets[index-1]?._logId||null,after:ex.sets[index+1]?._logId||null});
+}
+function latestSetEdit(ex){
+  const j=state.activeSession?._setEdits;
+  if(!j||j.profile!==stateKey||j.session!==state.activeSession.id)return null;
+  return [...j.stack].reverse().find(op=>op.exercise===ex._logId&&op.exerciseId===ex.exerciseId)||null;
+}
+function setUndoMarkup(ex,index){
+  const op=latestSetEdit(ex);if(!op)return '';
+  return `<div class="set-undo" role="status"><span>${op.kind==='remove'?'Set removed':'Set added'}</span><button onclick="undoSetEdit(${index})" aria-label="Undo ${op.kind==='remove'?'set removal':'added set'}">Undo</button></div>`;
+}
+function reconcileSetPad(exerciseIndex,index,removed){
+  if(padTarget?.exIdx!==exerciseIndex)return;
+  if(removed&&padTarget.setIdx===index){closePad();return;}
+  if(padTarget.setIdx>=index)padTarget.setIdx+=removed?-1:1;
+}
+function removeActiveSet(exerciseIndex,setIndex){
+  const session=state.activeSession,ex=session?.exercises[exerciseIndex];if(!ex?.sets[setIndex])return;
+  ensureSetEditing(session);setEditExercises.add(ex._logId);
+  rowOperation(ex,setIndex,'remove',ex.sets[setIndex]);
+  reconcileSetPad(exerciseIndex,setIndex,true);ex.sets.splice(setIndex,1);
+  // Rest is anchored to the exercise, not a set row. Keep its deadline and the exercise's RIR.
+  saveState();renderWorkout();
+}
+function undoSetEdit(exerciseIndex){
+  const session=state.activeSession,ex=session?.exercises[exerciseIndex];if(!ex)return;
+  const op=latestSetEdit(ex);if(!op)return;
+  const stack=session._setEdits.stack;
+  if(op.kind==='remove'){
+    if(ex.sets.some(row=>row._logId===op.row._logId))return;
+    const before=ex.sets.findIndex(row=>row._logId===op.before),after=ex.sets.findIndex(row=>row._logId===op.after);
+    const at=after>=0?after:before>=0?before+1:Math.min(op.index,ex.sets.length);
+    reconcileSetPad(exerciseIndex,at,false);ex.sets.splice(at,0,copyLogRow(op.row));
+  }else{
+    const at=ex.sets.findIndex(row=>row._logId===op.row._logId);
+    // A later edit is the user's newer intent: never erase it by undoing an earlier Add.
+    if(at>=0&&JSON.stringify(ex.sets[at])!==JSON.stringify(op.row)){
+      stack.splice(stack.indexOf(op),1);saveState();renderWorkout();showToast('Set kept · it was edited after adding');return;
+    }
+    if(at>=0){reconcileSetPad(exerciseIndex,at,true);ex.sets.splice(at,1);}
+  }
+  stack.splice(stack.indexOf(op),1);setEditExercises.add(ex._logId);
+  saveState();renderWorkout();showToast('Set change undone');
+}
 // The ACTIVE exercise = the first one with an unfinished set. Only it may own the NOW row, and only
 // it is lit; six cards each claiming "next" is no hierarchy at all.
 function activeExerciseIndex(session){
@@ -1701,10 +1946,12 @@ function activeExerciseIndex(session){
 }
 function renderWorkout(){
   const session=state.activeSession;if(!session){navigate('today');return;}
+  ensureSetEditing(session);
   document.getElementById('workoutTitle').textContent=session.name;
   renderWorkoutMetrics();
   const activeIdx=activeExerciseIndex(session);
-  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map((ex,i)=>workoutExerciseMarkup(ex,i,activeIdx)).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
+  const recordStatuses=Core.sessionRecordStatuses?Core.sessionRecordStatuses(state.history,session):[];
+  document.getElementById('workoutExercises').innerHTML=checkinMarkup(session)+bookendMarkup(session)+(session.exercises.length?session.exercises.map((ex,i)=>workoutExerciseMarkup(ex,i,activeIdx,recordStatuses[i])).join(''):`<div class="empty-card card"><strong>Empty workout</strong>Add your first exercise and get moving.</div>`);
   const paused=!!session.pausedAt,btn=document.getElementById('pauseButton');
   btn.textContent=paused?'Resume':'Pause';btn.setAttribute('aria-pressed',String(paused));
   document.getElementById('pausedFlag').hidden=!paused; // a word, not a hue - the state must survive colour-blindness
@@ -1858,7 +2105,7 @@ function targetDelta(target,basis,timed){
   if(dr<0)return timed?`${dr}s`:`${dr} reps`;
   return 'hold';
 }
-function workoutExerciseMarkup(exercise,index,activeIdx){
+function workoutExerciseMarkup(exercise,index,activeIdx,recordStatuses){
   const item=exerciseById(exercise.exerciseId),previous=Core.previousPerformance(state.history,exercise.exerciseId);
   const timed=!!item?.timed; // hold-type exercise: the "reps" field stores seconds
   const prevText=previous.length?`Last time: ${previous.slice(0,3).map(s=>timed?`${s.weight?`${s.weight} kg × `:''}${s.reps} s`:`${s.weight||'-'} kg × ${s.reps}`).join(' · ')}`:'First time - set your benchmark';
@@ -1893,7 +2140,8 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
   // trailing set after the last one is ticked, so every-set-done is never true and the card would
   // never collapse. rirDone counts only the PLANNED working sets (the same denominator the rail and
   // the RIR row use), so a card collapses exactly once its RIR question has been asked and answered.
-  const collapsed=rirDone&&exercise.rir!==undefined&&!forcedOpen.has(index);
+  const editing=setEditExercises.has(exercise._logId);
+  const collapsed=rirDone&&exercise.rir!==undefined&&!forcedOpen.has(index)&&!editing&&!latestSetEdit(exercise);
   const isActive=index===activeIdx;
   const exVolume=Core.doneSets(exercise).reduce((a,x)=>a+(Number(x.weight)||0)*(Number(x.reps)||0),0);
   const rirWord=exercise.rir===undefined?'':(exercise.rir==='skip'?' · RIR skipped':` · RIR ${exercise.rir==='4'||exercise.rir===4?'4+':exercise.rir}`);
@@ -1925,23 +2173,23 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
     +`</div>`:`<div class="previous-strip">${esc(prevText)}</div>`;
   const activeSetIdx=isActive?exercise.sets.findIndex(s=>!s.done):-1;
   const bwFactor=Core.bodyweightFactor(exercise.exerciseId);
-  // The live PR row tag compares against last session's TOP set, not its first - set 1 is often a
-  // lighter opener and beating it is not a record (cross-review 2026-08-17).
+  // Last-session improvements and genuine historical records have separate evidence and labels.
   const prevTop=previous.reduce((best,s)=>(!best||s.weight>best.weight||(s.weight===best.weight&&s.reps>best.reps))?s:best,null);
-  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed,bwFactor,prevTop)).join('');
+  const setRows=exercise.sets.map((set,setIndex)=>setMarkup(set,index,setIndex,previous[setIndex]||previous[0],setIndex===activeSetIdx,previous[0],timed,bwFactor,prevTop,recordStatuses?.[setIndex])).join('');
   return `<article class="workout-exercise${isActive?' lit':''}" data-index="${index}" style="--done:${doneFrac.toFixed(3)}">`
     +`<header class="exercise-head">`
       +`<button class="exercise-grip" type="button" aria-label="Drag to reorder ${esc(item?.name||'this exercise')}, or tap for move options" onpointerdown="gripDown(event,${index})" onclick="openWorkoutExerciseMenu(${index})" oncontextmenu="return false"><span class="grip-dots" aria-hidden="true"></span><span class="ex-index">${String(index+1).padStart(2,'0')}</span></button>`
       +`<div class="ex-id"><h2 class="exercise-title" onclick="openExerciseDetail('${esc(exercise.exerciseId)}')">${esc(item?.name||'Exercise')}</h2><p>${esc(item?.equipment||'')}</p></div>`
-      +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
+    +`<button class="exercise-more" onclick="openWorkoutExerciseMenu(${index})" aria-label="Exercise options">•••</button>`
     +`</header>`
+    +`<div class="set-edit-bar"><button class="edit-sets" onclick="toggleSetEditing(${index})" aria-pressed="${editing}">${editing?'Finish editing':'Edit sets'}</button>${editing?'<span>Tap Remove to delete a row</span>':''}</div>`
     +`<div class="ex-rail" aria-hidden="true"><i style="width:${Math.round(doneFrac*100)}%"></i></div>`
     
     +`${cue?.text?`<div class="cue-strip">${esc(cue.text)}<small>cue · ${formatDate(cue.updated)}</small></div>`:''}`
     +`${planLine}${confirmedText?`<span class="confirmed-line">${esc(confirmedText)}</span>`:''}`
     +targetStrip
-    +`<div class="set-grid header"><span>Set</span><span>kg</span><span>${timed?'Sec':'Reps'}</span><span>Done</span></div>`
-    +setRows+rirRow
+    +`<div class="set-grid header"><span>Set</span><span>${bwFactor!=null?'Added kg':'kg'}</span><span>${timed?'Sec':'Reps'}</span><span>${editing?'Remove':'Done'}</span></div>`
+    +(setRows||'<p class="no-set-rows">No sets yet. Add a set below.</p>')+setUndoMarkup(exercise,index)+rirRow
     +memoryMarkup(exercise,index,timed)
     +`<div class="set-footer"><button class="add-set" onclick="addSet(${index})">+ Add set</button>${warmupButton(exercise,index,target,timed)}<button class="add-drop" onclick="addDropSet(${index})" title="Add a −20% drop set after your last completed set">+ Drop</button></div>`
   +`</article>${ssLink}`;
@@ -1952,7 +2200,8 @@ function workoutExerciseMarkup(exercise,index,activeIdx){
 // opens the last three exposures, the best set on record, and a note that persists to next time.
 function memoryMarkup(exercise,index,timed){
   const id=exercise.exerciseId;
-  const recent=Core.recentSessionsFor(state.history,id,3);
+  const recent=[...state.history].sort((a,b)=>Number(b.started)-Number(a.started)).map(session=>({started:session.started,
+    sets:(session.exercises||[]).filter(ex=>ex.exerciseId===id).flatMap(ex=>Core.doneSets(ex).filter(set=>!set.warmup))})).filter(entry=>entry.sets.length).slice(0,3);
   const note=state.exerciseCues?.[id];
   if(!recent.length&&!note?.text)return '';
   const unit=timed?'s':'reps';
@@ -1961,12 +2210,12 @@ function memoryMarkup(exercise,index,timed){
     const line=entry.sets.map(x=>timed?`${x.reps} s`:`${x.weight||'-'} kg × ${x.reps}`).join(' · ');
     return `<div class="mem-row"><span class="mem-when">${esc(formatDate(entry.started))}</span><span class="mem-sets">${esc(line)}</span></div>`;
   }).join('');
-  // The best set ON RECORD, not just in the last three - that is the number worth chasing.
-  let best=null;
-  for(const entry of Core.recentSessionsFor(state.history,id,50))
-    for(const set of entry.sets)
-      if(!best||set.weight>best.weight||(set.weight===best.weight&&set.reps>best.reps))best=set;
-  const bestLine=best?`<div class="mem-best"><span>Best on record</span><strong>${timed?`${best.reps} s`:`${best.weight||'-'} kg × ${best.reps} ${unit}`}</strong></div>`:'';
+  // Full historical evidence, including repeated exercise entries. Every result describes its
+  // own actual source set, and warm-ups cannot become a working record.
+  const records=Core.allTimeRecords(state.history,id);
+  const candidates=records.filter(record=>record.type===(timed?'seconds':'weight'));
+  const best=(candidates.length?candidates:records.filter(record=>record.type==='reps')).sort((a,b)=>b.value-a.value)[0];
+  const bestLine=best?`<div class="mem-best"><span>Best on record</span><strong>${esc(recordResultText(best))} · ${esc(formatDate(best.started))}</strong></div>`:'';
   return `<details class="ex-memory"><summary>Last ${recent.length} time${recent.length===1?'':'s'}${note?.text?' · your note':''}</summary>`
     +`<div class="mem-body">${rows}${bestLine}`
     +`<label class="mem-note"><span>Note for next time</span><textarea rows="2" placeholder="Seat height, grip, how it felt…" onchange="saveExerciseCueText('${esc(id)}',this.value)">${esc(note?.text||'')}</textarea></label>`
@@ -1999,7 +2248,9 @@ function addWarmup(index){
   const rungs=Core.warmupSets(kg,Number(state.preferences.barWeight)||20,Number(state.preferences.weightStep)||2.5);
   if(!rungs.length)return showToast('No warm-up needed for that load');
   // Warm-ups go IN FRONT and are flagged, so nothing downstream counts them as working sets.
-  ex.sets.unshift(...rungs.map(r=>({weight:String(r.kg),reps:String(r.reps),done:false,warmup:true})));
+  ensureSetEditing(state.activeSession);
+  ex.sets.unshift(...rungs.map(r=>({weight:String(r.kg),reps:String(r.reps),done:false,warmup:true,_logId:loggingId()})));
+  for(let i=0;i<rungs.length;i++)rowOperation(ex,i,'add',ex.sets[i]);
   saveState();renderWorkout();buzz(15);
   showToast(`${rungs.length} warm-up sets added`);
 }
@@ -2076,9 +2327,9 @@ function openTargetWhy(index){
 // v2 set row. Values are 52px cells with the unit hung outside the number so the digits stay
 // optically centred. The row carries its state as SHAPE + WORD, never hue alone: done = tick +
 // amber fill, next-up = amber rail + ring + the word NOW, prefilled = italic + muted, drop = DROP,
-// a set that beats last session = PR. Only the active exercise passes isActive, so exactly one NOW
+// a genuine historical best = PR. Only the active exercise passes isActive, so exactly one NOW
 // row exists in the whole session.
-function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,bwFactor,prevTop){
+function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,bwFactor,prevTop,recordStatus){
   const completion=Core.setCompletionState(set.done,setIndex+1);
   const pf=set.prefilled&&!set.done?' prefilled':'';
   const cellAttrs=k=>`readonly role="button" data-ex="${exerciseIndex}" data-set="${setIndex}" data-key="${k}" onclick="openPad(${exerciseIndex},${setIndex},'${k}')"`;
@@ -2087,8 +2338,10 @@ function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,
   // session's top set, or the same load carried for more reps/seconds.
   const w=Number(set.weight)||0,r=Number(set.reps)||0;
   const pw=Number(prevTop?.weight)||0,pr=Number(prevTop?.reps)||0;
-  const beats=!!(set.done&&prevTop&&(w>pw||(w===pw&&r>pr)));
-  const tag=set.warmup?'WARM':(set.drop?'DROP':(beats?'PR':(isActive&&!set.done?'NOW':'')));
+  const status=recordStatus||(Core.setRecordStatus?Core.setRecordStatus(state.history,state.activeSession,exerciseIndex,setIndex):{pr:false,betterThanLast:!!(set.done&&!set.warmup&&r>0&&prevTop&&(w>pw||(w===pw&&r>pr)))});
+  const beats=status.pr;
+  const tag=set.warmup?'WARM':(set.drop?'DROP':(status.pr?'PR':(isActive&&!set.done?'NOW':'')));
+  const editing=setEditExercises.has(state.activeSession.exercises[exerciseIndex]._logId);
   const unitB=timed?'s':'reps';
   const cell=(k,val,ph,unit,label)=>`<span class="set-cell"><input class="set-input" type="number" inputmode="${k==='weight'?'decimal':'numeric'}" min="0" step="${k==='weight'?'0.5':'1'}" value="${esc(val)}" placeholder="${ph}" ${cellAttrs(k)} onchange="updateSet(${exerciseIndex},${setIndex},'${k}',this.value)" aria-label="${label}"><small class="set-unit" aria-hidden="true">${unit}</small></span>`;
   // Plates per side for the row you are about to lift. Barbell-loadable movements only, and only on
@@ -2100,8 +2353,8 @@ function setMarkup(set,exerciseIndex,setIndex,previous,isActive,firstPrev,timed,
       ? cell('weight',set.weight,'+0','+kg',`Added weight for set ${setIndex+1} (blank means bodyweight only)`)
       : cell('weight',set.weight,previous?.weight||'-','kg',`Weight for set ${setIndex+1}`))
     +cell('reps',set.reps,previous?.reps||'-',unitB,`${timed?'Seconds held':'Repetitions'} for set ${setIndex+1}`)
-    +`<button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button>`
-  +`</div>${plateLine}${adopt}`;
+    +(editing?`<button class="set-remove" onclick="removeActiveSet(${exerciseIndex},${setIndex})" aria-label="Remove set ${setIndex+1}"><span aria-hidden="true">×</span><small>Remove</small></button>`:`<button class="set-done ${set.done?'done':''}" onclick="toggleSet(${exerciseIndex},${setIndex})" aria-label="${completion.actionLabel}" title="${completion.status}"><span aria-hidden="true">${set.done?'✓':'○'}</span></button>`)
+  +`</div>${status.pr&&set.drop?'<p class="set-comparison">PR · New best</p>':status.betterThanLast&&!status.pr&&!set.warmup?'<p class="set-comparison">Better than last time</p>':''}${editing?'':plateLine+adopt}`;
 }
 // Only barbell-family kit loads in plates. Anything else (dumbbell, machine, cable, band) gets
 // nothing rather than a made-up breakdown.
@@ -2193,7 +2446,7 @@ function toggleSet(exerciseIndex,setIndex){
     // otherwise the ordinary settle animation. detectPRs is reused read-only against a single-exercise shadow.
     // A first-ever exposure (no prior best to beat) is NOT a live moment - it still counts in the receipt.
     const ex=state.activeSession.exercises[exerciseIndex];let isPr=false;
-    try{if(!prCelebrated.has(ex.exerciseId)&&Core.previousPerformance(state.history,ex.exerciseId).length){const recs=Core.detectPRs(state.history,{exercises:[ex]});if(recs&&recs.length){isPr=true;prCelebrated.add(ex.exerciseId);}}}catch{}
+    try{if(!prCelebrated.has(ex.exerciseId)&&Core.setRecordStatus?.(state.history,state.activeSession,exerciseIndex,setIndex).pr){isPr=true;prCelebrated.add(ex.exerciseId);}}catch{}
     if(isPr)celebratePR(exerciseIndex,setIndex,String(set.weight||''));
     else if(!REDUCED_MOTION){
       const row=document.querySelector(`.set-row[data-ex="${exerciseIndex}"][data-set="${setIndex}"]`);
@@ -2220,8 +2473,9 @@ function addSet(exerciseIndex,silent=false){
   // Sets are born EMPTY; carry-forward (on completing the prior set) is the sole prefill path, so a
   // prefilled value is always the flagged/muted kind - never a silent copy the lifter didn't choose.
   const ex=state.activeSession?.exercises[exerciseIndex];if(!ex)return;
-  ex.sets.push({weight:'',reps:'',done:false});
-  if(!silent){carryForwardExercise(ex);saveState();renderWorkout();} // manual add prefills if the prior set is already done
+  ensureSetEditing(state.activeSession);
+  ex.sets.push({weight:'',reps:'',done:false,_logId:loggingId()});
+  if(!silent){carryForwardExercise(ex);rowOperation(ex,ex.sets.length-1,'add',ex.sets[ex.sets.length-1]);saveState();renderWorkout();} // manual add prefills if the prior set is already done
   else saveState();
 }
 // Drop set: appended after the last completed set, prefilled at −20% (rounded to 0.5) and flagged.
@@ -2234,7 +2488,9 @@ function addDropSet(exerciseIndex){
   // Insert directly AFTER the last completed set - not at the tail, where the auto-added blank
   // successor would sit above it as the active row (Codex verify 2026-07-20).
   const li=ex.sets.lastIndexOf(lastDone);
-  ex.sets.splice(li+1,0,{weight:Number.isFinite(w)&&w>0?String(Math.round(w*0.8*2)/2):'',reps:'',done:false,drop:true});
+  ensureSetEditing(state.activeSession);
+  ex.sets.splice(li+1,0,{weight:Number.isFinite(w)&&w>0?String(Math.round(w*0.8*2)/2):'',reps:'',done:false,drop:true,_logId:loggingId()});
+  rowOperation(ex,li+1,'add',ex.sets[li+1]);
   saveState();renderWorkout();buzz(10);
 }
 function toggleSuperset(index,on){
@@ -2478,13 +2734,36 @@ function finishWorkout(){
   // logged BEFORE this build fall back to being derived (council 2026-08-05).
   const bwNow=Core.bodyweightAsOf(state.bodyweight,session.started,state.preferences.backfillBodyweight);
   if(bwNow)session.bodyweightKg=bwNow;
+  delete session._setEdits;clearSetEditing();
   state.history.unshift(session);state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();
   if(Sync)try{Sync.onSessionComplete(session);}catch{} // enqueue + best-effort upload; never blocks the flow
   checkGoalAchievements(); // the session just finished is new evidence against every declared goal
   openReceipt(session);
 }
+function recordResultText(record){
+  const load=Number(record.weight)||0,reps=Number(record.reps)||0;
+  const added=Core.bodyweightFactor(record.exerciseId)!=null;
+  const atLoad=load?`${added?'added ':''}${load} kg`:'no added load';
+  if(record.type==='seconds')return `Hold time · ${record.seconds||record.value} s at ${atLoad}`;
+  if(record.type==='reps')return `Rep best · ${record.value} reps at ${atLoad}`;
+  if(record.type==='weight')return `Heaviest load · ${load} kg × ${reps} ${exerciseById(record.exerciseId)?.timed?'s':'reps'}`;
+  if(record.type==='e1rm')return `Estimated 1RM · ${Math.round(record.value*10)/10} kg · from ${load} kg × ${reps}`;
+  return `${load} kg × ${reps}`;
+}
+function sessionRecordMarkup(session,records){
+  return records.map(pr=>`<div class="receipt-pr notched-left"><strong>${esc(exerciseById(pr.exerciseId)?.name||'Exercise')}</strong>${(pr.records||[pr]).map(record=>`<small>${esc(recordResultText(record))} · Set ${record.setIndex+1} · ${formatDate(session.started)}</small>`).join('')}</div>`).join('');
+}
+function workingSessionCopy(session){
+  return {...session,exercises:(session.exercises||[]).map(ex=>({...ex,sets:(ex.sets||[]).filter(set=>!set.warmup)}))};
+}
+function sessionWarmupNote(session,receipt=false){
+  const warmupSession={...session,exercises:(session.exercises||[]).map(ex=>({...ex,sets:(ex.sets||[]).filter(set=>set.warmup)}))};
+  const warm=Core.summarizeSession(warmupSession);if(!warm.completedSets)return '';
+  const working=Core.workingWork(session);
+  return `<p class="session-warmup-note">${receipt?'Logged totals include':'Also logged'} ${warm.completedSets} warm-up set${warm.completedSets===1?'':'s'}${warm.volume?` · ${compact(warm.volume)} kg load × reps`:''}.${receipt?` Working sets: ${working.sets} · ${compact(working.volume)} kg.`:' Warm-ups are excluded from working totals and records.'}</p>`;
+}
 function openReceipt(session){
-  const summary=Core.summarizeSession(session),prs=session.prs||[];
+  const summary=Core.summarizeSession(session),prs=Core.detectPRs(state.history,session);
   // Verdict layer (council 2026-07-28): the receipt reported totals but never DELTAS. One computed
   // headline of what changed today, one proof line, honest fallback on first exposure. NEXT SESSION
   // stays fully visible below (Codex wanted it collapsed; the anchor is never hidden).
@@ -2496,17 +2775,13 @@ function openReceipt(session){
     :v.considered?`${v.advanced} of ${v.considered} lift${v.considered===1?'':'s'} advanced${v.highlight?' · '+deltaText(v.highlight):''}`:'';
   const verdictBlock=v.verdict==='none'?'':`<div class="receipt-verdict receipt-verdict-${v.verdict}"><strong>${VERDICT_COPY[v.verdict]}</strong>${proof?`<small>${proof}</small>`:''}</div>`;
   // "Volume 0 kg" tells a calisthenics session it did nothing - name the work honestly instead.
-  const lines=[['Duration',summary.durationCapped?'not recorded':`${summary.durationMinutes} min`],['Sets',summary.completedSets],['Volume',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
+  const lines=[['Duration',summary.durationCapped?'not recorded':`${summary.durationMinutes} min`],['Sets logged',summary.completedSets],['Volume logged',summary.volume>0?`${compact(summary.volume)} kg`:'bodyweight'],['PRs',prs.length]];
   // Catch a forgotten load at the ONE moment it is still cheap to fix - before the session becomes
   // history and the number starts disagreeing with an identical session next week.
   const gaps=Core.loadGaps(state.history.filter(x=>x.id!==session.id),session);
-  const workBlock=workBreakdown(Core.sessionWork(session));
+  const workBlock=workBreakdown(Core.sessionWork(session))+sessionWarmupNote(session,true);
   const gapBlock=gaps.length?`<div class="receipt-gap"><strong>${gaps.length} lift${gaps.length===1?'':'s'} logged without a load</strong><small>${gaps.map(g=>`${esc(exerciseById(g.exerciseId)?.name||'A lift')} · last time ${g.lastWeight} kg`).join(' · ')}. Your kg total leaves ${gaps.length===1?'it':'them'} out.</small></div>`:'';
-  const prBlocks=prs.map(pr=>{
-    const item=exerciseById(pr.exerciseId);
-    const parts=(pr.seconds?[`${pr.seconds} s hold`,pr.weight?`${pr.weight} kg`:'']:[pr.weight?`${pr.weight} kg top set`:'',pr.estimated1RM?`${pr.estimated1RM} kg est. 1-rep max`:'']).filter(Boolean).join(' · ')||'New best';
-    return `<div class="receipt-pr notched-left"><strong>${esc(item?.name||'Exercise')}</strong><small>${esc(parts)}</small></div>`;
-  }).join('');
+  const prBlocks=sessionRecordMarkup(session,prs);
   // NEXT SESSION prescription - the engagement anchor. Run against the just-finished history state.
   const pg=Core.painGate(state.history,null),step=Number(state.preferences.weightStep)||2.5;
   const nextRows=session.exercises.filter(ex=>ex.sets.some(s=>s.done)).map((ex,i)=>{
@@ -2530,7 +2805,7 @@ function closeReceipt(){const overlay=document.getElementById('receiptOverlay');
 function cancelWorkout(){
   document.getElementById('confirmContent').innerHTML=`<h2>Discard workout?</h2><p>This workout and all its sets will be permanently removed.</p><div class="confirm-actions"><button class="secondary-button" onclick="closeConfirm()">Keep it</button><button class="primary-button" style="background:var(--danger)" onclick="confirmCancelWorkout()">Discard</button></div>`;document.getElementById('confirmDialog').showModal();
 }
-function confirmCancelWorkout(){state.activeSession=null;saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
+function confirmCancelWorkout(){state.activeSession=null;clearSetEditing();saveState();clearInterval(activeTimer);clearInterval(restTimer);document.getElementById('restPill').classList.remove('show');closeConfirm();navigate('today');}
 function closeConfirm(){dismissDialog(document.getElementById('confirmDialog'));}
 
 let swapConfirmed=null; // 'keep' | 'discard' while a swap-with-logged-sets confirmation is open
@@ -2586,6 +2861,7 @@ function pickExercise(id){
     }
     if(ex){
       const keep=Math.max(1,ex.sets.length);
+      ex._logId=loggingId(); // swapped lift is a new instance; old Undo cannot cross into it
       ex.exerciseId=id;ex.sets=Array.from({length:keep},()=>({weight:'',reps:'',done:false}));
       delete ex.rir;delete ex.notes;
       forcedOpen.delete(swapTargetIndex);
@@ -2891,12 +3167,13 @@ function durationTile(summary){
 }
 function openHistory(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;
-  const summary=Core.summarizeSession(session);
+  const summary=Core.summarizeSession(session),earned=Core.detectPRs(state.history,session),working=Core.workingWork(session);
   // Volume honesty: kg only measures the lifts that carried a load, so say how many that was, and
   // name the lifts that were logged bare AFTER being loaded before - that gap IS the inconsistency.
-  const cover=Core.volumeCoverage(session),gaps=Core.loadGaps(state.history,session);
+  const prior=state.history.filter(s=>s.id!==session.id&&Number(s.started)<Number(session.started));
+  const cover=Core.volumeCoverage(session),gaps=Core.loadGaps(prior,session);
   const gapIds=new Set(gaps.map(g=>g.exerciseId));
-  const work=Core.sessionWork(session);
+  const work=Core.sessionWork(workingSessionCopy(session));
   // Two different situations wear the same shape, and only one of them is a mistake. A lift whose
   // load was FORGOTTEN reads as an omission; a hanging leg raise simply has no measurable load and
   // must never be described as if the lifter left something out.
@@ -2918,13 +3195,13 @@ function openHistory(id){
       :s.weight?`${s.weight} kg × ${s.reps||0}`
       :gapIds.has(ex.exerciseId)?`no load × ${s.reps||0}`
       :`${s.reps||0} reps`;
-    const line=sets.length?sets.map(cell).join(' · '):'No completed sets';
+    const line=sets.length?sets.map(set=>(set.warmup?'Warm-up: ':'')+cell(set)).join(' · '):'No completed sets';
     return `<div class="selected-row${gapIds.has(ex.exerciseId)?' row-gap':''}"><span><strong>${esc(item?.name||'Exercise')}</strong><small style="display:block;color:var(--muted)">${esc(line)}</small></span></div>`;
   }).join('');
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">${formatDate(session.started).toUpperCase()}</p><h2>${esc(session.name)}</h2></div><button class="close-button" onclick="closeSheet()">×</button></div>`
-    +`<div class="metric-grid">${durationTile(summary)}<div class="metric"><strong>${summary.completedSets}</strong><span>SETS</span></div><div class="metric"><strong>${compact(summary.volume)}</strong><span>KG</span></div></div>`
-    +workBreakdown(work)+coverNote+gapNote
-    +`<div class="selected-list">${rows}</div>`
+    +`<div class="metric-grid">${durationTile(summary)}<div class="metric"><strong>${working.sets}</strong><span>WORKING SETS</span></div><div class="metric"><strong>${compact(working.volume)}</strong><span>WORKING KG</span></div></div>`
+    +workBreakdown(work)+sessionWarmupNote(session)+coverNote+gapNote
+    +`<div class="selected-list">${rows}</div>${earned.length?`<p class="kicker">RECORDS EARNED</p><div class="receipt-prs">${sessionRecordMarkup(session,earned)}</div>`:''}`
     // Three stacked full-width buttons with no gap read as one cramped block (Mark 2026-08-05).
     // Grouped with real spacing, and the destructive action sits apart from the two safe ones.
     +`<div class="sheet-stack"><button class="secondary-button full-button" onclick="openHistoryEdit('${id}')">Edit sets</button>${historyLinkRow(session)}<button class="secondary-button full-button" onclick="saveHistoryAsRoutine('${id}')">Save as routine</button></div>`
@@ -2997,9 +3274,12 @@ function saveActiveAsRoutine(){
 // from memory is worse than editing - it destroys the timestamps and the PRs. So: edit in place.
 // The draft is a deep COPY; nothing touches history until Save, so Cancel is genuinely free.
 let historyDraft=null;
+let historySetUndo=[];
 function openHistoryEdit(id){
   const session=state.history.find(s=>s.id===id);if(!session)return;
   historyDraft=JSON.parse(JSON.stringify(session));
+  historySetUndo=[];
+  for(const ex of historyDraft.exercises||[]){ex._logId=loggingId();for(const set of ex.sets||[])set._logId=loggingId();}
   renderHistoryEdit();
 }
 function renderHistoryEdit(){
@@ -3026,7 +3306,7 @@ function renderHistoryEdit(){
   document.getElementById('sheetContent').innerHTML=`<div class="sheet-head"><div><p class="kicker">FIX A MISTAKE</p><h2>Edit ${esc(d.name)}</h2></div><button class="close-button" onclick="openHistory('${esc(d.id)}')">×</button></div>`
     +`<p class="he-live"><strong>${compact(live.volume)} kg</strong> · ${live.completedSets} sets · ${cover.loaded} of ${cover.total} lifts carrying a load</p>`
     +`<p class="he-help">Correct any weight or rep count below. A set with no reps logs as done but adds nothing to your total - that is usually the mistake.</p>`
-    +`<div class="he-list">${rows}</div>`
+    +`${historySetUndo.length?'<div class="set-undo" role="status"><span>Set removed from draft</span><button onclick="undoHistorySet()">Undo</button></div>':''}<div class="he-list">${rows}</div>`
     +`<div class="sheet-stack"><button class="primary-button full-button" onclick="saveHistoryEdit()">Save changes</button>`
     +`<button class="secondary-button full-button" onclick="openHistory('${esc(d.id)}')">Cancel</button></div>`;
   document.getElementById('sheet').showModal();
@@ -3048,8 +3328,15 @@ function addHistorySet(ei){
   renderHistoryEdit();
 }
 function removeHistorySet(ei,si){
-  const ex=historyDraft?.exercises?.[ei];if(!ex)return;
+  const ex=historyDraft?.exercises?.[ei];if(!ex?.sets[si])return;
+  historySetUndo.push({exercise:ex._logId,row:copyLogRow(ex.sets[si]),index:si,before:ex.sets[si-1]?._logId,after:ex.sets[si+1]?._logId});
   ex.sets.splice(si,1);
+  renderHistoryEdit();
+}
+function undoHistorySet(){
+  const op=historySetUndo.pop(),ex=historyDraft?.exercises.find(ex=>ex._logId===op?.exercise);if(!ex)return;
+  const before=ex.sets.findIndex(row=>row._logId===op.before),after=ex.sets.findIndex(row=>row._logId===op.after);
+  ex.sets.splice(after>=0?after:before>=0?before+1:Math.min(op.index,ex.sets.length),0,copyLogRow(op.row));
   renderHistoryEdit();
 }
 function saveHistoryEdit(){
@@ -3217,7 +3504,9 @@ if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
       showUpdatePill(w);
       let since=null;try{since=JSON.parse(localStorage.getItem(WAIT_KEY)||'null');}catch{}
       if(!since||since.build!==BUILD||typeof since.at!=='number'){since={build:BUILD,at:Date.now()};try{localStorage.setItem(WAIT_KEY,JSON.stringify(since));}catch{}}
-      if(coldOpen&&Math.max(0,Date.now()-since.at)>STALE_MS){try{localStorage.removeItem(WAIT_KEY);}catch{}applyUpdate();}
+      // A cold browser open can still resume a saved workout. Keep that session, and any
+      // profile gate, in place until the user deliberately chooses the update pill.
+      if(coldOpen&&!state.activeSession&&!lockGate&&!bootNeedsName&&Math.max(0,Date.now()-since.at)>STALE_MS){try{localStorage.removeItem(WAIT_KEY);}catch{}applyUpdate();}
     };
     if(reg.waiting&&navigator.serviceWorker.controller)offer(reg.waiting,true);
     reg.addEventListener('updatefound',()=>{const w=reg.installing;if(!w)return;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)offer(w,false);});});
@@ -3387,6 +3676,7 @@ function enterProfile(id){
 }
 // The actual swap: persist active pointer, re-point state + sync (token reset), reset transient UI, re-render.
 function commitSwitch(id){
+  clearProfileSetUndo();historyDraft=null;historySetUndo=[];
   Profiles.setActive(localStorage,id);
   activeProfileId=id;
   stateKey=Profiles.stateKeyFor(id);
@@ -3668,6 +3958,7 @@ window.addEventListener('storage',event=>{
   if(!Profiles||event.key!==Profiles.PROFILES_KEY)return;
   const reg=Profiles.getRegistry(localStorage);if(!reg)return;
   if(reg.activeId!==activeProfileId){
+    clearProfileSetUndo();historyDraft=null;historySetUndo=[];
     activeProfileId=reg.activeId;
     stateKey=Profiles.stateKeyFor(activeProfileId);
     if(Sync&&Sync.setUser)Sync.setUser(Profiles.syncKeyFor(activeProfileId));

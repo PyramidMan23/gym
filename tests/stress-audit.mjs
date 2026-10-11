@@ -159,8 +159,8 @@ try {
   const pr = await evaluate(`state.history[0].prs[0]`);
   ok('timed: longer hold is a PR', pr && pr.seconds === 90, JSON.stringify(pr));
   ok('timed: PR carries no estimated 1RM', pr && pr.estimated1RM === undefined, JSON.stringify(pr));
-  const feedText = await evaluate(`(()=>{navigate('progress');renderProgress();return document.getElementById('prFeed').textContent;})()`);
-  ok('timed: PR feed reads in seconds', /90 s hold/.test(feedText), feedText.slice(0, 120));
+  const feedText = await evaluate(`(()=>{navigate('progress');setProgressTab('records');return document.getElementById('prFeed').textContent;})()`);
+  ok('timed: PR feed reads in seconds', /Best hold/.test(feedText) && /90 s/.test(feedText), feedText.slice(0, 120));
   ok('timed: PR feed shows no phantom 1RM', !/est\. 1-rep max/.test(feedText) || !/Dead Hang/.test(feedText.split('est.')[0].slice(-40)));
   // Progression target must be on the seconds axis.
   await evaluate(`startQuickWorkout(); addExerciseToWorkout('gr3'); true`);
@@ -178,7 +178,7 @@ try {
   await evaluate(`openExerciseDetail('gr3'); true`);
   const detail = await evaluate(`document.getElementById('sheetContent').textContent`);
   ok('timed: detail sheet drops REP RECORDS', !/REP RECORDS/.test(detail));
-  ok('timed: detail sheet trends hold time', /BEST HOLD/.test(detail));
+  ok('timed: detail sheet trends hold time', /Best hold/i.test(detail) && !/Estimated 1RM/i.test(detail));
   await evaluate(`closeSheet(); true`);
 
   // ---------- 6. Rep-based exercises still behave ----------
@@ -237,9 +237,9 @@ try {
 
   // ---------- 9b. Declared goals, end to end ----------
   await freshWorkout();
-  await evaluate(`(()=>{state.activeSession=null;state.goals=[];state.history=[];state.bodyweight=[];saveState();navigate('progress');renderProgress();return true})()`);
+  await evaluate(`(()=>{state.activeSession=null;state.goals=[];state.history=[];state.bodyweight=[];saveState();navigate('progress');setProgressTab('week');return true})()`);
   const emptyGoals = await evaluate(`document.getElementById('goalBoard').textContent`);
-  ok('goals: empty state invites a first goal', /No goals yet/.test(emptyGoals), emptyGoals.slice(0, 60));
+  ok('goals: empty state invites a first goal', /Add a goal/.test(emptyGoals), emptyGoals.slice(0, 60));
   // Strength goal via the real sheet flow (type picker -> exercise picker -> target -> save).
   await evaluate(`openGoalSheet(); true`);
   await waitFor(`document.getElementById('sheet').open && !!document.querySelector('.goal-types')`);
@@ -309,9 +309,9 @@ try {
   ok('bodyweight: receipt names the work instead of 0 kg', /bodyweight/i.test(receiptText) && !/0 kg/.test(receiptText), receiptText.slice(0, 120));
   await evaluate(`closeReceipt(); true`);
   await evaluate(`(()=>{navigate('progress');renderProgress();return true})()`);
-  const stats = await evaluate(`document.getElementById('progressStats').textContent`);
-  ok('bodyweight: lifetime metric switches to sets when there are no kilos', /LIFETIME SETS/.test(stats), stats.slice(0, 90));
-  const histText = await evaluate(`document.getElementById('historyList').textContent`);
+  const stats = await evaluate(`document.getElementById('weekPane').textContent`);
+  ok('bodyweight: overview reports working sets and unweighted reps independently', /Working sets/i.test(stats) && /12 reps without a measured load/.test(stats), stats.slice(0, 220));
+  const histText = await evaluate(`(()=>{setProgressTab('records');return document.getElementById('historyList').textContent})()`);
   ok('bodyweight: history card drops the empty kg chip', !/0 kg/.test(histText), histText.slice(0, 90));
 
   // ---------- 9d. Cloud backup is self-serve ----------

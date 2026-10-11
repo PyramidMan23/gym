@@ -61,7 +61,9 @@ test('duplicate rows in the session being judged produce ONE record, from all th
     { exerciseId: 'ch1', sets: [set(50, 5)] },
     { exerciseId: 'ch1', sets: [set(100, 5)] }
   ] };
-  const prs = Core.detectPRs([], today);
+  assert.deepEqual(Core.detectPRs([], today), [], 'first exposure is a baseline');
+  const prior = [session('prior', 1, [{ exerciseId: 'ch1', sets: [set(40, 5)] }])];
+  const prs = Core.detectPRs(prior, today);
   assert.equal(prs.length, 1);
   assert.equal(prs[0].weight, 100);
 });
@@ -70,16 +72,16 @@ test('duplicate rows in the session being judged produce ONE record, from all th
 test('a timed PR records one real set, never a stitched weight+seconds pair', () => {
   Core.setTimedExercises(['co1']);
   const today = { exercises: [{ exerciseId: 'co1', sets: [set(20, 5), set('', 60)] }] };
-  const prs = Core.detectPRs([], today);
+  assert.deepEqual(Core.detectPRs([], today), [], 'first observations establish baselines');
+  const prior = [session('h1', 1000, [{ exerciseId: 'co1', sets: [set(25, 5), set('', 30)] }])];
+  const prs = Core.detectPRs(prior, today);
   assert.equal(prs.length, 1);
   assert.equal(prs[0].seconds, 60);
-  assert.equal(prs[0].weight, 20, 'weight PR is real (20 kg held) - but the seconds belong to the bodyweight set');
-  // The pair {weight:20, seconds:60} was the OLD stitched lie only when weight did NOT beat prior.
-  const prior = [session('h1', 1000, [{ exerciseId: 'co1', sets: [set(25, 5)] }])];
-  const prs2 = Core.detectPRs(prior, today);
-  assert.equal(prs2.length, 1);
-  assert.equal(prs2[0].seconds, 60);
-  assert.equal(prs2[0].weight, 0, 'seconds-only PR carries the best-hold set weight (bodyweight), not another set 20 kg');
+  assert.equal(prs[0].weight, 0, '60 seconds was the actual unweighted hold');
+  assert.equal(prs[0].setIndex, 1);
+  assert.equal(prs[0].records[0].weight, 0);
+  // A previously unseen load is a baseline for time at that load, not a time PR.
+  assert.deepEqual(Core.detectPRs([session('x', 1, [{ exerciseId: 'co1', sets: [set(25, 5)] }])], today), []);
 });
 
 // ---- rebuildPRs: chronology after an edit ----
@@ -88,12 +90,12 @@ test('rebuildPRs judges every session only against the sessions before it', () =
   const feb = session('feb', 2000, [{ exerciseId: 'ch1', sets: [set(90, 5)] }]);
   // App order is newest-first.
   let history = Core.rebuildPRs([feb, jan]);
-  assert.equal(history.find(s => s.id === 'jan').prs.length, 1, 'first exposure sets the record');
+  assert.equal(history.find(s => s.id === 'jan').prs.length, 0, 'first exposure is a baseline');
   assert.equal(history.find(s => s.id === 'feb').prs.length, 1, '90 beats 80');
-  // Edit January up to 100: February's 90 is no longer a record; January still is.
+  // Edit January up to 100: February's 90 is no longer a record; January remains a baseline.
   const edited = history.map(s => s.id === 'jan' ? { ...s, exercises: [{ exerciseId: 'ch1', sets: [set(100, 5)] }] } : s);
   history = Core.rebuildPRs(edited);
-  assert.equal(history.find(s => s.id === 'jan').prs.length, 1);
+  assert.equal(history.find(s => s.id === 'jan').prs.length, 0);
   assert.equal(history.find(s => s.id === 'feb').prs.length, 0, 'the edit invalidated February\'s PR');
 });
 

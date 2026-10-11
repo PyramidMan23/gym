@@ -21,7 +21,7 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 BUILD="$(grep -o "w[0-9]*-[0-9a-z-]*" build.js | head -1)"
 # Every file the service worker lists, plus the icons it caches. Never `git archive` - that shipped
 # tests/ and the artifacts PNGs to the public web root once already.
-FILES=(index.html styles.css build.js core.js exercises.js profiles.js sync.js coach.js app.js
+FILES=(index.html styles.css logging.css progress.css build.js core.js exercises.js profiles.js sync.js coach.js app.js
        manifest.json sw.js icon.svg icon-maskable.svg icon-180.png icon-512.png icon-maskable-512.png)
 
 echo "== deploying ${BUILD} from ${BRANCH} =="
